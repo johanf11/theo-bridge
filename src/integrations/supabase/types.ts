@@ -14,16 +14,299 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      customers: {
+        Row: {
+          company_name: string
+          created_at: string
+          email: string
+          id: string
+          kyb_status: Database["public"]["Enums"]["kyb_status"]
+          phone: string | null
+          stellar_wallet_address: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_name: string
+          created_at?: string
+          email: string
+          id?: string
+          kyb_status?: Database["public"]["Enums"]["kyb_status"]
+          phone?: string | null
+          stellar_wallet_address?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_name?: string
+          created_at?: string
+          email?: string
+          id?: string
+          kyb_status?: Database["public"]["Enums"]["kyb_status"]
+          phone?: string | null
+          stellar_wallet_address?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      job_queue: {
+        Row: {
+          attempts: number
+          created_at: string
+          id: string
+          job_type: Database["public"]["Enums"]["job_type"]
+          last_error: string | null
+          max_attempts: number
+          payload: Json
+          result: Json | null
+          scheduled_for: string
+          status: Database["public"]["Enums"]["job_status"]
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          id?: string
+          job_type: Database["public"]["Enums"]["job_type"]
+          last_error?: string | null
+          max_attempts?: number
+          payload?: Json
+          result?: Json | null
+          scheduled_for?: string
+          status?: Database["public"]["Enums"]["job_status"]
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          id?: string
+          job_type?: Database["public"]["Enums"]["job_type"]
+          last_error?: string | null
+          max_attempts?: number
+          payload?: Json
+          result?: Json | null
+          scheduled_for?: string
+          status?: Database["public"]["Enums"]["job_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      orders: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          customer_id: string
+          failure_reason: string | null
+          forward_premium: number
+          funded_at: string | null
+          htg_amount: number
+          id: string
+          margin: number
+          quote_expires_at: string
+          rate: number
+          reference_number: string
+          released_at: string | null
+          spot_rate: number
+          status: Database["public"]["Enums"]["order_status"]
+          stellar_tx_hash: string | null
+          updated_at: string
+          usdc_amount: number
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          customer_id: string
+          failure_reason?: string | null
+          forward_premium?: number
+          funded_at?: string | null
+          htg_amount: number
+          id?: string
+          margin?: number
+          quote_expires_at: string
+          rate: number
+          reference_number: string
+          released_at?: string | null
+          spot_rate: number
+          status?: Database["public"]["Enums"]["order_status"]
+          stellar_tx_hash?: string | null
+          updated_at?: string
+          usdc_amount: number
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          customer_id?: string
+          failure_reason?: string | null
+          forward_premium?: number
+          funded_at?: string | null
+          htg_amount?: number
+          id?: string
+          margin?: number
+          quote_expires_at?: string
+          rate?: number
+          reference_number?: string
+          released_at?: string | null
+          spot_rate?: number
+          status?: Database["public"]["Enums"]["order_status"]
+          stellar_tx_hash?: string | null
+          updated_at?: string
+          usdc_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rate_snapshots: {
+        Row: {
+          captured_at: string
+          id: string
+          source: string
+          spot_rate: number
+        }
+        Insert: {
+          captured_at?: string
+          id?: string
+          source?: string
+          spot_rate: number
+        }
+        Update: {
+          captured_at?: string
+          id?: string
+          source?: string
+          spot_rate?: number
+        }
+        Relationships: []
+      }
+      spih_imports: {
+        Row: {
+          created_at: string
+          id: string
+          matched_rows: number
+          raw_data: Json | null
+          source: string
+          total_rows: number
+          unmatched_rows: number
+          uploaded_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          matched_rows?: number
+          raw_data?: Json | null
+          source: string
+          total_rows?: number
+          unmatched_rows?: number
+          uploaded_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          matched_rows?: number
+          raw_data?: Json | null
+          source?: string
+          total_rows?: number
+          unmatched_rows?: number
+          uploaded_by?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wallets: {
+        Row: {
+          created_at: string
+          customer_id: string | null
+          id: string
+          label: string | null
+          stellar_address: string
+          updated_at: string
+          usdc_balance: number
+          wallet_type: Database["public"]["Enums"]["wallet_type"]
+        }
+        Insert: {
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          label?: string | null
+          stellar_address: string
+          updated_at?: string
+          usdc_balance?: number
+          wallet_type: Database["public"]["Enums"]["wallet_type"]
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          label?: string | null
+          stellar_address?: string
+          updated_at?: string
+          usdc_balance?: number
+          wallet_type?: Database["public"]["Enums"]["wallet_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallets_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "customer"
+      job_status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED"
+      job_type: "SPIH_RECONCILE" | "USDC_RELEASE" | "STELLAR_CONFIRM"
+      kyb_status: "PENDING" | "APPROVED" | "REJECTED"
+      order_status:
+        | "CREATED"
+        | "QUOTED"
+        | "FUNDED"
+        | "RELEASING"
+        | "COMPLETED"
+        | "FAILED"
+        | "EXPIRED"
+        | "REFUNDED"
+      wallet_type: "TREASURY" | "CUSTOMER"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +433,22 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "customer"],
+      job_status: ["PENDING", "RUNNING", "COMPLETED", "FAILED"],
+      job_type: ["SPIH_RECONCILE", "USDC_RELEASE", "STELLAR_CONFIRM"],
+      kyb_status: ["PENDING", "APPROVED", "REJECTED"],
+      order_status: [
+        "CREATED",
+        "QUOTED",
+        "FUNDED",
+        "RELEASING",
+        "COMPLETED",
+        "FAILED",
+        "EXPIRED",
+        "REFUNDED",
+      ],
+      wallet_type: ["TREASURY", "CUSTOMER"],
+    },
   },
 } as const
