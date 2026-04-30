@@ -11,6 +11,10 @@ export default {
         display: ['"Playfair Display"', 'Georgia', 'serif'],
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },
+      letterSpacing: {
+        tightest: '-0.02em',
+        eyebrow: '0.18em',
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -28,10 +32,16 @@ export default {
         card: { DEFAULT: "hsl(var(--card))", foreground: "hsl(var(--card-foreground))" },
         theo: {
           blue: "hsl(var(--theo-blue))",
-          "blue-deep": "hsl(var(--theo-blue-deep))",
           "blue-soft": "hsl(var(--theo-blue-soft))",
+          "blue-chip": "hsl(var(--theo-blue-chip))",
           gold: "hsl(var(--theo-gold))",
+          "gold-soft": "hsl(var(--theo-gold-soft))",
           cyan: "hsl(var(--theo-cyan))",
+          "cyan-soft": "hsl(var(--theo-cyan-soft))",
+          cream: "hsl(var(--theo-cream))",
+          ink: "hsl(var(--theo-ink))",
+          mid: "hsl(var(--theo-mid))",
+          light: "hsl(var(--theo-light))",
         },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
