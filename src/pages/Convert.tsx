@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,8 +10,9 @@ import { toast } from "sonner";
 import { Calculator, Lock, ShieldCheck } from "lucide-react";
 import { useAuth, useRoles } from "@/lib/auth";
 
+type KybStatus = "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
 type CustomerProfile = {
-  kyb_status: "PENDING" | "APPROVED" | "REJECTED";
+  kyb_status: KybStatus;
   stellar_wallet_address: string | null;
 };
 
@@ -142,17 +143,26 @@ export default function Convert() {
               </div>
 
               {!canRequestQuote && (
-                <div className="rounded-xl border bg-muted/40 p-4 text-sm space-y-1">
+                <div className="rounded-xl border bg-muted/40 p-4 text-sm space-y-2">
                   <div className="flex items-center gap-2 font-medium">
-                    <ShieldCheck className="h-4 w-4 text-theo-blue" /> KYB approval required
+                    <ShieldCheck className="h-4 w-4 text-primary" /> KYB approval required
                   </div>
                   <p className="text-muted-foreground">
                     {profileLoading
                       ? "Checking your business verification status…"
-                      : "Your business account is still pending KYB approval, so quote requests are disabled for now."}
+                      : profile?.kyb_status === "UNDER_REVIEW"
+                      ? "Your KYB submission is under review. We'll email you once it's approved."
+                      : profile?.kyb_status === "REJECTED"
+                      ? "Your KYB needs changes. Please update your submission to continue."
+                      : "Submit your business details to unlock conversions."}
                   </p>
+                  {!profileLoading && (profile?.kyb_status === "PENDING" || profile?.kyb_status === "REJECTED") && (
+                    <Button asChild type="button" className="mt-1">
+                      <Link to="/kyb">{profile?.kyb_status === "REJECTED" ? "Update KYB" : "Start KYB"}</Link>
+                    </Button>
+                  )}
                   {isAdmin && !profileLoading && profile?.kyb_status !== "APPROVED" && (
-                    <Button type="button" variant="outline" className="mt-3" disabled={busy} onClick={approveTestKyb}>
+                    <Button type="button" variant="outline" className="mt-2" disabled={busy} onClick={approveTestKyb}>
                       Approve test KYB
                     </Button>
                   )}

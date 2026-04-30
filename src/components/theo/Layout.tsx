@@ -3,7 +3,7 @@ import { Logo } from "./Logo";
 import { Button } from "@/components/ui/button";
 import { useAuth, useRoles } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut, LayoutDashboard, ArrowLeftRight, Shield, Users, Wallet } from "lucide-react";
+import { LogOut, LayoutDashboard, ArrowLeftRight, Shield, Users, Wallet, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -32,11 +32,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <NavLink to="/convert" className={({ isActive }) => cn(navItem, isActive && navActive)}>
           <ArrowLeftRight className="h-4 w-4" /> Convert
         </NavLink>
+        <NavLink to="/kyb" className={({ isActive }) => cn(navItem, isActive && navActive)}>
+          <ShieldCheck className="h-4 w-4" /> Verification
+        </NavLink>
         {isAdmin && (
           <>
             <div className="mt-4 px-3 text-xs uppercase tracking-wider text-sidebar-foreground/60">Admin</div>
             <NavLink to="/admin/orders" className={({ isActive }) => cn(navItem, isActive && navActive)}>
               <Shield className="h-4 w-4" /> All Orders
+            </NavLink>
+            <NavLink to="/admin/kyb" className={({ isActive }) => cn(navItem, isActive && navActive)}>
+              <ShieldCheck className="h-4 w-4" /> KYB Review
             </NavLink>
             <NavLink to="/admin/pool" className={({ isActive }) => cn(navItem, isActive && navActive)}>
               <Wallet className="h-4 w-4" /> Pool
