@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,32 +6,103 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { fmtHTG, fmtRate, fmtUSDC } from "@/lib/format";
 import { toast } from "sonner";
-import { Calculator, Lock } from "lucide-react";
+import { Calculator, Lock, ShieldCheck } from "lucide-react";
+import { useAuth, useRoles } from "@/lib/auth";
+
+type CustomerProfile = {
+  kyb_status: "PENDING" | "APPROVED" | "REJECTED";
+  stellar_wallet_address: string | null;
+};
 
 export default function Convert() {
   const [usdc, setUsdc] = useState<string>("10000");
   const [busy, setBusy] = useState(false);
+  const [profile, setProfile] = useState<CustomerProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { isAdmin } = useRoles();
+
+  useEffect(() => {
+    if (!user) return;
+
+    let cancelled = false;
+    setProfileLoading(true);
+
+    supabase
+      .from("customers")
+      .select("kyb_status, stellar_wallet_address")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          toast.error("Could not load KYB status");
+          setProfile(null);
+        } else {
+          setProfile(data as CustomerProfile | null);
+        }
+        setProfileLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (profile?.kyb_status !== "APPROVED") {
+      toast.error("KYB approval is required before requesting quotes");
+      return;
+    }
     const amount = Number(usdc);
     if (!Number.isFinite(amount) || amount < 1000 || amount > 50000) {
       toast.error("Enter an amount between 1,000 and 50,000 USDC");
       return;
     }
+    try {
+      setBusy(true);
+      const { data, error } = await supabase.functions.invoke("create-quote", { body: { usdc_amount: amount } });
+      if (error || data?.error) {
+        toast.error(data?.error || error?.message || "Quote failed");
+        return;
+      }
+      toast.success(`Quote locked. Reference ${data.reference_number}`);
+      navigate(`/orders/${data.quote_id}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Quote failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const approveTestKyb = async () => {
+    if (!user) return;
+
     setBusy(true);
-    const { data, error } = await supabase.functions.invoke("create-quote", { body: { usdc_amount: amount } });
+    const { data, error } = await supabase
+      .from("customers")
+      .update({
+        kyb_status: "APPROVED",
+        stellar_wallet_address: profile?.stellar_wallet_address ?? "GTESTNETCUSTOMERPLACEHOLDER000000000000000000000000000000000",
+      })
+      .eq("user_id", user.id)
+      .select("kyb_status, stellar_wallet_address")
+      .maybeSingle();
     setBusy(false);
-    if (error || data?.error) {
-      toast.error(data?.error || error?.message || "Quote failed");
+
+    if (error) {
+      toast.error(error.message || "Could not approve KYB");
       return;
     }
-    toast.success(`Quote locked. Reference ${data.reference_number}`);
-    navigate(`/orders/${data.quote_id}`);
+
+    setProfile(data as CustomerProfile | null);
+    toast.success("KYB approved for testing");
   };
+
+  const canRequestQuote = profile?.kyb_status === "APPROVED" && !profileLoading;
 
   return (
     <AppLayout>
@@ -70,7 +141,25 @@ export default function Convert() {
                 <p className="text-muted-foreground">Your final HTG amount and a unique payment reference will be issued the moment you confirm.</p>
               </div>
 
-              <Button type="submit" size="lg" className="w-full" disabled={busy}>
+              {!canRequestQuote && (
+                <div className="rounded-xl border bg-muted/40 p-4 text-sm space-y-1">
+                  <div className="flex items-center gap-2 font-medium">
+                    <ShieldCheck className="h-4 w-4 text-theo-blue" /> KYB approval required
+                  </div>
+                  <p className="text-muted-foreground">
+                    {profileLoading
+                      ? "Checking your business verification status…"
+                      : "Your business account is still pending KYB approval, so quote requests are disabled for now."}
+                  </p>
+                  {isAdmin && !profileLoading && profile?.kyb_status !== "APPROVED" && (
+                    <Button type="button" variant="outline" className="mt-3" disabled={busy} onClick={approveTestKyb}>
+                      Approve test KYB
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              <Button type="submit" size="lg" className="w-full" disabled={busy || !canRequestQuote}>
                 {busy ? "Generating quote…" : "Get quote"}
               </Button>
             </CardContent>
