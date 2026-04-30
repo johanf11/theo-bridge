@@ -10,7 +10,8 @@ import { ArrowRight, Wallet } from "lucide-react";
 import { StatusBadge } from "@/components/theo/StatusBadge";
 
 type Customer = {
-  id: string; company_name: string; kyb_status: "PENDING" | "APPROVED" | "REJECTED";
+  id: string; company_name: string;
+  kyb_status: "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
   stellar_wallet_address: string | null;
 };
 type Order = { id: string; status: string; usdc_amount: number; htg_amount: number; reference_number: string; created_at: string };
@@ -46,12 +47,31 @@ export default function Dashboard() {
 
       {customer && customer.kyb_status !== "APPROVED" && (
         <Card className="mb-6 border-warning/40 bg-warning/5">
-          <CardContent className="py-4 flex items-center justify-between">
+          <CardContent className="py-4 flex items-center justify-between gap-4 flex-wrap">
             <div>
-              <div className="font-semibold">KYB review {customer.kyb_status.toLowerCase()}</div>
-              <p className="text-sm text-muted-foreground">You'll be able to request quotes once your business is approved.</p>
+              <div className="font-semibold">
+                {customer.kyb_status === "UNDER_REVIEW"
+                  ? "KYB under review"
+                  : customer.kyb_status === "REJECTED"
+                  ? "KYB needs changes"
+                  : "Complete your business verification"}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {customer.kyb_status === "UNDER_REVIEW"
+                  ? "We'll email you once your business is approved. This usually takes one business day."
+                  : customer.kyb_status === "REJECTED"
+                  ? "Please update your submission to continue."
+                  : "You'll be able to request quotes once your business is approved."}
+              </p>
             </div>
-            <Badge variant="outline">{customer.kyb_status}</Badge>
+            <div className="flex items-center gap-3">
+              <Badge variant="outline">{customer.kyb_status.replace("_", " ")}</Badge>
+              {(customer.kyb_status === "PENDING" || customer.kyb_status === "REJECTED") && (
+                <Button asChild size="sm">
+                  <Link to="/kyb">{customer.kyb_status === "REJECTED" ? "Update KYB" : "Start KYB"}</Link>
+                </Button>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}
