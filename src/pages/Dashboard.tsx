@@ -77,13 +77,13 @@ export default function Dashboard() {
       )}
 
       <div className="grid md:grid-cols-3 gap-4 mb-8">
-        <Card className="bg-gradient-hero text-white border-0 shadow-elegant md:col-span-2">
+        <Card className="bg-primary text-primary-foreground border-0 shadow-sm-soft md:col-span-2">
           <CardHeader>
-            <CardTitle className="font-display text-lg text-white/80 font-medium">USDC balance</CardTitle>
+            <p className="eyebrow eyebrow-on-dark">USDC balance</p>
           </CardHeader>
           <CardContent>
-            <div className="font-display text-5xl font-bold">{fmtUSDC(balance)}</div>
-            <div className="mt-3 text-sm text-white/70 flex items-center gap-2">
+            <div className="text-5xl font-bold tracking-tightest text-primary-foreground">{fmtUSDC(balance)}</div>
+            <div className="mt-3 text-sm text-primary-foreground/80 flex items-center gap-2">
               <Wallet className="h-4 w-4" />
               {customer?.stellar_wallet_address ?? "Wallet provisioning after KYB approval"}
             </div>
