@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Calculator, Lock, ShieldCheck } from "lucide-react";
-import { useAuth } from "@/lib/auth";
+import { useAuth, useRoles } from "@/lib/auth";
 
 type CustomerProfile = {
   kyb_status: "PENDING" | "APPROVED" | "REJECTED";
@@ -22,6 +22,7 @@ export default function Convert() {
   const [profileLoading, setProfileLoading] = useState(true);
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { isAdmin } = useRoles();
 
   useEffect(() => {
     if (!user) return;
@@ -77,6 +78,30 @@ export default function Convert() {
     }
   };
 
+  const approveTestKyb = async () => {
+    if (!user) return;
+
+    setBusy(true);
+    const { data, error } = await supabase
+      .from("customers")
+      .update({
+        kyb_status: "APPROVED",
+        stellar_wallet_address: profile?.stellar_wallet_address ?? "GTESTNETCUSTOMERPLACEHOLDER000000000000000000000000000000000",
+      })
+      .eq("user_id", user.id)
+      .select("kyb_status, stellar_wallet_address")
+      .maybeSingle();
+    setBusy(false);
+
+    if (error) {
+      toast.error(error.message || "Could not approve KYB");
+      return;
+    }
+
+    setProfile(data as CustomerProfile | null);
+    toast.success("KYB approved for testing");
+  };
+
   const canRequestQuote = profile?.kyb_status === "APPROVED" && !profileLoading;
 
   return (
@@ -126,6 +151,11 @@ export default function Convert() {
                       ? "Checking your business verification status…"
                       : "Your business account is still pending KYB approval, so quote requests are disabled for now."}
                   </p>
+                  {isAdmin && !profileLoading && profile?.kyb_status !== "APPROVED" && (
+                    <Button type="button" variant="outline" className="mt-3" disabled={busy} onClick={approveTestKyb}>
+                      Approve test KYB
+                    </Button>
+                  )}
                 </div>
               )}
 
