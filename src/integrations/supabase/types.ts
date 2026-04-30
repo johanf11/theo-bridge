@@ -16,34 +16,55 @@ export type Database = {
     Tables: {
       customers: {
         Row: {
+          business_type: string | null
           company_name: string
+          contact_name: string | null
+          country: string | null
           created_at: string
           email: string
           id: string
+          kyb_rejection_reason: string | null
           kyb_status: Database["public"]["Enums"]["kyb_status"]
+          kyb_submitted_at: string | null
+          legal_name: string | null
           phone: string | null
+          registration_number: string | null
           stellar_wallet_address: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          business_type?: string | null
           company_name: string
+          contact_name?: string | null
+          country?: string | null
           created_at?: string
           email: string
           id?: string
+          kyb_rejection_reason?: string | null
           kyb_status?: Database["public"]["Enums"]["kyb_status"]
+          kyb_submitted_at?: string | null
+          legal_name?: string | null
           phone?: string | null
+          registration_number?: string | null
           stellar_wallet_address?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          business_type?: string | null
           company_name?: string
+          contact_name?: string | null
+          country?: string | null
           created_at?: string
           email?: string
           id?: string
+          kyb_rejection_reason?: string | null
           kyb_status?: Database["public"]["Enums"]["kyb_status"]
+          kyb_submitted_at?: string | null
+          legal_name?: string | null
           phone?: string | null
+          registration_number?: string | null
           stellar_wallet_address?: string | null
           updated_at?: string
           user_id?: string
@@ -296,7 +317,7 @@ export type Database = {
       app_role: "admin" | "customer"
       job_status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED"
       job_type: "SPIH_RECONCILE" | "USDC_RELEASE" | "STELLAR_CONFIRM"
-      kyb_status: "PENDING" | "APPROVED" | "REJECTED"
+      kyb_status: "PENDING" | "APPROVED" | "REJECTED" | "UNDER_REVIEW"
       order_status:
         | "CREATED"
         | "QUOTED"
@@ -437,7 +458,7 @@ export const Constants = {
       app_role: ["admin", "customer"],
       job_status: ["PENDING", "RUNNING", "COMPLETED", "FAILED"],
       job_type: ["SPIH_RECONCILE", "USDC_RELEASE", "STELLAR_CONFIRM"],
-      kyb_status: ["PENDING", "APPROVED", "REJECTED"],
+      kyb_status: ["PENDING", "APPROVED", "REJECTED", "UNDER_REVIEW"],
       order_status: [
         "CREATED",
         "QUOTED",
