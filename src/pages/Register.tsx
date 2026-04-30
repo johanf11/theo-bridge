@@ -32,14 +32,14 @@ export default function Register() {
       email: form.email,
       password: form.password,
       options: {
-        emailRedirectTo: `${window.location.origin}/dashboard`,
+        emailRedirectTo: `${window.location.origin}/kyb`,
         data: { company_name: form.companyName, phone: form.phone },
       },
     });
     setBusy(false);
     if (error) { toast.error(error.message); return; }
-    toast.success("Account created. KYB review will follow.");
-    navigate("/dashboard");
+    toast.success("Account created. Let's verify your business.");
+    navigate("/kyb");
   };
 
   return (

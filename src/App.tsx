@@ -9,6 +9,8 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Convert from "./pages/Convert";
 import OrderStatus from "./pages/OrderStatus";
+import Kyb from "./pages/Kyb";
+import AdminKyb from "./pages/AdminKyb";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "@/components/theo/ProtectedRoute";
 
@@ -25,8 +27,10 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/kyb" element={<ProtectedRoute><Kyb /></ProtectedRoute>} />
           <Route path="/convert" element={<ProtectedRoute><Convert /></ProtectedRoute>} />
           <Route path="/orders/:id" element={<ProtectedRoute><OrderStatus /></ProtectedRoute>} />
+          <Route path="/admin/kyb" element={<ProtectedRoute adminOnly><AdminKyb /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
