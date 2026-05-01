@@ -6,16 +6,31 @@ import { ShieldCheck, Zap, Globe2 } from "lucide-react";
 export default function Landing() {
   return (
     <div className="min-h-screen bg-background">
-      <header className="container flex items-center justify-between py-6">
-        <Logo />
-        <nav className="flex items-center gap-3">
-          <Button asChild variant="ghost">
-            <Link to="/login">Sign in</Link>
-          </Button>
-          <Button asChild className="bg-secondary text-secondary-foreground hover:bg-secondary/90 rounded-[10px]">
-            <Link to="/register">Get started</Link>
-          </Button>
-        </nav>
+      <header className="border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-40">
+        <div className="container flex items-center justify-between h-16">
+          <Link to="/" aria-label="Theo home" className="flex items-center">
+            <Logo />
+          </Link>
+          <nav className="hidden md:flex items-center gap-8">
+            <a href="#features" className="text-sm font-medium text-foreground/80 hover:text-accent transition-colors">
+              Features
+            </a>
+            <a href="#features" className="text-sm font-medium text-foreground/80 hover:text-accent transition-colors">
+              How it works
+            </a>
+            <a href="#features" className="text-sm font-medium text-foreground/80 hover:text-accent transition-colors">
+              Pricing
+            </a>
+          </nav>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="ghost" className="text-foreground hover:bg-muted rounded-[10px]">
+              <Link to="/login">Sign in</Link>
+            </Button>
+            <Button asChild className="bg-secondary text-secondary-foreground hover:bg-secondary/90 rounded-[10px] font-semibold">
+              <Link to="/register">Get started</Link>
+            </Button>
+          </div>
+        </div>
       </header>
 
       {/* Hero — flat blue surface */}
