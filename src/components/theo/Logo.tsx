@@ -5,11 +5,12 @@ export function Logo({ className, variant = "dark" }: { className?: string; vari
     <div className={cn("flex items-center gap-2 font-display font-bold text-xl", className)}>
       <span
         aria-hidden
-        className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-gold text-theo-blue-deep font-bold"
+        className="inline-flex h-8 w-8 items-center justify-center bg-secondary text-secondary-foreground font-extrabold"
+        style={{ borderRadius: "22%" }}
       >
         T
       </span>
-      <span className={variant === "light" ? "text-white" : "text-theo-blue-deep"}>
+      <span className={cn("wordmark", variant === "light" && "!text-white")}>
         Theo
       </span>
     </div>
