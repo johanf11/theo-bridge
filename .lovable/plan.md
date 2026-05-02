@@ -1,73 +1,74 @@
-# Redesign Landing page
+## Goal
 
-## Problem
+Give the next engineer (and you) a single place to see how Theo is wired up:
+1. A new in-app **Architecture** page at `/architecture` rendering a Mermaid diagram + narrative.
+2. A repo-root **HANDOFF.md** with concrete next steps to push the project further (Stellar testnet release flow we discussed).
 
-The Landing page references stale design tokens (`bg-gradient-hero`, `bg-gradient-card`, `text-theo-blue-deep`, `shadow-elegant`, `shadow-card`) that no longer exist after the brand cleanup. Result: white text rendering on cream background (unreadable hero), washed-out feature cards, and a fallback yellow CTA with no contrast.
+---
 
-## Direction
+## 1. `/architecture` page
 
-Apply the Theo brand rules already in memory: flat color, blue + gold + cyan accents, cream page bg, white card surfaces, eyebrow + tagline patterns. Make the hero readable by inverting the surface (flat `bg-primary` blue with white text) instead of relying on a missing gradient.
+**File:** `src/pages/Architecture.tsx`
+- Wrap in `AppLayout` (matches Dashboard/Convert styling).
+- Brand-consistent: cream bg, eyebrow + Playfair tagline, gold rule, white cards.
+- Sections:
+  - **System overview** — Mermaid diagram (rendered via `mermaid` npm pkg, dynamic import, render on mount into a ref). Light/dark safe colors.
+  - **Data model** — table of core tables: `profiles`, `user_roles`, `kyb_submissions`, `orders`, `pool_balances` (read from `src/integrations/supabase/types.ts`).
+  - **Order state machine** — second Mermaid stateDiagram: `QUOTED → FUNDED → RELEASING → COMPLETED` with `EXPIRED`/`FAILED` branches.
+  - **Edge functions** — list `create-quote` (deployed) + planned `simulate-spih-payment`, `release-usdc`.
+  - **Env / secrets** — `STELLAR_DISTRIBUTOR_SECRET`, `STELLAR_USDC_ISSUER`, `LOVABLE_API_KEY` (already auto).
+- Admin-only? No — useful for any signed-in user. Gate with `ProtectedRoute` (no `adminOnly`).
 
-## Layout
+**Wiring:**
+- `src/App.tsx`: add `<Route path="/architecture" element={<ProtectedRoute><Architecture /></ProtectedRoute>} />`.
+- `src/components/theo/Layout.tsx`: add sidebar nav item "Architecture" (Lucide `Network` icon) under main section.
 
+**Dep:** `bun add mermaid` (small, ~600kb gz; dynamic import keeps it out of main chunk).
+
+---
+
+## 2. `HANDOFF.md` (repo root)
+
+Concise markdown, ~150 lines. Sections:
+
+- **What's built** — auth (email + Google), KYB submit/admin review, quote creation via `create-quote` edge fn, order status page with realtime, brand system in `index.css` + `tailwind.config.ts`.
+- **What's stubbed** — SPIH payment matching, USDC release on Stellar, admin orders/pool/customers pages (links exist, pages missing).
+- **Next milestone: end-to-end testnet flow**
+  1. Add secrets `STELLAR_DISTRIBUTOR_SECRET`, `STELLAR_USDC_ISSUER` (testnet issuer `GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5`).
+  2. Edge fn `simulate-spih-payment`: admin-only; flips `QUOTED → FUNDED`, enqueues release.
+  3. Edge fn `release-usdc`: builds + signs payment op via `@stellar/stellar-sdk`, submits to Horizon testnet, writes `stellar_tx_hash`, transitions to `COMPLETED`.
+  4. UI: admin "Simulate payment received" button on `OrderStatus`.
+  5. Friendbot the distributor account, establish USDC trustline (one-shot script in `scripts/stellar-bootstrap.ts`).
+- **Testing checklist** — create quote → simulate payment → verify tx on `stellar.expert/explorer/testnet`.
+- **Known risks** — quote expiry race, idempotency on release (use order id as memo + DB lock), RLS on `orders` already restricts to owner.
+- **File map** — short pointer list (pages, layout, auth, edge fns).
+
+---
+
+## Diagram (preview of system overview)
+
+```text
+Browser (React SPA)
+  ├─ Auth (Supabase) ──► profiles, user_roles
+  ├─ KYB form ─────────► kyb_submissions
+  ├─ Convert ──► edge: create-quote ──► orders (QUOTED)
+  └─ OrderStatus (realtime)
+         ▲                                    │
+         │                                    ▼
+   release-usdc ◄── simulate-spih-payment ──► orders (FUNDED→COMPLETED)
+         │
+         ▼
+   Stellar Horizon (testnet)
 ```
-┌─────────────────────────────────────────────────┐
-│  [T Theo]                  Sign in   Get started│  cream header
-├─────────────────────────────────────────────────┤
-│                                                 │
-│  ● BUILT FOR HAITIAN BUSINESSES   ┌───────────┐ │
-│                                   │ LIVE QUOTE│ │
-│  HTG to USDC.                     │           │ │
-│  Effortless. Compliant.           │ $10,000   │ │  flat blue
-│  ───  (gold rule)                 │ 1,350,000 │ │  surface
-│                                   │           │ │
-│  Convert Haitian Gourdes …        │ Rate ...  │ │
-│                                   └───────────┘ │
-│  [Open a business account] Sign in              │
-│                                                 │
-├─────────────────────────────────────────────────┤
-│  FEATURES (eyebrow)                             │
-│  Built for the way you move money               │  cream
-│                                                 │
-│  ┌────────┐  ┌────────┐  ┌────────┐             │  white cards
-│  │ icon   │  │ icon   │  │ icon   │             │  16px radius
-│  │ title  │  │ title  │  │ title  │             │
-│  │ body   │  │ body   │  │ body   │             │
-│  └────────┘  └────────┘  └────────┘             │
-└─────────────────────────────────────────────────┘
-```
 
-## Changes
+---
 
-**Hero section**
-- Replace `bg-gradient-hero` with flat `bg-primary` (Theo blue). White text now has full contrast.
-- Eyebrow chip: replace translucent pill with the standard `eyebrow eyebrow-on-dark` pattern (gold, 11px, tracked) above the headline.
-- Headline: keep "Effortless." in gold (`text-secondary`), rest in white. Add 40×3 gold rule beneath per brand pattern.
-- Body copy: white at 85% opacity for hierarchy.
-- Primary CTA: `bg-secondary text-secondary-foreground` (gold pill, blue text — matches memory rule "text on gold = blue").
-- Secondary CTA: ghost outline with white border at low opacity.
-- Quote card: white surface, blue numerals, cyan eyebrow "LIVE QUOTE", remove the cyan blur halo (no gradients/glows).
+## Files
 
-**Features section**
-- Move from gradient cards to flat white cards with `border` and `shadow-sm-soft`.
-- Add a proper section header: cyan eyebrow "WHY THEO" + Playfair italic tagline "Money that moves at business speed" + gold rule.
-- Icon tiles: `bg-theo-blue-soft text-primary`, rounded 22% (icon-tile pattern).
-- Titles in primary blue, body in `text-muted-foreground`.
+- create `src/pages/Architecture.tsx`
+- edit `src/App.tsx` (route)
+- edit `src/components/theo/Layout.tsx` (nav item)
+- edit `package.json` (+ `mermaid`)
+- create `HANDOFF.md`
 
-**Header & footer**
-- Header stays cream/transparent over the page bg; "Get started" CTA becomes the gold pill for consistency.
-- Footer: small muted text on cream, hairline `border-t border-border`.
-
-## Technical notes
-
-- Single file edit: `src/pages/Landing.tsx`.
-- Only semantic tokens (`bg-primary`, `text-secondary`, `bg-card`, `text-muted-foreground`) and brand utility classes already defined in `index.css` (`eyebrow`, `eyebrow-on-dark`, `tagline`, `gold-rule`, `shadow-sm-soft`).
-- Remove all references to deleted tokens: `bg-gradient-hero`, `bg-gradient-card`, `text-theo-blue-deep`, `shadow-elegant`, `shadow-card`, `bg-white/95`, `bg-white/10`, etc.
-- No new dependencies, no DB or backend changes.
-- Keep existing `animate-fade-in` entrance.
-
-## Out of scope
-
-- Adding new sections (testimonials, pricing, FAQ).
-- Imagery — brand rule forbids stock photos; keep illustration-free.
-- Mobile-only redesign — current responsive grid stays.
+No DB changes, no secrets required for this step.
