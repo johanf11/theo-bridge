@@ -170,8 +170,14 @@ export default function Landing() {
           </div>
 
           {/* Live quote card */}
-          <div className="md:justify-self-end w-full max-w-md">
-            <div className="bg-card text-card-foreground rounded-2xl p-7 shadow-lg-soft">
+          <motion.div
+            initial={{ opacity: 0, y: 30, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1], delay: 0.2 }}
+            whileHover={{ y: -4 }}
+            className="md:justify-self-end w-full max-w-md"
+          >
+            <div className="bg-card text-card-foreground rounded-2xl p-7 shadow-lg-soft transition-shadow hover:shadow-xl">
               <div className="inline-flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-accent animate-pulse-soft" />
                 <span className="eyebrow">Live Quote</span>
@@ -221,25 +227,7 @@ export default function Landing() {
                 <Link to="/register">Get This Rate →</Link>
               </Button>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Stats strip — gold */}
-      <div className="bg-secondary text-secondary-foreground">
-        <div className="container py-8 grid grid-cols-2 md:grid-cols-4 gap-6">
-          {stats.map((s) => (
-            <div key={s.l} className="text-center md:text-left">
-              <div className="text-2xl md:text-3xl font-extrabold tracking-tightest">
-                {s.v}
-              </div>
-              <div className="text-xs md:text-sm font-semibold mt-1 opacity-80 uppercase tracking-eyebrow">
-                {s.l}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+          </motion.div>
 
       {/* Features */}
       <section id="features" className="container py-20 md:py-28">
