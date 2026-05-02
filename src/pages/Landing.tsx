@@ -268,14 +268,23 @@ export default function Landing() {
           </p>
           <hr className="gold-rule mt-4" />
         </div>
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <motion.div
+          variants={stagger}
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, margin: "-80px" }}
+          className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
+        >
           {features.map(({ icon: Icon, title, body }) => (
-            <div
+            <motion.div
               key={title}
-              className="bg-card rounded-2xl p-7 border border-border shadow-sm-soft transition-shadow hover:shadow-md-soft"
+              variants={fadeUp}
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              whileHover={{ y: -6 }}
+              className="group bg-card rounded-2xl p-7 border border-border shadow-sm-soft transition-shadow hover:shadow-lg-soft hover:border-primary/20"
             >
               <div
-                className="h-12 w-12 bg-theo-blue-soft text-primary flex items-center justify-center mb-5"
+                className="h-12 w-12 bg-theo-blue-soft text-primary flex items-center justify-center mb-5 transition-transform duration-300 group-hover:scale-110 group-hover:bg-primary group-hover:text-primary-foreground"
                 style={{ borderRadius: "22%" }}
               >
                 <Icon className="h-5 w-5" strokeWidth={1.75} />
@@ -284,9 +293,9 @@ export default function Landing() {
               <p className="text-muted-foreground leading-relaxed text-sm">
                 {body}
               </p>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </section>
 
       {/* How it works — blue surface */}
@@ -304,11 +313,20 @@ export default function Landing() {
             </p>
             <hr className="gold-rule mt-4" />
           </div>
-          <div className="grid md:grid-cols-3 gap-6">
+          <motion.div
+            variants={stagger}
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true, margin: "-80px" }}
+            className="grid md:grid-cols-3 gap-6"
+          >
             {steps.map((s) => (
-              <div
+              <motion.div
                 key={s.n}
-                className="bg-primary-foreground/5 border border-primary-foreground/10 rounded-2xl p-7"
+                variants={fadeUp}
+                transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                whileHover={{ y: -6, backgroundColor: "hsl(var(--primary-foreground) / 0.08)" }}
+                className="bg-primary-foreground/5 border border-primary-foreground/10 rounded-2xl p-7 transition-colors"
               >
                 <div className="font-display italic font-extrabold text-5xl text-secondary leading-none mb-4">
                   {s.n}
@@ -319,9 +337,9 @@ export default function Landing() {
                 <p className="text-primary-foreground/70 leading-relaxed text-sm">
                   {s.body}
                 </p>
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
       </section>
 
