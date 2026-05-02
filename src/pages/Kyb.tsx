@@ -154,24 +154,23 @@ export default function Kyb() {
   return (
     <AppLayout>
       <div className="mb-8">
-        <p className="eyebrow text-theo-cyan">Onboarding</p>
-        <h1 className="font-display text-3xl md:text-4xl font-bold tracking-tightest">Business verification</h1>
-        <p className="text-muted-foreground mt-2 max-w-2xl">
-          We need a few details about your company to comply with regulations. This usually takes one business day.
+        <p className="eyebrow">Onboarding</p>
+        <h1 className="mt-2 text-3xl md:text-4xl font-extrabold tracking-tightest">Business verification</h1>
+        <hr className="gold-rule mt-3" />
+        <p className="text-muted-foreground mt-4 max-w-2xl">
+          We need a few details about your company. Usually takes one business day.
         </p>
       </div>
 
       <StatusCard status={status} reason={profile?.kyb_rejection_reason ?? null} submittedAt={profile?.kyb_submitted_at ?? null} />
 
-      <div className="grid md:grid-cols-3 gap-6 mt-6">
-        <form onSubmit={submit} className="md:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-display flex items-center gap-2">
-                <ShieldCheck className="h-5 w-5 text-primary" /> Company details
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5">
+      <div className="grid lg:grid-cols-[1fr,260px] gap-6 mt-6 items-start">
+        <form onSubmit={submit}>
+          <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-xs">
+            <div className="bg-muted px-6 py-4 flex items-center gap-2 text-primary font-semibold">
+              <ShieldCheck className="h-4 w-4" /> Company details
+            </div>
+            <div className="p-6 space-y-5">
               <div className="grid md:grid-cols-2 gap-4">
                 <Field label="Legal company name" id="legal_name" value={form.legal_name} onChange={(v) => setForm({ ...form, legal_name: v })} disabled={!editable} max={160} />
                 <Field label="Registration number" id="registration_number" value={form.registration_number} onChange={(v) => setForm({ ...form, registration_number: v })} disabled={!editable} max={80} />
@@ -220,20 +219,22 @@ export default function Kyb() {
                   Your submission is locked while it's {status === "UNDER_REVIEW" ? "under review" : "approved"}.
                 </p>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </form>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-display text-lg">What we check</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm text-muted-foreground">
-            <Item title="Business registration" body="We confirm your company is a legal entity in good standing." />
-            <Item title="Authorized signer" body="The contact you list will be our point of contact for compliance." />
-            <Item title="Business activity" body="To make sure your use case fits HTG ↔ USDC settlement." />
-          </CardContent>
-        </Card>
+        <aside className="bg-card rounded-2xl border border-border p-6 shadow-xs space-y-5">
+          <p className="eyebrow eyebrow-muted">What we check</p>
+          <div className="space-y-4 text-sm">
+            <Item title="Business registration" body="Confirm your company is a legal entity in good standing in its country of registration." />
+            <Item title="Authorized signer" body="The contact listed will be our compliance and transaction point of contact." />
+            <Item title="Business activity" body="To confirm your use case fits the HTG → USDC settlement product." />
+          </div>
+          <div className="pt-4 border-t border-border text-sm">
+            <div className="text-muted-foreground">Questions? Email</div>
+            <a href="mailto:kyb@theo.finance" className="text-accent font-semibold hover:underline">kyb@theo.finance</a>
+          </div>
+        </aside>
       </div>
     </AppLayout>
   );
@@ -244,8 +245,8 @@ function Field({
 }: { label: string; id: string; value: string; onChange: (v: string) => void; disabled?: boolean; max?: number; placeholder?: string }) {
   return (
     <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
-      <Input id={id} value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} maxLength={max} placeholder={placeholder} required />
+      <Label htmlFor={id} className="eyebrow eyebrow-muted">{label}</Label>
+      <Input id={id} value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} maxLength={max} placeholder={placeholder} required className="h-11 rounded-xl" />
     </div>
   );
 }
@@ -253,54 +254,60 @@ function Field({
 function Item({ title, body }: { title: string; body: string }) {
   return (
     <div>
-      <div className="font-medium text-foreground">{title}</div>
-      <div>{body}</div>
+      <div className="font-semibold text-primary">{title}</div>
+      <div className="text-muted-foreground mt-1 leading-snug">{body}</div>
     </div>
   );
 }
 
 function StatusCard({ status, reason, submittedAt }: { status: KybStatus; reason: string | null; submittedAt: string | null }) {
-  const map: Record<KybStatus, { icon: JSX.Element; tone: string; title: string; body: string }> = {
+  const map: Record<KybStatus, { icon: JSX.Element; title: string; body: string; pill: string; pillClass: string }> = {
     PENDING: {
       icon: <ShieldCheck className="h-5 w-5" />,
-      tone: "border-border bg-muted/40",
       title: "KYB not started",
       body: "Complete the form below to submit your business for review.",
+      pill: "Pending",
+      pillClass: "bg-secondary/30 text-primary border-secondary",
     },
     UNDER_REVIEW: {
       icon: <Clock className="h-5 w-5" />,
-      tone: "border-theo-cyan/40 bg-theo-cyan/5",
       title: "Under review",
       body: submittedAt
         ? `Submitted ${new Date(submittedAt).toLocaleString()}. We'll email you once it's approved.`
         : "Submitted. We'll email you once it's approved.",
+      pill: "Under review",
+      pillClass: "bg-accent/15 text-accent border-accent/40",
     },
     APPROVED: {
       icon: <CheckCircle2 className="h-5 w-5" />,
-      tone: "border-success/40 bg-success/5",
       title: "Approved",
       body: "You're cleared to convert HTG to USDC.",
+      pill: "Approved",
+      pillClass: "bg-success/15 text-success border-success/40",
     },
     REJECTED: {
       icon: <XCircle className="h-5 w-5" />,
-      tone: "border-destructive/40 bg-destructive/5",
       title: "Action needed",
       body: reason ?? "Your submission needs changes. Please update the details below and resubmit.",
+      pill: "Action needed",
+      pillClass: "bg-destructive/15 text-destructive border-destructive/40",
     },
   };
   const s = map[status];
   return (
-    <Card className={`border ${s.tone}`}>
-      <CardContent className="py-4 flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div className="text-primary">{s.icon}</div>
-          <div>
-            <div className="font-semibold">{s.title}</div>
-            <div className="text-sm text-muted-foreground">{s.body}</div>
-          </div>
+    <div className="bg-card rounded-2xl border border-border shadow-xs p-5 flex items-start justify-between gap-4">
+      <div className="flex items-start gap-4">
+        <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-muted text-primary">
+          {s.icon}
+        </span>
+        <div>
+          <div className="font-bold text-primary">{s.title}</div>
+          <div className="text-sm text-muted-foreground mt-0.5">{s.body}</div>
         </div>
-        <Badge variant="outline">{status.replace("_", " ")}</Badge>
-      </CardContent>
-    </Card>
+      </div>
+      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border ${s.pillClass}`}>
+        {s.pill}
+      </span>
+    </div>
   );
 }
