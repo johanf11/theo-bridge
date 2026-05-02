@@ -70,8 +70,8 @@ const stats = [
 export default function Landing() {
   return (
     <div className="min-h-screen bg-background">
-      {/* Nav — sits over the blue hero */}
-      <nav className="bg-primary text-primary-foreground">
+      {/* Nav — sticky, floats over the blue hero */}
+      <nav className="bg-primary/80 text-primary-foreground sticky top-0 z-40 backdrop-blur-md border-b border-primary-foreground/10">
         <div className="container flex items-center justify-between h-20">
           <Link to="/" aria-label="Theo home" className="flex items-center gap-2">
             <span
