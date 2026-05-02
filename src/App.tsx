@@ -11,6 +11,7 @@ import Convert from "./pages/Convert";
 import OrderStatus from "./pages/OrderStatus";
 import Kyb from "./pages/Kyb";
 import AdminKyb from "./pages/AdminKyb";
+import Architecture from "./pages/Architecture";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "@/components/theo/ProtectedRoute";
 
@@ -31,6 +32,7 @@ const App = () => (
           <Route path="/convert" element={<ProtectedRoute><Convert /></ProtectedRoute>} />
           <Route path="/orders/:id" element={<ProtectedRoute><OrderStatus /></ProtectedRoute>} />
           <Route path="/admin/kyb" element={<ProtectedRoute adminOnly><AdminKyb /></ProtectedRoute>} />
+          <Route path="/architecture" element={<ProtectedRoute><Architecture /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
