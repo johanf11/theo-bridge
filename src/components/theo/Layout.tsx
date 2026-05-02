@@ -3,7 +3,7 @@ import { Logo } from "./Logo";
 import { Button } from "@/components/ui/button";
 import { useAuth, useRoles } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut, LayoutDashboard, ArrowLeftRight, Shield, Users, Wallet, ShieldCheck } from "lucide-react";
+import { LogOut, LayoutDashboard, ArrowLeftRight, Shield, Users, Wallet, ShieldCheck, Network } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -34,6 +34,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </NavLink>
         <NavLink to="/kyb" className={({ isActive }) => cn(navItem, isActive && navActive)}>
           <ShieldCheck className="h-4 w-4" /> Verification
+        </NavLink>
+        <NavLink to="/architecture" className={({ isActive }) => cn(navItem, isActive && navActive)}>
+          <Network className="h-4 w-4" /> Architecture
         </NavLink>
         {isAdmin && (
           <>
