@@ -154,24 +154,23 @@ export default function Kyb() {
   return (
     <AppLayout>
       <div className="mb-8">
-        <p className="eyebrow text-theo-cyan">Onboarding</p>
-        <h1 className="font-display text-3xl md:text-4xl font-bold tracking-tightest">Business verification</h1>
-        <p className="text-muted-foreground mt-2 max-w-2xl">
-          We need a few details about your company to comply with regulations. This usually takes one business day.
+        <p className="eyebrow">Onboarding</p>
+        <h1 className="mt-2 text-3xl md:text-4xl font-extrabold tracking-tightest">Business verification</h1>
+        <hr className="gold-rule mt-3" />
+        <p className="text-muted-foreground mt-4 max-w-2xl">
+          We need a few details about your company. Usually takes one business day.
         </p>
       </div>
 
       <StatusCard status={status} reason={profile?.kyb_rejection_reason ?? null} submittedAt={profile?.kyb_submitted_at ?? null} />
 
-      <div className="grid md:grid-cols-3 gap-6 mt-6">
-        <form onSubmit={submit} className="md:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-display flex items-center gap-2">
-                <ShieldCheck className="h-5 w-5 text-primary" /> Company details
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5">
+      <div className="grid lg:grid-cols-[1fr,260px] gap-6 mt-6 items-start">
+        <form onSubmit={submit}>
+          <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-xs">
+            <div className="bg-muted px-6 py-4 flex items-center gap-2 text-primary font-semibold">
+              <ShieldCheck className="h-4 w-4" /> Company details
+            </div>
+            <div className="p-6 space-y-5">
               <div className="grid md:grid-cols-2 gap-4">
                 <Field label="Legal company name" id="legal_name" value={form.legal_name} onChange={(v) => setForm({ ...form, legal_name: v })} disabled={!editable} max={160} />
                 <Field label="Registration number" id="registration_number" value={form.registration_number} onChange={(v) => setForm({ ...form, registration_number: v })} disabled={!editable} max={80} />
