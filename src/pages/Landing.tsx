@@ -228,6 +228,31 @@ export default function Landing() {
               </Button>
             </div>
           </motion.div>
+        </div>
+      </section>
+
+      {/* Stats strip — gold */}
+      <div className="bg-secondary text-secondary-foreground">
+        <div className="container py-8 grid grid-cols-2 md:grid-cols-4 gap-6">
+          {stats.map((s, i) => (
+            <motion.div
+              key={s.l}
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{ duration: 0.5, delay: i * 0.08 }}
+              className="text-center md:text-left"
+            >
+              <div className="text-2xl md:text-3xl font-extrabold tracking-tightest">
+                {s.v}
+              </div>
+              <div className="text-xs md:text-sm font-semibold mt-1 opacity-80 uppercase tracking-eyebrow">
+                {s.l}
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
 
       {/* Features */}
       <section id="features" className="container py-20 md:py-28">
