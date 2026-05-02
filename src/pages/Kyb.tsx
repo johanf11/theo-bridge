@@ -245,8 +245,8 @@ function Field({
 }: { label: string; id: string; value: string; onChange: (v: string) => void; disabled?: boolean; max?: number; placeholder?: string }) {
   return (
     <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
-      <Input id={id} value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} maxLength={max} placeholder={placeholder} required />
+      <Label htmlFor={id} className="eyebrow eyebrow-muted">{label}</Label>
+      <Input id={id} value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} maxLength={max} placeholder={placeholder} required className="h-11 rounded-xl" />
     </div>
   );
 }
@@ -254,54 +254,60 @@ function Field({
 function Item({ title, body }: { title: string; body: string }) {
   return (
     <div>
-      <div className="font-medium text-foreground">{title}</div>
-      <div>{body}</div>
+      <div className="font-semibold text-primary">{title}</div>
+      <div className="text-muted-foreground mt-1 leading-snug">{body}</div>
     </div>
   );
 }
 
 function StatusCard({ status, reason, submittedAt }: { status: KybStatus; reason: string | null; submittedAt: string | null }) {
-  const map: Record<KybStatus, { icon: JSX.Element; tone: string; title: string; body: string }> = {
+  const map: Record<KybStatus, { icon: JSX.Element; title: string; body: string; pill: string; pillClass: string }> = {
     PENDING: {
       icon: <ShieldCheck className="h-5 w-5" />,
-      tone: "border-border bg-muted/40",
       title: "KYB not started",
       body: "Complete the form below to submit your business for review.",
+      pill: "Pending",
+      pillClass: "bg-secondary/30 text-primary border-secondary",
     },
     UNDER_REVIEW: {
       icon: <Clock className="h-5 w-5" />,
-      tone: "border-theo-cyan/40 bg-theo-cyan/5",
       title: "Under review",
       body: submittedAt
         ? `Submitted ${new Date(submittedAt).toLocaleString()}. We'll email you once it's approved.`
         : "Submitted. We'll email you once it's approved.",
+      pill: "Under review",
+      pillClass: "bg-accent/15 text-accent border-accent/40",
     },
     APPROVED: {
       icon: <CheckCircle2 className="h-5 w-5" />,
-      tone: "border-success/40 bg-success/5",
       title: "Approved",
       body: "You're cleared to convert HTG to USDC.",
+      pill: "Approved",
+      pillClass: "bg-success/15 text-success border-success/40",
     },
     REJECTED: {
       icon: <XCircle className="h-5 w-5" />,
-      tone: "border-destructive/40 bg-destructive/5",
       title: "Action needed",
       body: reason ?? "Your submission needs changes. Please update the details below and resubmit.",
+      pill: "Action needed",
+      pillClass: "bg-destructive/15 text-destructive border-destructive/40",
     },
   };
   const s = map[status];
   return (
-    <Card className={`border ${s.tone}`}>
-      <CardContent className="py-4 flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div className="text-primary">{s.icon}</div>
-          <div>
-            <div className="font-semibold">{s.title}</div>
-            <div className="text-sm text-muted-foreground">{s.body}</div>
-          </div>
+    <div className="bg-card rounded-2xl border border-border shadow-xs p-5 flex items-start justify-between gap-4">
+      <div className="flex items-start gap-4">
+        <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-muted text-primary">
+          {s.icon}
+        </span>
+        <div>
+          <div className="font-bold text-primary">{s.title}</div>
+          <div className="text-sm text-muted-foreground mt-0.5">{s.body}</div>
         </div>
-        <Badge variant="outline">{status.replace("_", " ")}</Badge>
-      </CardContent>
-    </Card>
+      </div>
+      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border ${s.pillClass}`}>
+        {s.pill}
+      </span>
+    </div>
   );
 }
