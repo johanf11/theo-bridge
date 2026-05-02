@@ -219,20 +219,22 @@ export default function Kyb() {
                   Your submission is locked while it's {status === "UNDER_REVIEW" ? "under review" : "approved"}.
                 </p>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </form>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-display text-lg">What we check</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm text-muted-foreground">
-            <Item title="Business registration" body="We confirm your company is a legal entity in good standing." />
-            <Item title="Authorized signer" body="The contact you list will be our point of contact for compliance." />
-            <Item title="Business activity" body="To make sure your use case fits HTG ↔ USDC settlement." />
-          </CardContent>
-        </Card>
+        <aside className="bg-card rounded-2xl border border-border p-6 shadow-xs space-y-5">
+          <p className="eyebrow eyebrow-muted">What we check</p>
+          <div className="space-y-4 text-sm">
+            <Item title="Business registration" body="Confirm your company is a legal entity in good standing in its country of registration." />
+            <Item title="Authorized signer" body="The contact listed will be our compliance and transaction point of contact." />
+            <Item title="Business activity" body="To confirm your use case fits the HTG → USDC settlement product." />
+          </div>
+          <div className="pt-4 border-t border-border text-sm">
+            <div className="text-muted-foreground">Questions? Email</div>
+            <a href="mailto:kyb@theo.finance" className="text-accent font-semibold hover:underline">kyb@theo.finance</a>
+          </div>
+        </aside>
       </div>
     </AppLayout>
   );
