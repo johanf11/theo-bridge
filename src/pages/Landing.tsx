@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
   Clock,
@@ -8,6 +9,16 @@ import {
   FileText,
   Lock,
 } from "lucide-react";
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 24 },
+  show: { opacity: 1, y: 0 },
+};
+
+const stagger = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.08 } },
+};
 
 const features = [
   {
@@ -159,8 +170,14 @@ export default function Landing() {
           </div>
 
           {/* Live quote card */}
-          <div className="md:justify-self-end w-full max-w-md">
-            <div className="bg-card text-card-foreground rounded-2xl p-7 shadow-lg-soft">
+          <motion.div
+            initial={{ opacity: 0, y: 30, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1], delay: 0.2 }}
+            whileHover={{ y: -4 }}
+            className="md:justify-self-end w-full max-w-md"
+          >
+            <div className="bg-card text-card-foreground rounded-2xl p-7 shadow-lg-soft transition-shadow hover:shadow-xl">
               <div className="inline-flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-accent animate-pulse-soft" />
                 <span className="eyebrow">Live Quote</span>
@@ -210,22 +227,29 @@ export default function Landing() {
                 <Link to="/register">Get This Rate →</Link>
               </Button>
             </div>
-          </div>
+          </motion.div>
         </div>
       </section>
 
       {/* Stats strip — gold */}
       <div className="bg-secondary text-secondary-foreground">
         <div className="container py-8 grid grid-cols-2 md:grid-cols-4 gap-6">
-          {stats.map((s) => (
-            <div key={s.l} className="text-center md:text-left">
+          {stats.map((s, i) => (
+            <motion.div
+              key={s.l}
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{ duration: 0.5, delay: i * 0.08 }}
+              className="text-center md:text-left"
+            >
               <div className="text-2xl md:text-3xl font-extrabold tracking-tightest">
                 {s.v}
               </div>
               <div className="text-xs md:text-sm font-semibold mt-1 opacity-80 uppercase tracking-eyebrow">
                 {s.l}
               </div>
-            </div>
+            </motion.div>
           ))}
         </div>
       </div>
@@ -244,14 +268,23 @@ export default function Landing() {
           </p>
           <hr className="gold-rule mt-4" />
         </div>
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <motion.div
+          variants={stagger}
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, margin: "-80px" }}
+          className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
+        >
           {features.map(({ icon: Icon, title, body }) => (
-            <div
+            <motion.div
               key={title}
-              className="bg-card rounded-2xl p-7 border border-border shadow-sm-soft transition-shadow hover:shadow-md-soft"
+              variants={fadeUp}
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              whileHover={{ y: -6 }}
+              className="group bg-card rounded-2xl p-7 border border-border shadow-sm-soft transition-shadow hover:shadow-lg-soft hover:border-primary/20"
             >
               <div
-                className="h-12 w-12 bg-theo-blue-soft text-primary flex items-center justify-center mb-5"
+                className="h-12 w-12 bg-theo-blue-soft text-primary flex items-center justify-center mb-5 transition-transform duration-300 group-hover:scale-110 group-hover:bg-primary group-hover:text-primary-foreground"
                 style={{ borderRadius: "22%" }}
               >
                 <Icon className="h-5 w-5" strokeWidth={1.75} />
@@ -260,9 +293,9 @@ export default function Landing() {
               <p className="text-muted-foreground leading-relaxed text-sm">
                 {body}
               </p>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </section>
 
       {/* How it works — blue surface */}
@@ -280,11 +313,20 @@ export default function Landing() {
             </p>
             <hr className="gold-rule mt-4" />
           </div>
-          <div className="grid md:grid-cols-3 gap-6">
+          <motion.div
+            variants={stagger}
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true, margin: "-80px" }}
+            className="grid md:grid-cols-3 gap-6"
+          >
             {steps.map((s) => (
-              <div
+              <motion.div
                 key={s.n}
-                className="bg-primary-foreground/5 border border-primary-foreground/10 rounded-2xl p-7"
+                variants={fadeUp}
+                transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                whileHover={{ y: -6, backgroundColor: "hsl(var(--primary-foreground) / 0.08)" }}
+                className="bg-primary-foreground/5 border border-primary-foreground/10 rounded-2xl p-7 transition-colors"
               >
                 <div className="font-display italic font-extrabold text-5xl text-secondary leading-none mb-4">
                   {s.n}
@@ -295,9 +337,9 @@ export default function Landing() {
                 <p className="text-primary-foreground/70 leading-relaxed text-sm">
                   {s.body}
                 </p>
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
       </section>
 
