@@ -133,18 +133,33 @@ export default function Balance() {
             Multi-wallet and multi-account overview.
           </div>
         </div>
-        <button
-          onClick={() => setOpen(true)}
-          className="flex items-center gap-1.5 font-bold text-white transition-colors"
-          style={{
-            background: "hsl(var(--theo-blue))", borderRadius: 7, padding: "6px 12px",
-            fontSize: 12, border: "none", cursor: "pointer", fontFamily: "inherit",
-          }}
-          onMouseEnter={e => (e.currentTarget.style.background = "#3E40B0")}
-          onMouseLeave={e => (e.currentTarget.style.background = "hsl(var(--theo-blue))")}
-        >
-          + Fund account
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setOpen(true)}
+            className="flex items-center gap-1.5 font-bold transition-colors"
+            style={{
+              background: "transparent", border: "1.5px solid hsl(var(--theo-blue))",
+              color: "hsl(var(--theo-blue))", borderRadius: 7, padding: "6px 12px",
+              fontSize: 12, cursor: "pointer", fontFamily: "inherit",
+            }}
+          >
+            + Fund wallet
+          </button>
+          <button
+            onClick={handleCreateAccount}
+            disabled={creating}
+            className="flex items-center gap-1.5 font-bold text-white transition-colors"
+            style={{
+              background: "hsl(var(--theo-blue))", borderRadius: 7, padding: "6px 12px",
+              fontSize: 12, border: "none", cursor: creating ? "wait" : "pointer",
+              fontFamily: "inherit", opacity: creating ? 0.7 : 1,
+            }}
+            onMouseEnter={e => !creating && (e.currentTarget.style.background = "#3E40B0")}
+            onMouseLeave={e => !creating && (e.currentTarget.style.background = "hsl(var(--theo-blue))")}
+          >
+            {creating ? "Creating..." : "+ Add account"}
+          </button>
+        </div>
       </div>
       <div className="mb-5" style={{ width: 28, height: 3, background: "hsl(var(--theo-gold))", borderRadius: 2, marginTop: 8 }} />
 
