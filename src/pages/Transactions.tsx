@@ -7,7 +7,7 @@ import { Download } from "lucide-react";
 
 type Order = {
   id: string; status: string; usdc_amount: number; htg_amount: number;
-  reference_number: string; created_at: string;
+  reference_number: string; created_at: string; stellar_tx_hash: string | null;
 };
 
 export default function Transactions() {
@@ -21,7 +21,7 @@ export default function Transactions() {
       setCustomerId(c.id);
       const { data: o } = await supabase
         .from("orders")
-        .select("id, status, usdc_amount, htg_amount, reference_number, created_at")
+        .select("id, status, usdc_amount, htg_amount, reference_number, created_at, stellar_tx_hash")
         .eq("customer_id", c.id)
         .order("created_at", { ascending: false });
       setOrders((o ?? []) as Order[]);
@@ -110,7 +110,7 @@ export default function Transactions() {
           <table className="w-full border-collapse">
             <thead>
               <tr style={{ background: "hsl(var(--theo-cream))" }}>
-                {["Date", "Type", "Amount (USDC)", "HTG Sent", "Network", "Status", "Reference"].map((h) => (
+                {["Date", "Type", "Amount (USDC)", "HTG Sent", "Network", "Status", "Reference", "Tx Hash"].map((h) => (
                   <th key={h} className="text-left px-5 py-2.5 border-b border-border" style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.10em", color: "hsl(var(--theo-mid))" }}>
                     {h}
                   </th>
@@ -135,6 +135,20 @@ export default function Transactions() {
                   <td className="px-5 py-3"><StatusBadge status={o.status} /></td>
                   <td className="px-5 py-3" style={{ fontFamily: "monospace", fontSize: 12, color: "hsl(var(--theo-mid))" }}>
                     {o.reference_number}
+                  </td>
+                  <td className="px-5 py-3" style={{ fontFamily: "monospace", fontSize: 12 }}>
+                    {o.stellar_tx_hash ? (
+                      <a
+                        href={`https://stellar.expert/explorer/testnet/tx/${o.stellar_tx_hash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: "hsl(var(--theo-cyan))", fontWeight: 600 }}
+                      >
+                        {o.stellar_tx_hash.slice(0, 8)}...{o.stellar_tx_hash.slice(-4)}
+                      </a>
+                    ) : (
+                      <span style={{ color: "hsl(var(--theo-mid))" }}>—</span>
+                    )}
                   </td>
                 </tr>
               ))}
