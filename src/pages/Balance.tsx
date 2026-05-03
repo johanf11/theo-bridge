@@ -12,22 +12,37 @@ export default function Balance() {
   const navigate = useNavigate();
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [total, setTotal] = useState(0);
+  const [stellarAddress, setStellarAddress] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
-      const { data: c } = await supabase.from("customers").select("id").maybeSingle();
+      const { data: c } = await supabase
+        .from("customers")
+        .select("id, stellar_wallet_address")
+        .maybeSingle();
       if (!c) return;
-      const { data: w } = await supabase
-        .from("wallets")
-        .select("id, label, usdc_balance, stellar_address, updated_at")
-        .eq("customer_id", c.id);
-      const ws = (w ?? []) as Wallet[];
-      setWallets(ws);
-      setTotal(ws.reduce((s, x) => s + Number(x.usdc_balance), 0));
+      setStellarAddress(c.stellar_wallet_address);
+
+      const [{ data: w }, { data: o }] = await Promise.all([
+        supabase
+          .from("wallets")
+          .select("id, label, usdc_balance, stellar_address, updated_at")
+          .eq("customer_id", c.id),
+        supabase
+          .from("orders")
+          .select("usdc_amount")
+          .eq("customer_id", c.id)
+          .eq("status", "COMPLETED"),
+      ]);
+
+      const completedTotal = (o ?? []).reduce((s, x) => s + Number(x.usdc_amount), 0);
+      setTotal(completedTotal);
+      setWallets((w ?? []) as Wallet[]);
     })();
   }, []);
 
   const walletColors = ["hsl(var(--theo-blue))", "#1A2966", "#0F1D54"];
+  const shortAddr = (a: string) => `${a.slice(0, 6)}...${a.slice(-4)}`;
 
   return (
     <AppLayout>
@@ -101,11 +116,11 @@ export default function Balance() {
                   ${Number(w.usdc_balance).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.50)", marginTop: 4 }}>USDC</div>
-                {w.stellar_address && (
+                {(w.stellar_address || stellarAddress) && (
                   <div className="flex items-center gap-1.5 mt-3">
                     <div className="rounded-full" style={{ width: 6, height: 6, background: "hsl(var(--theo-cyan))" }} />
                     <span style={{ fontSize: 11, color: "rgba(255,255,255,0.50)", fontWeight: 500 }}>
-                      Stellar · {w.stellar_address.slice(0, 6)}...{w.stellar_address.slice(-4)}
+                      Stellar · {shortAddr((w.stellar_address ?? stellarAddress)!)}
                     </span>
                   </div>
                 )}
@@ -116,7 +131,7 @@ export default function Balance() {
       ) : (
         <div className="grid gap-3 mb-5" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
           {[
-            { label: "Primary — Operations", balance: total, addr: "Provisioned after KYB" },
+            { label: "Primary — Operations", balance: total },
           ].map((w, i) => (
             <div key={i} className="relative overflow-hidden" style={{ borderRadius: 14, padding: 20, background: walletColors[0], minHeight: 120 }}>
               <div className="absolute pointer-events-none" style={{ top: -30, right: -30, width: 120, height: 120, borderRadius: "50%", background: "rgba(255,255,255,0.07)" }} />
@@ -127,7 +142,9 @@ export default function Balance() {
               <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.50)", marginTop: 4 }}>USDC</div>
               <div className="flex items-center gap-1.5 mt-3">
                 <div className="rounded-full" style={{ width: 6, height: 6, background: "hsl(var(--theo-cyan))" }} />
-                <span style={{ fontSize: 11, color: "rgba(255,255,255,0.50)", fontWeight: 500 }}>{w.addr}</span>
+                <span style={{ fontSize: 11, color: "rgba(255,255,255,0.50)", fontWeight: 500 }}>
+                  {stellarAddress ? `Stellar · ${shortAddr(stellarAddress)}` : "Provisioned after KYB"}
+                </span>
               </div>
             </div>
           ))}
@@ -150,12 +167,12 @@ export default function Balance() {
             </tr>
           </thead>
           <tbody>
-            {(wallets.length > 0 ? wallets : [{ id: "1", label: "Primary — Operations", usdc_balance: total, stellar_address: null, updated_at: "" }]).map((w, i) => (
+            {(wallets.length > 0 ? wallets : [{ id: "1", label: "Primary — Operations", usdc_balance: total, stellar_address: stellarAddress, updated_at: "" }]).map((w, i) => (
               <tr key={w.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
                 <td className="px-5 py-3" style={{ fontSize: 13, fontWeight: 600 }}>{w.label ?? `Wallet ${i + 1}`}</td>
                 <td className="px-5 py-3" style={{ fontFamily: "monospace", fontSize: 12, color: "hsl(var(--theo-mid))" }}>
-                  {w.stellar_address
-                    ? `${w.stellar_address.slice(0, 6)}...${w.stellar_address.slice(-4)}`
+                  {(w.stellar_address ?? stellarAddress)
+                    ? shortAddr((w.stellar_address ?? stellarAddress)!)
                     : "Provisioned after KYB"}
                 </td>
                 <td className="px-5 py-3" style={{ fontSize: 13, fontWeight: 700 }}>
