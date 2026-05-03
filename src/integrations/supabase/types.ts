@@ -268,6 +268,7 @@ export type Database = {
           label: string | null
           network: string
           stellar_address: string
+          stellar_secret: string | null
           updated_at: string
           usdc_balance: number
           wallet_type: Database["public"]["Enums"]["wallet_type"]
@@ -280,6 +281,7 @@ export type Database = {
           label?: string | null
           network?: string
           stellar_address: string
+          stellar_secret?: string | null
           updated_at?: string
           usdc_balance?: number
           wallet_type: Database["public"]["Enums"]["wallet_type"]
@@ -292,6 +294,7 @@ export type Database = {
           label?: string | null
           network?: string
           stellar_address?: string
+          stellar_secret?: string | null
           updated_at?: string
           usdc_balance?: number
           wallet_type?: Database["public"]["Enums"]["wallet_type"]

@@ -35,6 +35,25 @@ export default function Balance() {
   const [address, setAddress] = useState("");
   const [errors, setErrors] = useState<{ label?: string; stellar_address?: string }>({});
   const [saving, setSaving] = useState(false);
+  const [creating, setCreating] = useState(false);
+
+  const handleCreateAccount = async () => {
+    if (creating) return;
+    setCreating(true);
+    const { data, error } = await supabase.functions.invoke("create-wallet", {
+      body: { label: `Account ${new Date().toLocaleDateString()}` },
+    });
+    setCreating(false);
+    if (error) {
+      toast({ title: "Could not create account", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({
+      title: "Account created",
+      description: `Public key: ${(data as any)?.public_key?.slice(0, 12)}...`,
+    });
+    loadWallets();
+  };
 
   const loadWallets = async () => {
     setLoading(true);
@@ -133,18 +152,33 @@ export default function Balance() {
             Multi-wallet and multi-account overview.
           </div>
         </div>
-        <button
-          onClick={() => setOpen(true)}
-          className="flex items-center gap-1.5 font-bold text-white transition-colors"
-          style={{
-            background: "hsl(var(--theo-blue))", borderRadius: 7, padding: "6px 12px",
-            fontSize: 12, border: "none", cursor: "pointer", fontFamily: "inherit",
-          }}
-          onMouseEnter={e => (e.currentTarget.style.background = "#3E40B0")}
-          onMouseLeave={e => (e.currentTarget.style.background = "hsl(var(--theo-blue))")}
-        >
-          + Fund account
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setOpen(true)}
+            className="flex items-center gap-1.5 font-bold transition-colors"
+            style={{
+              background: "transparent", border: "1.5px solid hsl(var(--theo-blue))",
+              color: "hsl(var(--theo-blue))", borderRadius: 7, padding: "6px 12px",
+              fontSize: 12, cursor: "pointer", fontFamily: "inherit",
+            }}
+          >
+            + Fund wallet
+          </button>
+          <button
+            onClick={handleCreateAccount}
+            disabled={creating}
+            className="flex items-center gap-1.5 font-bold text-white transition-colors"
+            style={{
+              background: "hsl(var(--theo-blue))", borderRadius: 7, padding: "6px 12px",
+              fontSize: 12, border: "none", cursor: creating ? "wait" : "pointer",
+              fontFamily: "inherit", opacity: creating ? 0.7 : 1,
+            }}
+            onMouseEnter={e => !creating && (e.currentTarget.style.background = "#3E40B0")}
+            onMouseLeave={e => !creating && (e.currentTarget.style.background = "hsl(var(--theo-blue))")}
+          >
+            {creating ? "Creating..." : "+ Add account"}
+          </button>
+        </div>
       </div>
       <div className="mb-5" style={{ width: 28, height: 3, background: "hsl(var(--theo-gold))", borderRadius: 2, marginTop: 8 }} />
 
@@ -262,7 +296,7 @@ export default function Balance() {
             style={{ width: 440, maxWidth: "92vw", borderRadius: 16, padding: 28, boxShadow: "0 20px 60px rgba(0,0,0,0.18)" }}
           >
             <div className="font-extrabold mb-1" style={{ fontSize: 20, color: "hsl(var(--theo-blue))", letterSpacing: "-0.02em" }}>
-              Add wallet
+              Fund wallet
             </div>
             <div style={{ fontSize: 13, color: "hsl(var(--theo-mid))", marginBottom: 18 }}>
               Link an additional Stellar account to organize funds.
