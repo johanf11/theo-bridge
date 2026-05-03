@@ -4,6 +4,7 @@ import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Shield, Home, Bell, Lock, Users } from "lucide-react";
+import { WalletKeys } from "@/components/theo/WalletKeys";
 
 type Customer = { id: string; company_name: string; kyb_status: string };
 
