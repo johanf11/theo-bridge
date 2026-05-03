@@ -61,6 +61,15 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+    const destinationWallet = typeof body.destination_wallet_address === "string"
+      ? body.destination_wallet_address.trim()
+      : "";
+    if (destinationWallet && (!destinationWallet.startsWith("G") || destinationWallet.length < 50)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid destination_wallet_address" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     // Service-role client for trusted writes
     const admin = createClient(supabaseUrl, serviceKey);
@@ -109,6 +118,7 @@ Deno.serve(async (req) => {
         margin: MARGIN,
         reference_number: referenceNumber,
         quote_expires_at: expiresAt,
+        destination_wallet_address: destinationWallet || null,
       })
       .select()
       .single();

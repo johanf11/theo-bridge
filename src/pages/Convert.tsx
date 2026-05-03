@@ -8,6 +8,7 @@ import { useAuth, useRoles } from "@/lib/auth";
 type Tab = "on" | "off";
 type KybStatus = "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
 type Profile = { kyb_status: KybStatus; stellar_wallet_address: string | null };
+type WalletOption = { id: string; label: string; stellar_address: string };
 
 export default function Convert() {
   const navigate = useNavigate();
@@ -25,15 +26,41 @@ export default function Convert() {
   const [busy, setBusy] = useState(false);
   const [locked, setLocked] = useState(false);
   const [lockedRef, setLockedRef] = useState("");
+  const [walletOptions, setWalletOptions] = useState<WalletOption[]>([]);
+  const [selectedWallet, setSelectedWallet] = useState<string>("");
 
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
     setProfileLoading(true);
-    supabase.from("customers").select("kyb_status, stellar_wallet_address").eq("user_id", user.id).maybeSingle().then(({ data }) => {
+    supabase.from("customers").select("id, kyb_status, stellar_wallet_address").eq("user_id", user.id).maybeSingle().then(async ({ data }) => {
       if (cancelled) return;
       setProfile(data as Profile | null);
       setProfileLoading(false);
+
+      if (data?.id) {
+        const { data: ws } = await supabase
+          .from("wallets")
+          .select("id, label, stellar_address")
+          .eq("customer_id", data.id)
+          .order("created_at", { ascending: true });
+        if (cancelled) return;
+        const opts: WalletOption[] = (ws ?? []).map((w) => ({
+          id: w.id,
+          label: w.label ?? "Wallet",
+          stellar_address: w.stellar_address,
+        }));
+        const hasPrimary = opts.some((o) => o.stellar_address === data.stellar_wallet_address);
+        if (!hasPrimary && data.stellar_wallet_address) {
+          opts.unshift({
+            id: "primary",
+            label: "Primary — Operations",
+            stellar_address: data.stellar_wallet_address,
+          });
+        }
+        setWalletOptions(opts);
+        if (opts.length > 0) setSelectedWallet(opts[0].stellar_address);
+      }
     });
     supabase.from("rate_snapshots").select("spot_rate").order("captured_at", { ascending: false }).limit(1).maybeSingle().then(({ data }) => {
       if (cancelled || !data?.spot_rate) return;
@@ -71,9 +98,12 @@ export default function Convert() {
   const submit = async () => {
     if (!canQuote) { toast.error("KYB approval required"); return; }
     if (usdcRaw < 1000 || usdcRaw > 50000) { toast.error("Enter an amount between 1,000 and 50,000 USDC"); return; }
+    if (!selectedWallet) { toast.error("Please select a destination wallet"); return; }
     try {
       setBusy(true);
-      const { data, error } = await supabase.functions.invoke("create-quote", { body: { usdc_amount: usdcRaw } });
+      const { data, error } = await supabase.functions.invoke("create-quote", {
+        body: { usdc_amount: usdcRaw, destination_wallet_address: selectedWallet },
+      });
       if (error || data?.error) { toast.error(data?.error || error?.message || "Quote failed"); return; }
       setLocked(true);
       setLockedRef(data.reference_number);
@@ -185,8 +215,17 @@ export default function Convert() {
 
               <div style={{ marginBottom: 14 }}>
                 <label style={labelStyle}>Destination wallet</label>
-                <select style={{ ...inputStyle, appearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6B8A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: 28, cursor: "pointer" }}>
-                  <option>Primary — Operations</option>
+                <select
+                  value={selectedWallet}
+                  onChange={(e) => setSelectedWallet(e.target.value)}
+                  style={{ ...inputStyle, appearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6B8A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: 28, cursor: "pointer" }}
+                >
+                  {walletOptions.length === 0 && <option value="">No wallets available</option>}
+                  {walletOptions.map((w) => (
+                    <option key={w.id} value={w.stellar_address}>
+                      {w.label} — {w.stellar_address.slice(0, 6)}…{w.stellar_address.slice(-4)}
+                    </option>
+                  ))}
                 </select>
               </div>
 
