@@ -50,16 +50,9 @@ export default function Convert() {
           label: w.label ?? "Wallet",
           stellar_address: w.stellar_address,
         }));
-        const hasPrimary = opts.some((o) => o.stellar_address === data.stellar_wallet_address);
-        if (!hasPrimary && data.stellar_wallet_address) {
-          opts.unshift({
-            id: "primary",
-            label: "Primary — Operations",
-            stellar_address: data.stellar_wallet_address,
-          });
-        }
         setWalletOptions(opts);
         if (opts.length > 0) setSelectedWallet(opts[0].stellar_address);
+        else setSelectedWallet("");
       }
     });
     supabase.from("rate_snapshots").select("spot_rate").order("captured_at", { ascending: false }).limit(1).maybeSingle().then(({ data }) => {
@@ -215,18 +208,23 @@ export default function Convert() {
 
               <div style={{ marginBottom: 14 }}>
                 <label style={labelStyle}>Destination wallet</label>
-                <select
-                  value={selectedWallet}
-                  onChange={(e) => setSelectedWallet(e.target.value)}
-                  style={{ ...inputStyle, appearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6B8A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: 28, cursor: "pointer" }}
-                >
-                  {walletOptions.length === 0 && <option value="">No wallets available</option>}
-                  {walletOptions.map((w) => (
-                    <option key={w.id} value={w.stellar_address}>
-                      {w.label} — {w.stellar_address.slice(0, 6)}…{w.stellar_address.slice(-4)}
-                    </option>
-                  ))}
-                </select>
+                {walletOptions.length === 0 ? (
+                  <div style={{ ...inputStyle, display: "flex", alignItems: "center", color: "hsl(var(--theo-mid))", fontSize: 13 }}>
+                    No wallets yet — create one with “+ Add account” on the Balance page.
+                  </div>
+                ) : (
+                  <select
+                    value={selectedWallet}
+                    onChange={(e) => setSelectedWallet(e.target.value)}
+                    style={{ ...inputStyle, appearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6B8A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: 28, cursor: "pointer" }}
+                  >
+                    {walletOptions.map((w) => (
+                      <option key={w.id} value={w.stellar_address}>
+                        {w.label} — {w.stellar_address.slice(0, 6)}…{w.stellar_address.slice(-4)}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               {/* Live quote */}
