@@ -86,13 +86,13 @@ export default function OrderStatus() {
             <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground mb-2">
               Conversion order
             </div>
-            <h1 className="font-display text-3xl md:text-4xl font-extrabold text-theo-blue-deep tracking-tight">
+            <h1 className="font-display text-3xl md:text-4xl font-extrabold text-theo-blue tracking-tight">
               Order <span className="ml-2">{order.reference_number}</span>
             </h1>
             <div className="h-[3px] w-10 bg-theo-gold mt-3" />
           </div>
           {order.status === "QUOTED" && (
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-theo-gold-soft px-3 py-1.5 text-sm font-semibold text-theo-blue-deep">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-theo-gold-soft px-3 py-1.5 text-sm font-semibold text-theo-blue">
               <Hourglass className="h-3.5 w-3.5" /> Awaiting payment
             </div>
           )}
@@ -149,20 +149,20 @@ export default function OrderStatus() {
       {/* Quote details — gold highlight on USDC */}
       <div className="grid md:grid-cols-3 gap-4 mb-6">
         <div className="rounded-2xl bg-theo-gold p-5">
-          <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-theo-blue-deep/80">USDC</div>
-          <div className="font-display text-3xl font-extrabold text-theo-blue-deep mt-2 tracking-tight">
+          <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-theo-blue/80">USDC</div>
+          <div className="font-display text-3xl font-extrabold text-theo-blue mt-2 tracking-tight">
             {fmtUSDC(Number(order.usdc_amount))}
           </div>
         </div>
         <div className="rounded-2xl bg-card border p-5">
           <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">HTG due</div>
-          <div className="font-display text-3xl font-extrabold text-theo-blue-deep mt-2 tracking-tight">
+          <div className="font-display text-3xl font-extrabold text-theo-blue mt-2 tracking-tight">
             {fmtHTG(Number(order.htg_amount))}
           </div>
         </div>
         <div className="rounded-2xl bg-card border p-5">
           <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Rate</div>
-          <div className="font-display text-3xl font-extrabold text-theo-blue-deep mt-2 tracking-tight">
+          <div className="font-display text-3xl font-extrabold text-theo-blue mt-2 tracking-tight">
             {fmtRate(Number(order.rate))}
           </div>
         </div>
@@ -172,12 +172,12 @@ export default function OrderStatus() {
       {order.status === "QUOTED" && (
         <div className="rounded-2xl border bg-theo-blue-soft/60 mb-6 overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
-            <div className="flex items-center gap-2 font-display text-lg font-bold text-theo-blue-deep">
+            <div className="flex items-center gap-2 font-display text-lg font-bold text-theo-blue">
               <CreditCard className="h-4 w-4" /> Pay via SPIH
             </div>
             <div className={cn(
               "flex items-center gap-2 font-mono text-base font-semibold",
-              remaining < 60_000 ? "text-destructive" : "text-theo-blue-deep"
+              remaining < 60_000 ? "text-destructive" : "text-theo-blue"
             )}>
               <Clock className="h-4 w-4" /> {mm}:{ss}
               <span className="text-xs font-normal text-muted-foreground ml-1">remaining</span>
@@ -195,8 +195,8 @@ export default function OrderStatus() {
             </div>
 
             <div className="flex items-start gap-3 rounded-xl border border-theo-gold/40 bg-theo-gold-soft/60 p-4">
-              <AlertTriangle className="h-4 w-4 text-theo-blue-deep mt-0.5 shrink-0" />
-              <p className="text-sm text-theo-blue-deep">
+              <AlertTriangle className="h-4 w-4 text-theo-blue mt-0.5 shrink-0" />
+              <p className="text-sm text-theo-blue">
                 <span className="font-semibold">The reference must appear in the SPIH memo field exactly as shown.</span>{" "}
                 <span className="text-muted-foreground">Without it, your payment cannot be matched automatically.</span>
               </p>
@@ -239,7 +239,7 @@ export default function OrderStatus() {
       {(order.status === "FUNDED" || order.status === "RELEASING") && (
         <Card className="border-theo-cyan/30 bg-theo-blue-soft mb-6">
           <CardContent className="py-5">
-            <div className="font-display text-lg font-bold text-theo-blue-deep flex items-center gap-2 mb-1">
+            <div className="font-display text-lg font-bold text-theo-blue flex items-center gap-2 mb-1">
               <Loader2 className="h-5 w-5 animate-spin" />
               {order.status === "FUNDED" ? "Payment received" : "Releasing USDC"}
             </div>
@@ -290,7 +290,7 @@ function DetailRow({ label, value, copyable, onCopy }:
     <div className="bg-card rounded-xl p-4 border">
       <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
       <div className="flex items-center justify-between gap-2 mt-1.5">
-        <div className="font-mono text-sm font-semibold text-theo-blue-deep">{value}</div>
+        <div className="font-mono text-sm font-semibold text-theo-blue">{value}</div>
         {copyable && (
           <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground" onClick={() => onCopy?.(value)}>
             <Copy className="h-3.5 w-3.5" />
