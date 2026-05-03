@@ -33,7 +33,9 @@ export default function OrderStatus() {
   const { id } = useParams();
   const [order, setOrder] = useState<Order | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [simulating, setSimulating] = useState(false);
   const fetchedRef = useRef(false);
+  const { isAdmin } = useRoles();
 
   useEffect(() => {
     if (!id) return;
