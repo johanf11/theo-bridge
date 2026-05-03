@@ -176,7 +176,7 @@ export default function Balance() {
             ${total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
           <div style={{ fontSize: 13, color: "rgba(255,255,255,0.50)", marginTop: 4 }}>
-            USDC · Stellar testnet · Live from Horizon
+            USDC · Live · 1:1 verified
           </div>
         </div>
         <div className="flex items-center gap-1.5">
@@ -235,7 +235,7 @@ export default function Balance() {
                 <div className="flex items-center gap-1.5 mt-3">
                   <div className="rounded-full" style={{ width: 6, height: 6, background: "hsl(var(--theo-cyan))" }} />
                   <span style={{ fontSize: 11, color: "rgba(255,255,255,0.50)", fontWeight: 500 }}>
-                    Stellar · {shortAddr(w.stellar_address)}
+                    Active · 1:1 verified
                   </span>
                 </div>
               </div>
@@ -257,7 +257,7 @@ export default function Balance() {
           <table className="w-full border-collapse">
             <thead>
               <tr style={{ background: "hsl(var(--theo-cream))" }}>
-                {["Account", "Wallet address", "Balance", "Status"].map((h) => (
+                {["Account", "Account ID", "Balance", "Status"].map((h) => (
                   <th key={h} className="text-left px-5 py-2.5 border-b border-border" style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.10em", color: "hsl(var(--theo-mid))" }}>
                     {h}
                   </th>
@@ -266,27 +266,7 @@ export default function Balance() {
             </thead>
             <tbody>
               {wallets.map((w, i) => (
-                <tr key={w.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
-                  <td className="px-5 py-3" style={{ fontSize: 13, fontWeight: 600 }}>{w.label ?? `Wallet ${i + 1}`}</td>
-                  <td className="px-5 py-3" style={{ fontFamily: "monospace", fontSize: 12 }}>
-                    <a
-                      href={`https://stellar.expert/explorer/testnet/account/${w.stellar_address}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ color: "hsl(var(--theo-cyan))", fontWeight: 600, wordBreak: "break-all" }}
-                    >
-                      {w.stellar_address}
-                    </a>
-                  </td>
-                  <td className="px-5 py-3" style={{ fontSize: 13, fontWeight: 700 }}>
-                    ${(balances[w.id] ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })} USDC
-                  </td>
-                  <td className="px-5 py-3">
-                    <span className="rounded-full font-bold" style={{ background: "#EFFBF3", color: "#1A7F37", fontSize: 11, padding: "3px 8px" }}>
-                      Active
-                    </span>
-                  </td>
-                </tr>
+                <LedgerRow key={w.id} w={w} idx={i} balance={balances[w.id] ?? 0} />
               ))}
             </tbody>
           </table>
