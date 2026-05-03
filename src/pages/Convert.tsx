@@ -33,10 +33,34 @@ export default function Convert() {
     if (!user) return;
     let cancelled = false;
     setProfileLoading(true);
-    supabase.from("customers").select("kyb_status, stellar_wallet_address").eq("user_id", user.id).maybeSingle().then(({ data }) => {
+    supabase.from("customers").select("id, kyb_status, stellar_wallet_address").eq("user_id", user.id).maybeSingle().then(async ({ data }) => {
       if (cancelled) return;
       setProfile(data as Profile | null);
       setProfileLoading(false);
+
+      if (data?.id) {
+        const { data: ws } = await supabase
+          .from("wallets")
+          .select("id, label, stellar_address")
+          .eq("customer_id", data.id)
+          .order("created_at", { ascending: true });
+        if (cancelled) return;
+        const opts: WalletOption[] = (ws ?? []).map((w) => ({
+          id: w.id,
+          label: w.label ?? "Wallet",
+          stellar_address: w.stellar_address,
+        }));
+        const hasPrimary = opts.some((o) => o.stellar_address === data.stellar_wallet_address);
+        if (!hasPrimary && data.stellar_wallet_address) {
+          opts.unshift({
+            id: "primary",
+            label: "Primary — Operations",
+            stellar_address: data.stellar_wallet_address,
+          });
+        }
+        setWalletOptions(opts);
+        if (opts.length > 0) setSelectedWallet(opts[0].stellar_address);
+      }
     });
     supabase.from("rate_snapshots").select("spot_rate").order("captured_at", { ascending: false }).limit(1).maybeSingle().then(({ data }) => {
       if (cancelled || !data?.spot_rate) return;
