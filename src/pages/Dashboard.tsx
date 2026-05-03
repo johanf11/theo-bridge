@@ -7,7 +7,7 @@ import { fmtUSDC, fmtHTG } from "@/lib/format";
 import { Plus } from "lucide-react";
 
 type Customer = {
-  id: string; company_name: string; first_name: string | null;
+  id: string; company_name: string; contact_name: string | null;
   kyb_status: "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
 };
 type Order = {
