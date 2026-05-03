@@ -77,7 +77,7 @@ export default function Dashboard() {
     (async () => {
       const { data: c } = await supabase
         .from("customers")
-        .select("id, company_name, contact_name, kyb_status")
+        .select("id, company_name, contact_name, kyb_status, stellar_wallet_address")
         .maybeSingle();
       setCustomer(c as Customer | null);
       if (!c) return;
@@ -88,12 +88,11 @@ export default function Dashboard() {
         .order("created_at", { ascending: false })
         .limit(5);
       setOrders((o ?? []) as Order[]);
-      const { data: w } = await supabase
-        .from("wallets")
-        .select("usdc_balance")
-        .eq("customer_id", c.id)
-        .maybeSingle();
-      setBalance(Number(w?.usdc_balance ?? 0));
+      const total = await fetchTotalUsdcBalance(
+        c.id,
+        (c as any).stellar_wallet_address ?? null
+      );
+      setBalance(total);
     })();
   }, []);
 
