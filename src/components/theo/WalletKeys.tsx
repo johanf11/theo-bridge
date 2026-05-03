@@ -74,7 +74,7 @@ export function WalletKeys() {
     <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
       <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-border" style={{ background: "hsl(var(--theo-blue-soft))" }}>
         <KeyRound className="flex-shrink-0" style={{ width: 14, height: 14, stroke: "hsl(var(--theo-blue))", fill: "none", strokeWidth: 2 }} />
-        <div className="font-bold" style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>Wallet keys</div>
+        <div className="font-bold" style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>Account credentials</div>
       </div>
 
       <div className="px-5 py-4">

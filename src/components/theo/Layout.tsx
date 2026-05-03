@@ -11,7 +11,7 @@ const mainNav = [
   { to: "/transactions", label: "Transactions", icon: ArrowLeftRight },
   { to: "/balance", label: "Balance", icon: Wallet },
   { to: "/payout", label: "Payout", icon: SendHorizonal },
-  { to: "/convert", label: "On / Off Ramp", icon: TrendingUp },
+  { to: "/convert", label: "Convert", icon: TrendingUp },
 ];
 
 const SIDEBAR_BG = "#33359A";
