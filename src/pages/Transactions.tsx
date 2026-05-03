@@ -110,7 +110,7 @@ export default function Transactions() {
           <table className="w-full border-collapse">
             <thead>
               <tr style={{ background: "hsl(var(--theo-cream))" }}>
-                {["Date", "Type", "Amount (USDC)", "HTG Sent", "Network", "Status", "Reference", "Tx Hash"].map((h) => (
+                {["Date", "Type", "Amount (USDC)", "HTG Sent", "Network", "Status", "Reference", "Receipt ID"].map((h) => (
                   <th key={h} className="text-left px-5 py-2.5 border-b border-border" style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.10em", color: "hsl(var(--theo-mid))" }}>
                     {h}
                   </th>
@@ -129,7 +129,7 @@ export default function Transactions() {
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-1.5">
                       <div className="rounded-full" style={{ width: 8, height: 8, background: "hsl(var(--theo-cyan))", flexShrink: 0 }} />
-                      <span style={{ fontSize: 13 }}>Stellar</span>
+                      <span style={{ fontSize: 13 }}>Theo</span>
                     </div>
                   </td>
                   <td className="px-5 py-3"><StatusBadge status={o.status} /></td>

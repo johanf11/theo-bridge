@@ -140,7 +140,7 @@ export default function Dashboard() {
             ${balance.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </div>
           <div className="flex items-center gap-1 mt-1.5" style={{ fontSize: 11, fontWeight: 600, color: "#1A7F37" }}>
-            ↑ Stellar network
+            ↑ Theo network
           </div>
         </div>
         {/* White: converted */}
@@ -176,7 +176,7 @@ export default function Dashboard() {
             1.4 min
           </div>
           <div className="flex items-center gap-1 mt-1.5" style={{ fontSize: 11, fontWeight: 600, color: "#1A7F37" }}>
-            Stellar network
+            Theo network
           </div>
         </div>
       </div>
