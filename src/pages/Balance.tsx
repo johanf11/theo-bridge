@@ -3,7 +3,7 @@ import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
-import { fetchHorizonUsdcBalance, fetchTotalUsdcBalance } from "@/lib/balance";
+import { fetchHorizonUsdcBalance } from "@/lib/balance";
 
 type Wallet = {
   id: string;
@@ -90,15 +90,15 @@ export default function Balance() {
     const ws = (w ?? []) as Wallet[];
     setWallets(ws);
 
-    // Fetch live balances per wallet in parallel
+    // Fetch live Horizon balance per wallet — single source of truth
     const entries = await Promise.all(
       ws.map(async (x) => [x.id, await fetchHorizonUsdcBalance(x.stellar_address)] as const)
     );
     const balanceMap = Object.fromEntries(entries);
     setBalances(balanceMap);
 
-    // Hero total: live Horizon for primary KYB address, fallback to completed orders
-    const heroTotal = await fetchTotalUsdcBalance(c.id, c.stellar_wallet_address);
+    // Hero total = sum of the same per-wallet Horizon balances (always consistent with cards)
+    const heroTotal = Object.values(balanceMap).reduce((s, v) => s + v, 0);
     setTotal(heroTotal);
 
     setLoading(false);
