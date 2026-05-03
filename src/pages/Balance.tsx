@@ -3,6 +3,7 @@ import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
+import { fetchHorizonUsdcBalance, fetchTotalUsdcBalance } from "@/lib/balance";
 
 type Wallet = {
   id: string;
