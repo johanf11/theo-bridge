@@ -184,14 +184,14 @@ export default function OrderStatus() {
           <CardHeader>
             <CardTitle className="font-display flex items-center gap-2 text-theo-blue">
               <Loader2 className="h-5 w-5 animate-spin" />
-              {order.status === "FUNDED" ? "Payment received" : "Releasing USDC on Stellar testnet"}
+              {order.status === "FUNDED" ? "Payment received" : "Releasing USDC"}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
               {order.status === "FUNDED"
                 ? "Queued for release. This usually completes within a few seconds."
-                : "Submitting payment to Horizon. The Stellar transaction hash will appear here once confirmed."}
+                : "Confirming on the Theo network. Your receipt ID will appear here once confirmed."}
             </p>
           </CardContent>
         </Card>
@@ -202,12 +202,12 @@ export default function OrderStatus() {
         <Card className="border-success/30 bg-success/5 mb-6">
           <CardHeader><CardTitle className="font-display flex items-center gap-2 text-success"><CheckCircle2 className="h-5 w-5" /> USDC delivered</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            <div className="text-sm text-muted-foreground">Stellar transaction</div>
+            <div className="text-sm text-muted-foreground">Receipt ID</div>
             <div className="flex items-center gap-2 flex-wrap">
               <code className="text-xs bg-muted px-2 py-1 rounded break-all">{order.stellar_tx_hash}</code>
               <Button asChild size="sm" variant="outline">
                 <a href={`https://stellar.expert/explorer/testnet/tx/${order.stellar_tx_hash}`} target="_blank" rel="noreferrer">
-                  View <ExternalLink className="h-3 w-3 ml-1" />
+                  Verify payment <ExternalLink className="h-3 w-3 ml-1" />
                 </a>
               </Button>
             </div>

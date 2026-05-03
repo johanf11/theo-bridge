@@ -91,7 +91,7 @@ export default function Convert() {
   const submit = async () => {
     if (!canQuote) { toast.error("KYB approval required"); return; }
     if (usdcRaw < 1000 || usdcRaw > 50000) { toast.error("Enter an amount between 1,000 and 50,000 USDC"); return; }
-    if (!selectedWallet) { toast.error("Please select a destination wallet"); return; }
+    if (!selectedWallet) { toast.error("Please select a destination account"); return; }
     try {
       setBusy(true);
       const { data, error } = await supabase.functions.invoke("create-quote", {
@@ -111,11 +111,11 @@ export default function Convert() {
     if (!user) return;
     const existing = profile?.stellar_wallet_address ?? "";
     const wallet = window.prompt(
-      "Stellar testnet wallet address (G…) for USDC release:",
+      "Account ID for USDC release:",
       existing.startsWith("G") ? existing : "",
     );
     if (!wallet || !wallet.startsWith("G") || wallet.length < 50) {
-      toast.error("Valid Stellar G… address required");
+      toast.error("Valid account ID required");
       return;
     }
     setBusy(true);
@@ -156,7 +156,7 @@ export default function Convert() {
     <AppLayout>
       <div className="mb-1">
         <div className="font-extrabold" style={{ fontSize: 22, color: "hsl(var(--theo-blue))", letterSpacing: "-0.02em" }}>
-          On / Off Ramp
+          Convert
         </div>
         <div style={{ fontSize: 13, color: "hsl(var(--theo-mid))", marginTop: 2 }}>
           Fund your account or withdraw to a bank.
@@ -168,8 +168,8 @@ export default function Convert() {
         {/* Main form */}
         <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
           <div className="flex border-b border-border mb-4">
-            <button style={tabStyle("on")} onClick={() => setTab("on")}>On ramp — HTG to USDC</button>
-            <button style={tabStyle("off")} onClick={() => setTab("off")}>Off ramp — USDC to bank</button>
+            <button style={tabStyle("on")} onClick={() => setTab("on")}>HTG → USDC</button>
+            <button style={tabStyle("off")} onClick={() => setTab("off")}>USDC → Bank</button>
           </div>
 
           {tab === "on" ? (
@@ -207,10 +207,10 @@ export default function Convert() {
               </div>
 
               <div style={{ marginBottom: 14 }}>
-                <label style={labelStyle}>Destination wallet</label>
+                <label style={labelStyle}>Destination account</label>
                 {walletOptions.length === 0 ? (
                   <div style={{ ...inputStyle, display: "flex", alignItems: "center", color: "hsl(var(--theo-mid))", fontSize: 13 }}>
-                    No wallets yet — create one with “+ Add account” on the Balance page.
+                    No accounts yet — create one with “+ Add account” on the Balance page.
                   </div>
                 ) : (
                   <select
@@ -220,7 +220,7 @@ export default function Convert() {
                   >
                     {walletOptions.map((w) => (
                       <option key={w.id} value={w.stellar_address}>
-                        {w.label} — {w.stellar_address.slice(0, 6)}…{w.stellar_address.slice(-4)}
+                        {w.label}
                       </option>
                     ))}
                   </select>
@@ -238,7 +238,7 @@ export default function Convert() {
                   <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>{liveRate.toFixed(2)} HTG/USDC</span>
                 </div>
                 <div className="flex justify-between">
-                  <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Network fee</span>
+                  <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Fee</span>
                   <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>$0.00</span>
                 </div>
                 <div className="flex items-center justify-between mt-2.5 pt-2.5" style={{ borderTop: "1px solid hsl(var(--theo-blue-chip))" }}>
@@ -276,9 +276,11 @@ export default function Convert() {
                 </div>
               </div>
               <div style={{ marginBottom: 14 }}>
-                <label style={labelStyle}>Source wallet</label>
+                <label style={labelStyle}>Source account</label>
                 <select style={{ ...inputStyle, appearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6B8A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: 28, cursor: "pointer" }}>
-                  <option>Primary — Operations</option>
+                  {walletOptions.length === 0
+                    ? <option>No accounts yet</option>
+                    : walletOptions.map((w) => <option key={w.id}>{w.label}</option>)}
                 </select>
               </div>
               <div style={{ marginBottom: 14 }}>
@@ -311,7 +313,7 @@ export default function Convert() {
             </p>
             {[
               ["Avg. settlement", "< 2 min"],
-              ["Network", "Stellar"],
+              ["Network", "Theo"],
               ["Reserve model", "1:1 · Segregated"],
               ["Max per order", "$50,000 USDC"],
             ].map(([k, v]) => (
