@@ -96,7 +96,7 @@ export default function Dashboard() {
     })();
   }, []);
 
-  const displayName = customer?.first_name ?? customer?.company_name ?? "there";
+  const displayName = customer?.contact_name ?? customer?.company_name ?? "there";
   const totalConverted = orders.reduce((s, o) => s + Number(o.usdc_amount), 0);
 
   return (
