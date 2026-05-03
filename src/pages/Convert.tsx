@@ -91,7 +91,7 @@ export default function Convert() {
   const submit = async () => {
     if (!canQuote) { toast.error("KYB approval required"); return; }
     if (usdcRaw < 1000 || usdcRaw > 50000) { toast.error("Enter an amount between 1,000 and 50,000 USDC"); return; }
-    if (!selectedWallet) { toast.error("Please select a destination wallet"); return; }
+    if (!selectedWallet) { toast.error("Please select a destination account"); return; }
     try {
       setBusy(true);
       const { data, error } = await supabase.functions.invoke("create-quote", {
@@ -111,11 +111,11 @@ export default function Convert() {
     if (!user) return;
     const existing = profile?.stellar_wallet_address ?? "";
     const wallet = window.prompt(
-      "Stellar testnet wallet address (G…) for USDC release:",
+      "Account ID for USDC release:",
       existing.startsWith("G") ? existing : "",
     );
     if (!wallet || !wallet.startsWith("G") || wallet.length < 50) {
-      toast.error("Valid Stellar G… address required");
+      toast.error("Valid account ID required");
       return;
     }
     setBusy(true);
