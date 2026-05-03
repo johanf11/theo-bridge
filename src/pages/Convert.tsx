@@ -86,11 +86,25 @@ export default function Convert() {
 
   const approveTestKyb = async () => {
     if (!user) return;
+    const existing = profile?.stellar_wallet_address ?? "";
+    const wallet = window.prompt(
+      "Stellar testnet wallet address (G…) for USDC release:",
+      existing.startsWith("G") ? existing : "",
+    );
+    if (!wallet || !wallet.startsWith("G") || wallet.length < 50) {
+      toast.error("Valid Stellar G… address required");
+      return;
+    }
     setBusy(true);
-    const { data } = await supabase.from("customers").update({ kyb_status: "APPROVED", stellar_wallet_address: profile?.stellar_wallet_address ?? "GTESTNETCUSTOMERPLACEHOLDER000000000000000000000000000000000" }).eq("user_id", user.id).select("kyb_status, stellar_wallet_address").maybeSingle();
+    const { data } = await supabase
+      .from("customers")
+      .update({ kyb_status: "APPROVED", stellar_wallet_address: wallet.trim() })
+      .eq("user_id", user.id)
+      .select("kyb_status, stellar_wallet_address")
+      .maybeSingle();
     setBusy(false);
     setProfile(data as Profile | null);
-    toast.success("KYB approved for testing");
+    toast.success("KYB approved + wallet saved");
   };
 
   const tabStyle = (t: Tab) => ({
