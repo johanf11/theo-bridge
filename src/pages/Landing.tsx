@@ -1,472 +1,339 @@
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import {
-  Clock,
-  ShieldCheck,
-  Globe2,
-  DollarSign,
-  FileText,
-  Lock,
-} from "lucide-react";
+import "../landing.css";
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 24 },
-  show: { opacity: 1, y: 0 },
+// Inline SVG icons matching the design exactly
+const icons = {
+  clock: (
+    <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9"/><polyline points="12 6 12 12 16 14"/>
+    </svg>
+  ),
+  shield: (
+    <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+    </svg>
+  ),
+  globe: (
+    <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+    </svg>
+  ),
+  dollar: (
+    <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="1" x2="12" y2="23"/>
+      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+    </svg>
+  ),
+  monitor: (
+    <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="3" width="20" height="14" rx="2"/>
+      <line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+    </svg>
+  ),
+  lock: (
+    <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+    </svg>
+  ),
 };
 
-const stagger = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.08 } },
-};
-
-const features = [
-  {
-    icon: Clock,
-    title: "Settle in Minutes",
-    body: "Once your SPIH transfer arrives, USDC lands in your wallet within minutes — not days. Real-time confirmation on every transaction.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "KYB-First Compliance",
-    body: "Built for businesses. Full KYB verification, audit trails, and per-transaction limits up to $50,000. Every transfer documented, every dollar traceable.",
-  },
-  {
-    icon: Globe2,
-    title: "Global Reach",
-    body: "Once on Stellar, your USDC connects to suppliers, marketplaces, and exchanges worldwide — without extra conversion steps or surprise fees.",
-  },
-  {
-    icon: DollarSign,
-    title: "Locked-In Rates",
-    body: "Quote locks for 15 minutes — enough time to authorize your SPIH transfer. What you see is what you get. No spread surprises at settlement.",
-  },
-  {
-    icon: FileText,
-    title: "Bank-Grade Reconciliation",
-    body: "Download full audit trails as CSV or PDF. Categorized by date, counterparty, and amount. Built for your accountant and your regulator.",
-  },
-  {
-    icon: Lock,
-    title: "1:1 Verified Reserves",
-    body: "Every USDC in your Theo wallet is backed by a real dollar — segregated, independently verified, and redeemable on-demand. Transparency by default.",
-  },
+const FEATURES = [
+  { icon: icons.clock,   title: "Settle in Minutes",           body: "Once your SPIH transfer arrives, USDC lands in your wallet within minutes — not days. Real-time confirmation on every transaction." },
+  { icon: icons.shield,  title: "KYB-First Compliance",        body: "Built for businesses. Full KYB verification, audit trails, and per-transaction limits up to $50,000. Every transfer documented, every dollar traceable." },
+  { icon: icons.globe,   title: "Global Reach",                body: "Once on Stellar, your USDC connects to suppliers, marketplaces, and exchanges worldwide — without extra conversion steps or surprise fees." },
+  { icon: icons.dollar,  title: "Locked-In Rates",             body: "Quote locks for 15 minutes — enough time to authorize your SPIH transfer. What you see is what you get. No spread surprises at settlement." },
+  { icon: icons.monitor, title: "Bank-Grade Reconciliation",   body: "Download full audit trails as CSV or PDF. Categorized by date, counterparty, and amount. Built for your accountant and your regulator." },
+  { icon: icons.lock,    title: "1:1 Verified Reserves",       body: "Every USDC in your Theo wallet is backed by a real dollar — segregated, independently verified, and redeemable on-demand. Transparency by default." },
 ];
 
-const steps = [
-  {
-    n: "01",
-    title: "Get a Locked Quote",
-    body: "Enter the USDC amount you need. Theo instantly shows your HTG cost at a locked rate — valid for 15 minutes. No account required for the quote.",
-  },
-  {
-    n: "02",
-    title: "Send Your SPIH Transfer",
-    body: "Authorize a SPIH transfer from your Haitian bank. We monitor your payment in real time and confirm the moment it clears — no manual follow-up needed.",
-  },
-  {
-    n: "03",
-    title: "USDC Lands Instantly",
-    body: "Within minutes of confirmation, USDC arrives in your Stellar wallet — ready to pay suppliers, convert to USD, or hold as a stable store of value.",
-  },
-];
-
-const stats = [
+const STATS = [
   { v: "$650M+", l: "Annual DR–Haiti Corridor" },
   { v: "< 2 min", l: "Settlement Time" },
-  { v: "7–14%", l: "Avg Fees We Eliminate" },
-  { v: "$50K", l: "Per-Transaction Limit" },
+  { v: "7–14%",   l: "Avg Fees We Eliminate" },
+  { v: "$50K",    l: "Per-Transaction Limit" },
 ];
 
+function fmt(n: number) {
+  return n ? n.toLocaleString("en-US") : "";
+}
+
+function useScrollReveal(selector: string) {
+  useEffect(() => {
+    const elements = document.querySelectorAll<HTMLElement>(selector);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const el = entry.target as HTMLElement;
+            const delay = Number(el.dataset.delay ?? 0);
+            setTimeout(() => {
+              el.style.opacity = "1";
+              el.style.transform = "translateY(0)";
+            }, delay);
+            observer.unobserve(el);
+          }
+        });
+      },
+      { threshold: 0.08 }
+    );
+    elements.forEach((el, i) => {
+      el.style.opacity = "0";
+      el.style.transform = "translateY(16px)";
+      el.style.transition = "opacity 360ms cubic-bezier(0.16,1,0.3,1), transform 360ms cubic-bezier(0.16,1,0.3,1)";
+      el.dataset.delay = String(i * 65);
+      observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, [selector]);
+}
+
 export default function Landing() {
+  const [usdcRaw, setUsdcRaw] = useState(10000);
+  const [usdcDisplay, setUsdcDisplay] = useState("10,000");
+  const [rate, setRate] = useState(135.0);
+  const [lockSecs, setLockSecs] = useState(15 * 60);
+
+  // Live rate ticker
+  useEffect(() => {
+    const id = setInterval(() => {
+      const jitter = (Math.random() - 0.5) * 0.1;
+      setRate(parseFloat((135 + jitter).toFixed(2)));
+    }, 4000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Countdown timer
+  useEffect(() => {
+    const id = setInterval(() => {
+      setLockSecs((s) => {
+        if (s <= 1) return 15 * 60;
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const htg = Math.round(usdcRaw * rate);
+  const lockMin = Math.floor(lockSecs / 60);
+  const lockSecPad = String(lockSecs % 60).padStart(2, "0");
+
+  const handleUsdcInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/[^\d]/g, "");
+    const num = parseInt(raw, 10) || 0;
+    setUsdcRaw(num);
+    setUsdcDisplay(num ? num.toLocaleString("en-US") : "");
+  };
+
+  // Scroll reveal hooks
+  useScrollReveal(".lp-feature-card");
+  useScrollReveal(".lp-step");
+  useScrollReveal(".lp-trust-card-large, .lp-trust-card-small");
+  useScrollReveal(".lp-stat-item");
+
   return (
-    <div className="min-h-screen bg-background">
-      {/* Nav — sticky, floats over the blue hero */}
-      <nav className="bg-primary/80 text-primary-foreground sticky top-0 z-40 backdrop-blur-md border-b border-primary-foreground/10">
-        <div className="container flex items-center justify-between h-20">
-          <Link to="/" aria-label="Theo home" className="flex items-center gap-2">
-            <span
-              aria-hidden
-              className="inline-flex h-9 w-9 items-center justify-center bg-secondary text-secondary-foreground font-extrabold"
-              style={{ borderRadius: "22%" }}
-            >
-              T
-            </span>
-            <span className="font-extrabold text-xl tracking-tightest text-primary-foreground">
-              Theo
-            </span>
-          </Link>
-          <div className="hidden md:flex items-center gap-8">
-            <a href="#features" className="text-sm font-medium text-primary-foreground/80 hover:text-primary-foreground transition-colors">
-              Features
-            </a>
-            <a href="#how-it-works" className="text-sm font-medium text-primary-foreground/80 hover:text-primary-foreground transition-colors">
-              How It Works
-            </a>
-            <a href="#compliance" className="text-sm font-medium text-primary-foreground/80 hover:text-primary-foreground transition-colors">
-              Compliance
-            </a>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              asChild
-              variant="ghost"
-              className="text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground rounded-[10px]"
-            >
-              <Link to="/login">Sign In</Link>
-            </Button>
-            <Button
-              asChild
-              className="bg-secondary text-secondary-foreground hover:bg-secondary/90 rounded-[10px] font-semibold"
-            >
-              <Link to="/register">Open a Business Account</Link>
-            </Button>
-          </div>
+    <div className="lp">
+      {/* ── Nav ── */}
+      <nav className="lp-nav">
+        <Link to="/" className="lp-nav-wordmark">
+          <div className="lp-nav-logo-tile">T</div>
+          <span className="lp-nav-brand">Theo</span>
+        </Link>
+        <div className="lp-nav-links">
+          <a href="#features" className="lp-nav-link">Features</a>
+          <a href="#how-it-works" className="lp-nav-link">How It Works</a>
+          <a href="#compliance" className="lp-nav-link">Compliance</a>
+        </div>
+        <div className="lp-nav-actions">
+          <Link to="/login" className="lp-btn lp-btn-ghost-white">Sign In</Link>
+          <Link to="/register" className="lp-btn lp-btn-gold">Open a Business Account</Link>
         </div>
       </nav>
 
-      {/* Hero */}
-      <section className="bg-primary text-primary-foreground">
-        <div className="container pt-12 pb-24 md:pt-16 md:pb-32 grid md:grid-cols-2 gap-12 items-center">
-          <div className="space-y-6 animate-fade-in">
-            <p className="eyebrow eyebrow-on-dark">Built for Haitian Businesses</p>
-            <h1 className="text-5xl md:text-7xl font-extrabold leading-[1.02] tracking-tightest text-balance text-primary-foreground">
-              Effortless.
-              <br />
-              <span className="font-display italic font-extrabold text-secondary">
-                Settlement.
-              </span>
-            </h1>
-            <p className="tagline text-xl md:text-2xl !text-secondary">
-              Money that moves at business speed.
-            </p>
-            <hr className="gold-rule" />
-            <p className="text-lg text-primary-foreground/80 max-w-lg leading-relaxed">
-              Convert Haitian Gourdes to USDC on Stellar with locked-in rates,
-              transparent pricing, and bank-grade reconciliation. No crypto
-              experience required.
-            </p>
-            <div className="flex flex-wrap gap-3 pt-2">
-              <Button
-                asChild
-                size="lg"
-                className="bg-secondary text-secondary-foreground hover:bg-secondary/90 rounded-[10px] font-semibold"
-              >
-                <Link to="/register">Open a Business Account</Link>
-              </Button>
-              <Button
-                asChild
-                size="lg"
-                variant="outline"
-                className="bg-transparent text-primary-foreground border-primary-foreground/40 hover:bg-primary-foreground/10 hover:text-primary-foreground rounded-[10px]"
-              >
-                <a href="#how-it-works">See How It Works</a>
-              </Button>
-            </div>
-            <div className="flex items-center gap-3 pt-4 text-sm text-primary-foreground/70">
-              <span className="h-2 w-2 rounded-full bg-accent animate-pulse-soft" />
-              Regulated · Stellar network · 1:1 verified reserves
-            </div>
+      {/* ── Hero ── */}
+      <section className="lp-hero">
+        <div className="lp-hero-left">
+          <div className="lp-hero-eyebrow">Built for Haitian Businesses</div>
+          <h1 className="lp-hero-headline">
+            Effortless.<br /><em>Settlement.</em>
+          </h1>
+          <div className="lp-hero-tagline">Money that moves at business speed.</div>
+          <p className="lp-hero-body">
+            Convert Haitian Gourdes to USDC on Stellar with locked-in rates,
+            transparent pricing, and bank-grade reconciliation.
+            No crypto experience required.
+          </p>
+          <div className="lp-hero-actions">
+            <Link to="/register" className="lp-btn lp-btn-gold lp-btn-lg">Open a Business Account</Link>
+            <a href="#how-it-works" className="lp-btn lp-btn-ghost-white lp-btn-lg">See How It Works</a>
           </div>
+          <div className="lp-hero-proof">
+            <div className="lp-hero-proof-dot" />
+            <span className="lp-hero-proof-text">Regulated · Stellar network · 1:1 verified reserves</span>
+          </div>
+        </div>
 
-          {/* Live quote card */}
-          <motion.div
-            initial={{ opacity: 0, y: 30, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1], delay: 0.2 }}
-            whileHover={{ y: -4 }}
-            className="md:justify-self-end w-full max-w-md"
-          >
-            <div className="bg-card text-card-foreground rounded-2xl p-7 shadow-lg-soft transition-shadow hover:shadow-xl">
-              <div className="inline-flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-accent animate-pulse-soft" />
-                <span className="eyebrow">Live Quote</span>
-              </div>
-              <div className="mt-5 grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-xs text-muted-foreground uppercase tracking-eyebrow font-semibold">
-                    USDC Requested
-                  </div>
-                  <div className="mt-2 flex items-baseline gap-1">
-                    <span className="text-2xl font-extrabold text-primary">$</span>
-                    <span className="text-3xl font-extrabold tracking-tightest text-primary">
-                      10,000
-                    </span>
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-1">USDC · Stellar</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground uppercase tracking-eyebrow font-semibold">
-                    HTG Due
-                  </div>
-                  <div className="mt-2 text-3xl font-extrabold tracking-tightest text-foreground">
-                    1,350,000
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-1">Haitian Gourdes</div>
-                </div>
-              </div>
-              <hr className="my-5 border-border" />
-              <div className="grid grid-cols-3 gap-4 text-sm">
-                <div>
-                  <div className="text-xs text-muted-foreground uppercase tracking-eyebrow font-semibold">Rate</div>
-                  <div className="font-bold mt-1 text-foreground">135.00</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground uppercase tracking-eyebrow font-semibold">Locked For</div>
-                  <div className="font-bold mt-1 text-foreground">15 min</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground uppercase tracking-eyebrow font-semibold">Network</div>
-                  <div className="font-bold mt-1 text-foreground">Stellar</div>
-                </div>
-              </div>
-              <Button
-                asChild
-                className="w-full mt-6 bg-primary text-primary-foreground hover:bg-primary/90 rounded-[10px] font-semibold h-12"
-              >
-                <Link to="/register">Get This Rate →</Link>
-              </Button>
+        {/* ── Live Quote Card ── */}
+        <div className="lp-quote-card-wrap">
+          <div className="lp-quote-card">
+            <div className="lp-quote-live-badge">
+              <div className="lp-quote-live-dot" />
+              Live Quote
             </div>
-          </motion.div>
+            <div className="lp-quote-amounts">
+              <div>
+                <div className="lp-quote-amount-label">USDC Requested</div>
+                <div className="lp-quote-input-wrap">
+                  <span className="lp-quote-input-prefix">$</span>
+                  <input
+                    className="lp-quote-input"
+                    type="text"
+                    inputMode="numeric"
+                    value={usdcDisplay}
+                    onChange={handleUsdcInput}
+                    onFocus={(e) => e.target.select()}
+                    aria-label="USDC amount"
+                  />
+                </div>
+                <div className="lp-quote-amount-currency">USDC · Stellar</div>
+              </div>
+              <div>
+                <div className="lp-quote-amount-label">HTG Due</div>
+                <div className="lp-quote-amount-value secondary">{fmt(htg)}</div>
+                <div className="lp-quote-amount-currency">Haitian Gourdes</div>
+              </div>
+            </div>
+            <hr className="lp-quote-divider" />
+            <div className="lp-quote-meta">
+              <div>
+                <div className="lp-quote-meta-label">Rate</div>
+                <div className="lp-quote-meta-value">{rate.toFixed(2)}</div>
+              </div>
+              <div>
+                <div className="lp-quote-meta-label">Locked For</div>
+                <div className="lp-quote-meta-value">{lockMin}:{lockSecPad}</div>
+              </div>
+              <div>
+                <div className="lp-quote-meta-label">Network</div>
+                <div className="lp-quote-meta-value">Stellar</div>
+              </div>
+            </div>
+            <Link to="/register" className="lp-quote-cta">Get This Rate →</Link>
+          </div>
         </div>
       </section>
 
-      {/* Stats strip — gold */}
-      <div className="bg-secondary text-secondary-foreground">
-        <div className="container py-8 grid grid-cols-2 md:grid-cols-4 gap-6">
-          {stats.map((s, i) => (
-            <motion.div
-              key={s.l}
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-50px" }}
-              transition={{ duration: 0.5, delay: i * 0.08 }}
-              className="text-center md:text-left"
-            >
-              <div className="text-2xl md:text-3xl font-extrabold tracking-tightest">
-                {s.v}
-              </div>
-              <div className="text-xs md:text-sm font-semibold mt-1 opacity-80 uppercase tracking-eyebrow">
-                {s.l}
-              </div>
-            </motion.div>
-          ))}
-        </div>
+      {/* ── Stats Strip ── */}
+      <div className="lp-stats-strip">
+        {STATS.map((s) => (
+          <div key={s.l} className="lp-stat-item">
+            <div className="lp-stat-value">{s.v}</div>
+            <div className="lp-stat-label">{s.l}</div>
+          </div>
+        ))}
       </div>
 
-      {/* Features */}
-      <section id="features" className="container py-20 md:py-28">
-        <div className="max-w-2xl mb-12">
-          <p className="eyebrow">Why Theo</p>
-          <h2 className="text-4xl md:text-5xl font-extrabold tracking-tightest mt-3">
-            Built different.
-            <br />
-            For this corridor.
-          </h2>
-          <p className="tagline text-xl md:text-2xl mt-3">
-            Sovereignty · Transparency · Dignity.
-          </p>
-          <hr className="gold-rule mt-4" />
-        </div>
-        <motion.div
-          variants={stagger}
-          initial="hidden"
-          whileInView="show"
-          viewport={{ once: true, margin: "-80px" }}
-          className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
-        >
-          {features.map(({ icon: Icon, title, body }) => (
-            <motion.div
-              key={title}
-              variants={fadeUp}
-              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-              whileHover={{ y: -6 }}
-              className="group bg-card rounded-2xl p-7 border border-border shadow-sm-soft transition-shadow hover:shadow-lg-soft hover:border-primary/20"
-            >
-              <div
-                className="h-12 w-12 bg-theo-blue-soft text-primary flex items-center justify-center mb-5 transition-transform duration-300 group-hover:scale-110 group-hover:bg-primary group-hover:text-primary-foreground"
-                style={{ borderRadius: "22%" }}
-              >
-                <Icon className="h-5 w-5" strokeWidth={1.75} />
-              </div>
-              <h3 className="text-xl font-bold mb-2">{title}</h3>
-              <p className="text-muted-foreground leading-relaxed text-sm">
-                {body}
-              </p>
-            </motion.div>
+      {/* ── Features ── */}
+      <section className="lp-section lp-features" id="features">
+        <div className="lp-section-eyebrow">Why Theo</div>
+        <div className="lp-section-headline">Built different.<br />For this corridor.</div>
+        <div className="lp-section-tagline">Sovereignty · Transparency · Dignity.</div>
+        <div className="lp-section-underline" />
+        <div className="lp-features-grid">
+          {FEATURES.map(({ icon, title, body }) => (
+            <div key={title} className="lp-feature-card">
+              <div className="lp-feature-icon">{icon}</div>
+              <div className="lp-feature-title">{title}</div>
+              <div className="lp-feature-body">{body}</div>
+            </div>
           ))}
-        </motion.div>
-      </section>
-
-      {/* How it works — blue surface */}
-      <section id="how-it-works" className="bg-primary text-primary-foreground">
-        <div className="container py-20 md:py-28">
-          <div className="max-w-2xl mb-12">
-            <p className="eyebrow eyebrow-on-dark">The Process</p>
-            <h2 className="text-4xl md:text-5xl font-extrabold tracking-tightest mt-3 text-primary-foreground">
-              Three steps.
-              <br />
-              No surprises.
-            </h2>
-            <p className="tagline text-xl md:text-2xl mt-3 !text-secondary">
-              Simple. Sound. Borderless.
-            </p>
-            <hr className="gold-rule mt-4" />
-          </div>
-          <motion.div
-            variants={stagger}
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true, margin: "-80px" }}
-            className="grid md:grid-cols-3 gap-6"
-          >
-            {steps.map((s) => (
-              <motion.div
-                key={s.n}
-                variants={fadeUp}
-                transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-                whileHover={{ y: -6, backgroundColor: "hsl(var(--primary-foreground) / 0.08)" }}
-                className="bg-primary-foreground/5 border border-primary-foreground/10 rounded-2xl p-7 transition-colors"
-              >
-                <div className="font-display italic font-extrabold text-5xl text-secondary leading-none mb-4">
-                  {s.n}
-                </div>
-                <h3 className="text-xl font-bold mb-2 text-primary-foreground">
-                  {s.title}
-                </h3>
-                <p className="text-primary-foreground/70 leading-relaxed text-sm">
-                  {s.body}
-                </p>
-              </motion.div>
-            ))}
-          </motion.div>
         </div>
       </section>
 
-      {/* Compliance / Trust */}
-      <section id="compliance" className="container py-20 md:py-28">
-        <div className="max-w-2xl mb-12">
-          <p className="eyebrow">Compliance & Trust</p>
-          <h2 className="text-4xl md:text-5xl font-extrabold tracking-tightest mt-3">
-            Built on trust.
-            <br />
-            Verified by design.
-          </h2>
-          <p className="tagline text-xl md:text-2xl mt-3">
-            Your money. Your keys. Your future.
-          </p>
-          <hr className="gold-rule mt-4" />
+      {/* ── How It Works ── */}
+      <section className="lp-section lp-how" id="how-it-works">
+        <div className="lp-section-eyebrow">The Process</div>
+        <div className="lp-section-headline">Three steps.<br />No surprises.</div>
+        <div className="lp-section-tagline">Simple. Sound. Borderless.</div>
+        <div className="lp-section-underline lp-section-underline--white" />
+        <div className="lp-steps-grid">
+          {[
+            { n: "01", title: "Get a Locked Quote",       body: "Enter the USDC amount you need. Theo instantly shows your HTG cost at a locked rate — valid for 15 minutes. No account required for the quote." },
+            { n: "02", title: "Send Your SPIH Transfer",  body: "Authorize a SPIH transfer from your Haitian bank. We monitor your payment in real time and confirm the moment it clears — no manual follow-up needed." },
+            { n: "03", title: "USDC Lands Instantly",     body: "Within minutes of confirmation, USDC arrives in your Stellar wallet — ready to pay suppliers, convert to USD, or hold as a stable store of value." },
+          ].map((s) => (
+            <div key={s.n} className="lp-step">
+              <div className="lp-step-number">{s.n}</div>
+              <div className="lp-step-title">{s.title}</div>
+              <div className="lp-step-body">{s.body}</div>
+            </div>
+          ))}
         </div>
-        <div className="grid md:grid-cols-2 gap-6">
-          <div className="md:row-span-2 bg-card border border-border rounded-2xl p-8 shadow-sm-soft flex flex-col justify-between">
+      </section>
+
+      {/* ── Compliance / Trust ── */}
+      <section className="lp-section lp-trust" id="compliance">
+        <div className="lp-section-eyebrow">Compliance &amp; Trust</div>
+        <div className="lp-section-headline">Built on trust.<br />Verified by design.</div>
+        <div className="lp-section-tagline">Your money. Your keys. Your future.</div>
+        <div className="lp-section-underline" />
+        <div className="lp-trust-grid">
+          <div className="lp-trust-card-large">
             <div>
-              <p className="eyebrow">Sovereignty · Transparency · Dignity</p>
-              <h3 className="text-3xl font-extrabold tracking-tightest mt-3">
-                Your money.
-                <br />
-                Fully yours.
-              </h3>
-              <p className="text-muted-foreground leading-relaxed mt-4">
-                Theo holds no fractional reserves. Every dollar in your wallet
-                is matched 1:1 to real USD — segregated from Theo's operational
-                funds and independently audited. We make money on the spread,
-                not on your savings.
-              </p>
+              <div className="lp-card-eyebrow">Sovereignty · Transparency · Dignity</div>
+              <div className="lp-card-headline">Your money.<br />Fully yours.</div>
+              <div className="lp-card-body">
+                Theo holds no fractional reserves. Every dollar in your wallet is matched 1:1 to real USD —
+                segregated from Theo's operational funds and independently audited.
+                We make money on the spread, not on your savings.
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2 mt-6">
-              {["KYB Verified", "Stellar Network", "Audit Trails", "1:1 Reserves"].map(
-                (b) => (
-                  <span
-                    key={b}
-                    className="text-xs font-semibold uppercase tracking-eyebrow px-3 py-1.5 rounded-full bg-theo-blue-soft text-primary"
-                  >
-                    {b}
-                  </span>
-                ),
-              )}
+            <div className="lp-card-badges">
+              {["KYB Verified", "Stellar Network", "Audit Trails", "1:1 Reserves"].map((b) => (
+                <span key={b} className="lp-badge">{b}</span>
+              ))}
             </div>
           </div>
-          <div className="bg-card border border-border rounded-2xl p-7 shadow-sm-soft">
-            <p className="eyebrow">Regulation</p>
-            <h3 className="text-xl font-bold mt-2 mb-3">
-              DR-Compliant Operations
-            </h3>
-            <p className="text-muted-foreground leading-relaxed text-sm">
-              Licensed and compliant with Dominican Republic financial
-              regulations. Every transfer reported to BANCENTRAL in real time.
-            </p>
+          <div className="lp-trust-card-small">
+            <div className="lp-card-eyebrow">Regulation</div>
+            <div className="lp-card-title">DR-Compliant Operations</div>
+            <div className="lp-card-body">Licensed and compliant with Dominican Republic financial regulations. Every transfer reported to BANCENTRAL in real time.</div>
           </div>
-          <div className="bg-card border border-border rounded-2xl p-7 shadow-sm-soft">
-            <p className="eyebrow">Infrastructure</p>
-            <h3 className="text-xl font-bold mt-2 mb-3">
-              Powered by Stellar + MoneyGram
-            </h3>
-            <p className="text-muted-foreground leading-relaxed text-sm">
-              Settlement runs on Stellar — the same network trusted by
-              MoneyGram, Flutterwave, and global central banks for cross-border
-              payments.
-            </p>
+          <div className="lp-trust-card-small">
+            <div className="lp-card-eyebrow">Infrastructure</div>
+            <div className="lp-card-title">Powered by Stellar + MoneyGram</div>
+            <div className="lp-card-body">Settlement runs on Stellar — the same network trusted by MoneyGram, Flutterwave, and global central banks for cross-border payments.</div>
           </div>
         </div>
       </section>
 
-      {/* CTA — blue */}
-      <section className="bg-primary text-primary-foreground">
-        <div className="container py-20 md:py-24 text-center">
-          <p className="eyebrow eyebrow-on-dark">Get Started Today</p>
-          <h2 className="text-4xl md:text-6xl font-extrabold tracking-tightest mt-3 text-primary-foreground">
-            From charcoal
-            <br />
-            <span className="font-display italic text-secondary">to digital gold.</span>
-          </h2>
-          <p className="tagline text-lg md:text-xl mt-4 !text-secondary">
-            Theo builds cross-border financial infrastructure, one corridor at a time.
-          </p>
-          <hr className="gold-rule mt-5 mx-auto" />
-          <div className="flex flex-wrap gap-3 justify-center mt-10">
-            <Button
-              asChild
-              size="lg"
-              className="bg-secondary text-secondary-foreground hover:bg-secondary/90 rounded-[10px] font-semibold"
-            >
-              <Link to="/register">Open a Business Account</Link>
-            </Button>
-            <Button
-              asChild
-              size="lg"
-              variant="outline"
-              className="bg-transparent text-primary-foreground border-primary-foreground/40 hover:bg-primary-foreground/10 hover:text-primary-foreground rounded-[10px]"
-            >
-              <a href="mailto:sales@theo.app">Talk to Sales</a>
-            </Button>
-          </div>
-          <p className="text-sm text-primary-foreground/60 mt-6">
-            No crypto experience required · Full KYB in under 10 minutes
-          </p>
+      {/* ── CTA ── */}
+      <section className="lp-cta">
+        <div className="lp-cta-eyebrow">Get Started Today</div>
+        <h2 className="lp-cta-headline">From charcoal<br />to digital gold.</h2>
+        <div className="lp-cta-tagline">Theo builds cross-border financial infrastructure, one corridor at a time.</div>
+        <div className="lp-cta-rule" />
+        <div className="lp-cta-actions">
+          <Link to="/register" className="lp-btn lp-btn-gold lp-btn-lg">Open a Business Account</Link>
+          <a href="mailto:sales@theo.app" className="lp-btn lp-btn-ghost-white lp-btn-lg">Talk to Sales</a>
         </div>
+        <div className="lp-cta-footnote">No crypto experience required · Full KYB in under 10 minutes</div>
       </section>
 
-      {/* Footer — dark ink */}
-      <footer className="bg-theo-ink text-white">
-        <div className="container py-10 flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-2">
-            <span
-              aria-hidden
-              className="inline-flex h-8 w-8 items-center justify-center bg-secondary text-secondary-foreground font-extrabold"
-              style={{ borderRadius: "22%" }}
-            >
-              T
-            </span>
-            <span className="font-extrabold text-lg tracking-tightest">Theo</span>
-          </div>
-          <div className="text-sm text-white/60 text-center">
-            © {new Date().getFullYear()} Theo. Banking the Unbanked of the Global South.
-          </div>
-          <div className="flex items-center gap-6 text-sm">
-            <a href="#" className="text-white/70 hover:text-white transition-colors">Privacy</a>
-            <a href="#" className="text-white/70 hover:text-white transition-colors">Terms</a>
-            <a href="#" className="text-white/70 hover:text-white transition-colors">Contact</a>
-          </div>
+      {/* ── Footer ── */}
+      <footer className="lp-footer">
+        <div className="lp-footer-logo">
+          <div className="lp-footer-logo-tile">T</div>
+          <span className="lp-footer-logo-name">Theo</span>
+        </div>
+        <div className="lp-footer-copy">
+          © {new Date().getFullYear()} Theo. Banking the Unbanked of the Global South.
+        </div>
+        <div className="lp-footer-links">
+          <a href="#" className="lp-footer-link">Privacy</a>
+          <a href="#" className="lp-footer-link">Terms</a>
+          <a href="#" className="lp-footer-link">Contact</a>
         </div>
       </footer>
     </div>

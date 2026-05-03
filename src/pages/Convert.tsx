@@ -1,85 +1,83 @@
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { DollarSign, Info, ShieldCheck } from "lucide-react";
 import { useAuth, useRoles } from "@/lib/auth";
 
+type Tab = "on" | "off";
 type KybStatus = "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
-type CustomerProfile = {
-  kyb_status: KybStatus;
-  stellar_wallet_address: string | null;
-};
-
-const STEPS = [
-  ["Lock your rate", "We freeze the HTG/USDC rate for 15 minutes while you arrange payment."],
-  ["Wire via SPIH", "Send HTG to our settlement account using the unique reference number provided."],
-  ["Receive USDC", "Once matched, USDC arrives in your Stellar wallet in under 2 minutes."],
-];
+type Profile = { kyb_status: KybStatus; stellar_wallet_address: string | null };
 
 export default function Convert() {
-  const [usdc, setUsdc] = useState<string>("10000");
-  const [busy, setBusy] = useState(false);
-  const [profile, setProfile] = useState<CustomerProfile | null>(null);
-  const [profileLoading, setProfileLoading] = useState(true);
-  const [spotRate, setSpotRate] = useState<number | null>(null);
   const navigate = useNavigate();
   const { user } = useAuth();
   const { isAdmin } = useRoles();
+
+  const [tab, setTab] = useState<Tab>("on");
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [spotRate, setSpotRate] = useState(135.0);
+  const [liveRate, setLiveRate] = useState(135.0);
+  const [usdcRaw, setUsdcRaw] = useState(10000);
+  const [usdcDisplay, setUsdcDisplay] = useState("10,000");
+  const [lockSecs, setLockSecs] = useState(15 * 60);
+  const [busy, setBusy] = useState(false);
+  const [locked, setLocked] = useState(false);
+  const [lockedRef, setLockedRef] = useState("");
 
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
     setProfileLoading(true);
-
-    supabase
-      .from("customers")
-      .select("kyb_status, stellar_wallet_address")
-      .eq("user_id", user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (cancelled) return;
-        setProfile(data as CustomerProfile | null);
-        setProfileLoading(false);
-      });
-
-    supabase
-      .from("rate_snapshots")
-      .select("spot_rate")
-      .order("captured_at", { ascending: false })
-      .limit(1)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (cancelled) return;
-        if (data?.spot_rate) setSpotRate(Number(data.spot_rate) + 5);
-      });
-
+    supabase.from("customers").select("kyb_status, stellar_wallet_address").eq("user_id", user.id).maybeSingle().then(({ data }) => {
+      if (cancelled) return;
+      setProfile(data as Profile | null);
+      setProfileLoading(false);
+    });
+    supabase.from("rate_snapshots").select("spot_rate").order("captured_at", { ascending: false }).limit(1).maybeSingle().then(({ data }) => {
+      if (cancelled || !data?.spot_rate) return;
+      const r = Number(data.spot_rate) + 5;
+      setSpotRate(r); setLiveRate(r);
+    });
     return () => { cancelled = true; };
   }, [user]);
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (profile?.kyb_status !== "APPROVED") {
-      toast.error("KYB approval is required before requesting quotes");
-      return;
-    }
-    const amount = Number(usdc);
-    if (!Number.isFinite(amount) || amount < 1000 || amount > 50000) {
-      toast.error("Enter an amount between 1,000 and 50,000 USDC");
-      return;
-    }
+  // Rate ticker
+  useEffect(() => {
+    const id = setInterval(() => {
+      setLiveRate((r) => parseFloat((r + (Math.random() - 0.5) * 0.12).toFixed(2)));
+    }, 5000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Countdown
+  useEffect(() => {
+    const id = setInterval(() => setLockSecs((s) => (s <= 1 ? 15 * 60 : s - 1)), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const handleUsdcInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/[^\d]/g, "");
+    const num = parseInt(raw, 10) || 0;
+    setUsdcRaw(num);
+    setUsdcDisplay(num ? num.toLocaleString("en-US") : "");
+  };
+
+  const htg = Math.round(usdcRaw * liveRate);
+  const timerLabel = `${Math.floor(lockSecs / 60)}:${String(lockSecs % 60).padStart(2, "0")}`;
+  const canQuote = profile?.kyb_status === "APPROVED" && !profileLoading;
+
+  const submit = async () => {
+    if (!canQuote) { toast.error("KYB approval required"); return; }
+    if (usdcRaw < 1000 || usdcRaw > 50000) { toast.error("Enter an amount between 1,000 and 50,000 USDC"); return; }
     try {
       setBusy(true);
-      const { data, error } = await supabase.functions.invoke("create-quote", { body: { usdc_amount: amount } });
-      if (error || data?.error) {
-        toast.error(data?.error || error?.message || "Quote failed");
-        return;
-      }
-      toast.success(`Quote locked. Reference ${data.reference_number}`);
+      const { data, error } = await supabase.functions.invoke("create-quote", { body: { usdc_amount: usdcRaw } });
+      if (error || data?.error) { toast.error(data?.error || error?.message || "Quote failed"); return; }
+      setLocked(true);
+      setLockedRef(data.reference_number);
+      toast.success(`Rate locked. Reference ${data.reference_number}`);
       navigate(`/orders/${data.quote_id}`);
     } finally {
       setBusy(false);
@@ -89,122 +87,202 @@ export default function Convert() {
   const approveTestKyb = async () => {
     if (!user) return;
     setBusy(true);
-    const { data } = await supabase
-      .from("customers")
-      .update({
-        kyb_status: "APPROVED",
-        stellar_wallet_address: profile?.stellar_wallet_address ?? "GTESTNETCUSTOMERPLACEHOLDER000000000000000000000000000000000",
-      })
-      .eq("user_id", user.id)
-      .select("kyb_status, stellar_wallet_address")
-      .maybeSingle();
+    const { data } = await supabase.from("customers").update({ kyb_status: "APPROVED", stellar_wallet_address: profile?.stellar_wallet_address ?? "GTESTNETCUSTOMERPLACEHOLDER000000000000000000000000000000000" }).eq("user_id", user.id).select("kyb_status, stellar_wallet_address").maybeSingle();
     setBusy(false);
-    setProfile(data as CustomerProfile | null);
+    setProfile(data as Profile | null);
     toast.success("KYB approved for testing");
   };
 
-  const canRequestQuote = profile?.kyb_status === "APPROVED" && !profileLoading;
+  const tabStyle = (t: Tab) => ({
+    padding: "9px 16px", fontSize: 13, fontWeight: 600,
+    color: tab === t ? "hsl(var(--theo-blue))" : "hsl(var(--theo-mid))",
+    border: "none", background: "none", cursor: "pointer", fontFamily: "inherit",
+    borderBottom: tab === t ? "2px solid hsl(var(--theo-blue))" : "2px solid transparent",
+    marginBottom: -1, transition: "all 130ms",
+  } as React.CSSProperties);
+
+  const labelStyle: React.CSSProperties = {
+    display: "block", fontSize: 10, fontWeight: 700,
+    textTransform: "uppercase", letterSpacing: "0.10em",
+    color: "hsl(var(--theo-mid))", marginBottom: 6,
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%", fontFamily: "inherit", fontSize: 14,
+    padding: "10px 12px", borderRadius: 9,
+    border: "1.5px solid hsl(var(--theo-light))",
+    background: "#fff", color: "hsl(var(--theo-ink))",
+    outline: "none", boxSizing: "border-box",
+  };
 
   return (
     <AppLayout>
-      <div className="mb-8">
-        <p className="eyebrow">New conversion</p>
-        <h1 className="mt-2 text-3xl md:text-4xl font-extrabold tracking-tightest">Convert HTG to USDC</h1>
-        <hr className="gold-rule mt-3" />
+      <div className="mb-1">
+        <div className="font-extrabold" style={{ fontSize: 22, color: "hsl(var(--theo-blue))", letterSpacing: "-0.02em" }}>
+          On / Off Ramp
+        </div>
+        <div style={{ fontSize: 13, color: "hsl(var(--theo-mid))", marginTop: 2 }}>
+          Fund your account or withdraw to a bank.
+        </div>
       </div>
+      <div className="mb-5" style={{ width: 28, height: 3, background: "hsl(var(--theo-gold))", borderRadius: 2, marginTop: 8 }} />
 
-      <div className="grid lg:grid-cols-[1fr,300px] gap-6 items-start">
-        <form onSubmit={submit} className="space-y-6">
-          <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-xs">
-            <div className="bg-muted px-6 py-4 flex items-center gap-2 text-primary font-semibold">
-              <DollarSign className="h-4 w-4" /> Amount
-            </div>
-            <div className="p-6 space-y-5">
-              <div className="space-y-2">
-                <Label htmlFor="usdc" className="eyebrow eyebrow-muted">USDC you want to receive</Label>
-                <div className="relative">
-                  <Input
-                    id="usdc" type="number" min={1000} max={50000} step={1}
-                    value={usdc} onChange={(e) => setUsdc(e.target.value)}
-                    className="text-xl h-14 pl-4 pr-20 font-semibold rounded-xl"
-                    required
-                  />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold uppercase tracking-wider text-muted-foreground">USDC</span>
-                </div>
-                <div className="text-xs text-muted-foreground">Min $1,000 · Max $50,000 per order</div>
-              </div>
+      <div className="grid gap-4" style={{ gridTemplateColumns: "3fr 2fr" }}>
+        {/* Main form */}
+        <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
+          <div className="flex border-b border-border mb-4">
+            <button style={tabStyle("on")} onClick={() => setTab("on")}>On ramp — HTG to USDC</button>
+            <button style={tabStyle("off")} onClick={() => setTab("off")}>Off ramp — USDC to bank</button>
+          </div>
 
-              <div className="rounded-xl bg-accent/10 border border-accent/30 p-4 text-sm flex items-start gap-3">
-                <Info className="h-4 w-4 text-accent shrink-0 mt-0.5" />
-                <p>
-                  <span className="font-semibold text-primary">Rate locked for 15 minutes after quote.</span>{" "}
-                  <span className="text-muted-foreground">Your final HTG amount and a unique payment reference will be issued when you confirm.</span>
-                </p>
-              </div>
-
-              {!canRequestQuote && (
-                <div className="rounded-xl bg-secondary/15 border border-secondary/40 p-4 text-sm flex items-start gap-3">
-                  <ShieldCheck className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                  <div className="space-y-2 flex-1">
-                    <p>
-                      <span className="font-semibold text-primary">KYB approval required</span>{" "}
-                      <span className="text-muted-foreground">to unlock conversions.</span>
-                    </p>
-                    {!profileLoading && (profile?.kyb_status === "PENDING" || profile?.kyb_status === "REJECTED") && (
-                      <Button asChild type="button" size="sm">
-                        <Link to="/kyb">{profile?.kyb_status === "REJECTED" ? "Update KYB" : "Start KYB"}</Link>
-                      </Button>
-                    )}
-                    {isAdmin && !profileLoading && profile?.kyb_status !== "APPROVED" && (
-                      <Button type="button" size="sm" variant="outline" disabled={busy} onClick={approveTestKyb}>
+          {tab === "on" ? (
+            <>
+              {/* KYB gate */}
+              {!canQuote && !profileLoading && (
+                <div className="mb-4 rounded-xl p-4 flex items-start gap-3" style={{ background: "hsl(var(--theo-blue-soft))", border: "1px solid hsl(var(--theo-blue-chip))" }}>
+                  <div style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>
+                    <strong>KYB approval required</strong> to unlock conversions.{" "}
+                    {isAdmin && profile?.kyb_status !== "APPROVED" && (
+                      <button onClick={approveTestKyb} disabled={busy} className="underline cursor-pointer border-none bg-transparent" style={{ fontFamily: "inherit", fontSize: 13, color: "hsl(var(--theo-cyan))" }}>
                         Approve test KYB
-                      </Button>
+                      </button>
                     )}
                   </div>
                 </div>
               )}
-            </div>
-          </div>
 
-          <Button type="submit" size="lg" className="w-full h-14 text-base" disabled={busy || !canRequestQuote}>
-            {busy ? "Generating quote…" : "Get quote"}
-          </Button>
-        </form>
-
-        {/* Sidebar */}
-        <aside className="space-y-6 lg:sticky lg:top-6">
-          <div className="bg-card rounded-2xl border border-border p-6 shadow-xs">
-            <p className="eyebrow eyebrow-muted">How it works</p>
-            <ol className="mt-4 space-y-5">
-              {STEPS.map(([title, desc], i) => (
-                <li key={title} className="flex gap-3">
-                  <span className="h-7 w-7 shrink-0 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
-                    {i + 1}
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelStyle}>USDC you want to receive</label>
+                <div style={{ position: "relative" }}>
+                  <input
+                    style={{ ...inputStyle, paddingRight: 56 }}
+                    type="text"
+                    inputMode="numeric"
+                    value={usdcDisplay}
+                    onChange={handleUsdcInput}
+                    placeholder="0"
+                  />
+                  <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>
+                    USDC
                   </span>
-                  <div className="text-sm">
-                    <div className="font-semibold text-primary">{title}</div>
-                    <div className="text-muted-foreground mt-1 leading-snug">{desc}</div>
+                </div>
+                <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 4 }}>Min $1,000 · Max $50,000</div>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelStyle}>Destination wallet</label>
+                <select style={{ ...inputStyle, appearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6B8A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: 28, cursor: "pointer" }}>
+                  <option>Primary — Operations</option>
+                </select>
+              </div>
+
+              {/* Live quote */}
+              <div className="rounded-xl mb-4" style={{ background: "hsl(var(--theo-blue-soft))", border: "1px solid hsl(var(--theo-blue-chip))", padding: "14px 16px" }}>
+                <div className="flex justify-between mb-1.5">
+                  <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>HTG to send</span>
+                  <span style={{ fontSize: 15, fontWeight: 800, color: "hsl(var(--theo-blue))" }}>{htg.toLocaleString("en-US")}</span>
+                </div>
+                <div className="flex justify-between mb-1.5">
+                  <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Rate</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>{liveRate.toFixed(2)} HTG/USDC</span>
+                </div>
+                <div className="flex justify-between">
+                  <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Network fee</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>$0.00</span>
+                </div>
+                <div className="flex items-center justify-between mt-2.5 pt-2.5" style={{ borderTop: "1px solid hsl(var(--theo-blue-chip))" }}>
+                  <div className="flex items-center gap-1.5">
+                    <div className="rounded-full" style={{ width: 6, height: 6, background: "hsl(var(--theo-cyan))", animation: "pulse 2s infinite" }} />
+                    <span style={{ fontSize: 11, color: "hsl(var(--theo-cyan))", fontWeight: 600 }}>
+                      Rate locked for <strong>{timerLabel}</strong>
+                    </span>
                   </div>
-                </li>
-              ))}
-            </ol>
+                  <span style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>Updates every 5s</span>
+                </div>
+              </div>
+
+              <button
+                onClick={submit}
+                disabled={busy || !canQuote}
+                className="w-full font-bold text-white transition-colors"
+                style={{
+                  background: busy || !canQuote ? "hsl(var(--theo-mid))" : "hsl(var(--theo-blue))",
+                  borderRadius: 9, padding: "12px", fontSize: 14,
+                  border: "none", cursor: busy || !canQuote ? "not-allowed" : "pointer",
+                  fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center",
+                }}
+              >
+                {busy ? "Generating quote…" : "Get payment reference →"}
+              </button>
+            </>
+          ) : (
+            <>
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelStyle}>USDC to withdraw</label>
+                <div style={{ position: "relative" }}>
+                  <input style={{ ...inputStyle, paddingRight: 56 }} type="text" inputMode="numeric" defaultValue="5,000" />
+                  <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>USDC</span>
+                </div>
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelStyle}>Source wallet</label>
+                <select style={{ ...inputStyle, appearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6B8A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: 28, cursor: "pointer" }}>
+                  <option>Primary — Operations</option>
+                </select>
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelStyle}>Destination bank account</label>
+                <select style={{ ...inputStyle, appearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6B8A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: 28, cursor: "pointer" }}>
+                  <option>BNC — **** 4821</option>
+                  <option>Sogebank — **** 3301</option>
+                  <option>+ Add new account</option>
+                </select>
+              </div>
+              <div className="rounded-xl mb-4" style={{ background: "hsl(var(--theo-gold-soft))", border: "1px solid #F0C000", padding: "12px 14px", fontSize: 12, color: "#7A5F00", lineHeight: 1.5 }}>
+                <strong>Note:</strong> Off-ramp withdrawals are processed via SPIH and typically arrive in 1–2 business days.
+              </div>
+              <button
+                className="w-full font-bold text-white"
+                style={{ background: "hsl(var(--theo-blue))", borderRadius: 9, padding: "12px", fontSize: 14, border: "none", cursor: "pointer", fontFamily: "inherit" }}
+              >
+                Initiate withdrawal →
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Info sidebar */}
+        <div className="flex flex-col gap-3">
+          <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
+            <div className="font-bold mb-3" style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>Corridor info</div>
+            <p style={{ fontSize: 12, color: "hsl(var(--theo-mid))", lineHeight: 1.6, marginBottom: 12 }}>
+              Theo bridges the Haiti–DR corridor. All HTG payments route through SPIH, Haiti's interbank settlement network.
+            </p>
+            {[
+              ["Avg. settlement", "< 2 min"],
+              ["Network", "Stellar"],
+              ["Reserve model", "1:1 · Segregated"],
+              ["Max per order", "$50,000 USDC"],
+            ].map(([k, v]) => (
+              <div key={k} className="flex justify-between" style={{ fontSize: 12, marginBottom: 8 }}>
+                <span style={{ color: "hsl(var(--theo-mid))" }}>{k}</span>
+                <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>{v}</span>
+              </div>
+            ))}
           </div>
 
-          <div className="bg-card rounded-2xl border border-border p-6 shadow-xs">
-            <p className="eyebrow eyebrow-muted">Current rate</p>
-            <div className="mt-2 text-4xl font-extrabold tracking-tightest text-primary">
-              {spotRate ? spotRate.toFixed(2) : "—"}
+          <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
+            <div className="font-bold mb-2" style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>Live rate</div>
+            <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1px", color: "hsl(var(--theo-blue))" }}>
+              {liveRate.toFixed(2)}
             </div>
-            <div className="text-xs text-muted-foreground mt-1">HTG per USDC</div>
-            <div className="mt-3 flex items-center gap-2 text-xs">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-60" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-accent" />
-              </span>
-              <span className="text-accent font-semibold">Live</span>
+            <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 2 }}>HTG per USDC</div>
+            <div className="flex items-center gap-1.5 mt-1.5">
+              <div className="rounded-full" style={{ width: 6, height: 6, background: "hsl(var(--theo-cyan))", animation: "pulse 2s infinite" }} />
+              <span style={{ fontSize: 11, color: "hsl(var(--theo-cyan))", fontWeight: 600 }}>Live · updates every 5s</span>
             </div>
           </div>
-        </aside>
+        </div>
       </div>
     </AppLayout>
   );

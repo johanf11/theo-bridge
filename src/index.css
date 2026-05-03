@@ -1,5 +1,27 @@
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,800;1,700;1,800&family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 
+/* Plain font family — full weight range */
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-Hairline.otf') format('opentype'); font-weight:100; font-style:normal; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-HairlineItalic.otf') format('opentype'); font-weight:100; font-style:italic; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-Thin.otf') format('opentype'); font-weight:200; font-style:normal; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-ThinItalic.otf') format('opentype'); font-weight:200; font-style:italic; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-Light.otf') format('opentype'); font-weight:300; font-style:normal; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-LightItalic.otf') format('opentype'); font-weight:300; font-style:italic; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-Regular.otf') format('opentype'); font-weight:400; font-style:normal; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-RegularItalic.otf') format('opentype'); font-weight:400; font-style:italic; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-Medium.otf') format('opentype'); font-weight:500; font-style:normal; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-MediumItalic.otf') format('opentype'); font-weight:500; font-style:italic; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-Bold.otf') format('opentype'); font-weight:700; font-style:normal; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-BoldItalic.otf') format('opentype'); font-weight:700; font-style:italic; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-Extrabold.otf') format('opentype'); font-weight:800; font-style:normal; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-ExtraboldItalic.otf') format('opentype'); font-weight:800; font-style:italic; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-Black.otf') format('opentype'); font-weight:900; font-style:normal; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-BlackItalic.otf') format('opentype'); font-weight:900; font-style:italic; font-display:swap; }
+@font-face { font-family:'Plain Super'; src:url('/fonts/Plain-Super.otf') format('opentype'); font-style:normal; font-display:swap; }
+@font-face { font-family:'Plain Super'; src:url('/fonts/Plain-SuperItalic.otf') format('opentype'); font-style:italic; font-display:swap; }
+@font-face { font-family:'Plain Skeleton'; src:url('/fonts/Plain-Skeleton.otf') format('opentype'); font-style:normal; font-display:swap; }
+@font-face { font-family:'Plain Skeleton'; src:url('/fonts/Plain-SkeletonItalic.otf') format('opentype'); font-style:italic; font-display:swap; }
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -113,12 +135,12 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Plain', 'Inter', system-ui, -apple-system, sans-serif;
     font-feature-settings: 'cv11', 'ss01';
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'Plain', 'Inter', system-ui, sans-serif;
     font-weight: 700;
     color: hsl(var(--theo-blue));
     letter-spacing: -0.02em;

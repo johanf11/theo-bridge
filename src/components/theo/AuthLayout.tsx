@@ -16,81 +16,107 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen grid lg:grid-cols-2 bg-background">
       {/* Left brand panel */}
-      <div className="hidden lg:flex relative bg-primary text-primary-foreground p-12 xl:p-16 flex-col justify-between overflow-hidden">
-        {/* Decorative concentric arcs */}
+      <div className="hidden lg:flex relative bg-primary text-primary-foreground flex-col justify-between overflow-hidden"
+        style={{ padding: "40px 56px 48px" }}>
+        {/* Decorative circles — sized and positioned per design */}
         <div
           aria-hidden
-          className="pointer-events-none absolute -bottom-40 -left-40 h-[520px] w-[520px] rounded-full border border-primary-foreground/10"
+          className="pointer-events-none absolute rounded-full"
+          style={{
+            bottom: "-140px", left: "-100px",
+            width: "480px", height: "480px",
+            border: "1.5px solid rgba(253,207,0,0.10)",
+          }}
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute -bottom-56 -left-56 h-[680px] w-[680px] rounded-full border border-primary-foreground/5"
+          className="pointer-events-none absolute rounded-full"
+          style={{
+            bottom: "-80px", left: "-50px",
+            width: "300px", height: "300px",
+            border: "1.5px solid rgba(253,207,0,0.07)",
+          }}
         />
 
         <Logo variant="light" />
 
-        <div className="relative z-10 max-w-lg">
+        <div className="relative z-10">
           <div className="eyebrow eyebrow-on-dark">Business Banking</div>
-          <h1 className="mt-6 text-5xl xl:text-6xl font-extrabold leading-[1.05] text-primary-foreground tracking-tightest">
+          <h1 className="mt-5 font-extrabold leading-[1.05] text-primary-foreground tracking-tightest"
+            style={{ fontSize: "clamp(40px, 3.5vw, 56px)", letterSpacing: "-0.03em" }}>
             Open your<br />
             <span className="text-secondary">business</span><br />
             account.
           </h1>
-          <div className="mt-6 tagline text-2xl">
+          <div className="mt-4 tagline" style={{ fontSize: "19px" }}>
             Banking the Unbanked of the Global South.
           </div>
-          <hr className="gold-rule mt-4" />
-          <p className="mt-8 text-primary-foreground/75 leading-relaxed max-w-md">
+          <hr className="gold-rule mt-3 mb-8" />
+          <p className="text-primary-foreground/60 leading-relaxed max-w-sm mb-10" style={{ fontSize: "15px" }}>
             Convert Haitian Gourdes to USDC in minutes. Locked-in rates, full KYB compliance,
             and bank-grade reconciliation — built for the DR–Haiti corridor.
           </p>
-        </div>
 
-        <div className="relative z-10 space-y-4">
-          {features.map((f) => (
-            <div key={f.title} className="flex items-center gap-3">
-              <span
-                className="inline-flex h-9 w-9 items-center justify-center bg-secondary text-secondary-foreground"
-                style={{ borderRadius: "22%" }}
-              >
-                <f.icon className="h-4 w-4" />
-              </span>
-              <div className="text-sm">
-                <span className="font-semibold text-primary-foreground">{f.title}</span>
-                <span className="text-primary-foreground/60"> · {f.desc}</span>
+          <div className="space-y-3">
+            {features.map((f) => (
+              <div key={f.title} className="flex items-center gap-3">
+                <span
+                  className="inline-flex h-8 w-8 items-center justify-center flex-shrink-0"
+                  style={{
+                    borderRadius: "8px",
+                    background: "rgba(255,255,255,0.08)",
+                    border: "1px solid rgba(255,255,255,0.10)",
+                  }}
+                >
+                  <f.icon
+                    className="h-4 w-4"
+                    style={{ stroke: "hsl(var(--theo-gold))", fill: "none", strokeWidth: 1.8 }}
+                  />
+                </span>
+                <span className="text-sm">
+                  <span className="font-bold text-primary-foreground">{f.title}</span>
+                  <span className="text-primary-foreground/60"> · {f.desc}</span>
+                </span>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
-        <div className="relative z-10 text-xs text-primary-foreground/50 pt-8">
+        <div className="relative z-10 text-primary-foreground/30" style={{ fontSize: "12px" }}>
           © 2026 Theo AI Finance Inc. · Regulated · DR-Licensed
         </div>
       </div>
 
       {/* Right form panel */}
-      <div className="flex items-center justify-center p-6 md:p-12">
-        <div className="w-full max-w-md">
+      <div className="flex items-center justify-center" style={{ background: "hsl(var(--theo-cream))", padding: "40px 48px" }}>
+        <div className="w-full" style={{ maxWidth: "440px" }}>
           <div className="lg:hidden mb-8"><Logo /></div>
 
-          <div className="bg-card rounded-2xl shadow-md-soft border border-border p-8 md:p-10">
+          <div className="bg-card border border-border shadow-md-soft" style={{ borderRadius: "20px", padding: "48px 44px" }}>
             {/* Tabs */}
-            <div className="grid grid-cols-2 gap-1 p-1 bg-muted rounded-xl mb-8">
+            <div className="flex p-[3px] mb-7 gap-[2px]"
+              style={{ background: "hsl(var(--theo-blue-soft))", borderRadius: "10px" }}>
               <Link
                 to="/register"
                 className={cn(
-                  "text-center text-sm font-semibold py-2.5 rounded-lg transition-colors",
-                  isRegister ? "bg-card text-primary shadow-xs" : "text-muted-foreground hover:text-primary"
+                  "flex-1 text-center text-sm font-bold py-2 transition-all",
+                  isRegister
+                    ? "bg-card text-primary shadow-xs"
+                    : "text-muted-foreground hover:text-primary"
                 )}
+                style={{ borderRadius: "8px" }}
               >
                 Create account
               </Link>
               <Link
                 to="/login"
                 className={cn(
-                  "text-center text-sm font-semibold py-2.5 rounded-lg transition-colors",
-                  !isRegister ? "bg-card text-primary shadow-xs" : "text-muted-foreground hover:text-primary"
+                  "flex-1 text-center text-sm font-bold py-2 transition-all",
+                  !isRegister
+                    ? "bg-card text-primary shadow-xs"
+                    : "text-muted-foreground hover:text-primary"
                 )}
+                style={{ borderRadius: "8px" }}
               >
                 Sign in
               </Link>
