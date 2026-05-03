@@ -21,7 +21,7 @@ export default function Transactions() {
       setCustomerId(c.id);
       const { data: o } = await supabase
         .from("orders")
-        .select("id, status, usdc_amount, htg_amount, reference_number, created_at")
+        .select("id, status, usdc_amount, htg_amount, reference_number, created_at, stellar_tx_hash")
         .eq("customer_id", c.id)
         .order("created_at", { ascending: false });
       setOrders((o ?? []) as Order[]);
