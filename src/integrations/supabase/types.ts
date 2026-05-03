@@ -118,6 +118,7 @@ export type Database = {
           completed_at: string | null
           created_at: string
           customer_id: string
+          destination_wallet_address: string | null
           failure_reason: string | null
           forward_premium: number
           funded_at: string | null
@@ -138,6 +139,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           customer_id: string
+          destination_wallet_address?: string | null
           failure_reason?: string | null
           forward_premium?: number
           funded_at?: string | null
@@ -158,6 +160,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           customer_id?: string
+          destination_wallet_address?: string | null
           failure_reason?: string | null
           forward_premium?: number
           funded_at?: string | null
