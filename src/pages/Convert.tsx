@@ -215,8 +215,17 @@ export default function Convert() {
 
               <div style={{ marginBottom: 14 }}>
                 <label style={labelStyle}>Destination wallet</label>
-                <select style={{ ...inputStyle, appearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6B8A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: 28, cursor: "pointer" }}>
-                  <option>Primary — Operations</option>
+                <select
+                  value={selectedWallet}
+                  onChange={(e) => setSelectedWallet(e.target.value)}
+                  style={{ ...inputStyle, appearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6B8A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: 28, cursor: "pointer" }}
+                >
+                  {walletOptions.length === 0 && <option value="">No wallets available</option>}
+                  {walletOptions.map((w) => (
+                    <option key={w.id} value={w.stellar_address}>
+                      {w.label} — {w.stellar_address.slice(0, 6)}…{w.stellar_address.slice(-4)}
+                    </option>
+                  ))}
                 </select>
               </div>
 
