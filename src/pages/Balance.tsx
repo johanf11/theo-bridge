@@ -35,6 +35,25 @@ export default function Balance() {
   const [address, setAddress] = useState("");
   const [errors, setErrors] = useState<{ label?: string; stellar_address?: string }>({});
   const [saving, setSaving] = useState(false);
+  const [creating, setCreating] = useState(false);
+
+  const handleCreateAccount = async () => {
+    if (creating) return;
+    setCreating(true);
+    const { data, error } = await supabase.functions.invoke("create-wallet", {
+      body: { label: `Account ${new Date().toLocaleDateString()}` },
+    });
+    setCreating(false);
+    if (error) {
+      toast({ title: "Could not create account", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({
+      title: "Account created",
+      description: `Public key: ${(data as any)?.public_key?.slice(0, 12)}...`,
+    });
+    loadWallets();
+  };
 
   const loadWallets = async () => {
     setLoading(true);
