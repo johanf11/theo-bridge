@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { Eye, EyeOff, Copy, KeyRound, AlertTriangle } from "lucide-react";
+import { Eye, EyeOff, Copy, KeyRound, AlertTriangle, Pencil, Check } from "lucide-react";
 
 type WalletKey = {
   id: string;
