@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
       .update({ status: "RELEASING" })
       .eq("id", orderId)
       .eq("status", "FUNDED")
-      .select("id, usdc_amount, reference_number, customer_id, destination_wallet_address")
+      .select("id, usdc_amount, reference_number, customer_id, destination_wallet_address, destination_stellar_address")
       .maybeSingle();
     if (lockErr) throw lockErr;
     if (!locked) {
@@ -48,8 +48,12 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Build & submit Stellar payment
+    const server = new Horizon.Server(HORIZON);
+    const distributor = Keypair.fromSecret(distributorSecret);
+
     // Resolve destination: order-level override first, then customer's primary wallet
-    let dest = locked.destination_wallet_address as string | null;
+    let dest = (locked.destination_stellar_address ?? locked.destination_wallet_address) as string | null;
     if (!dest) {
       const { data: customer, error: cErr } = await admin
         .from("customers")
@@ -60,10 +64,7 @@ Deno.serve(async (req) => {
       dest = customer?.stellar_wallet_address ?? null;
     }
     if (!dest || !dest.startsWith("G")) throw new Error("No Stellar destination wallet for this order");
-
-    // Build & submit Stellar payment
-    const server = new Horizon.Server(HORIZON);
-    const distributor = Keypair.fromSecret(distributorSecret);
+    if (dest === distributor.publicKey()) throw new Error("Destination cannot be the distributor account");
     const sourceAccount = await server.loadAccount(distributor.publicKey());
     const usdc = new Asset("USDC", usdcIssuer);
     const amount = Number(locked.usdc_amount).toFixed(7);
