@@ -96,10 +96,44 @@ export function WalletKeys() {
           <div className="flex flex-col gap-3">
             {wallets.map((w) => (
               <div key={w.id} className="border border-border rounded-lg" style={{ padding: 14 }}>
-                <div className="flex items-center justify-between mb-2">
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
-                    {w.label ?? "Wallet"}
-                  </div>
+                <div className="flex items-center justify-between mb-2 gap-2">
+                  {editingId === w.id ? (
+                    <input
+                      autoFocus
+                      value={editingValue}
+                      maxLength={60}
+                      onChange={(e) => setEditingValue(e.target.value)}
+                      onBlur={() => saveEdit(w.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveEdit(w.id);
+                        if (e.key === "Escape") setEditingId(null);
+                      }}
+                      style={{
+                        flex: 1, fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))",
+                        border: "1px solid hsl(var(--border))", borderRadius: 6,
+                        padding: "4px 8px", outline: "none", fontFamily: "inherit",
+                        background: "#fff",
+                      }}
+                    />
+                  ) : (
+                    <div className="flex items-center gap-2" style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
+                        {w.label ?? "Wallet"}
+                      </div>
+                      <button
+                        onClick={() => startEdit(w)}
+                        title="Rename"
+                        style={{ background: "transparent", border: "none", padding: 2, cursor: "pointer", color: "hsl(var(--theo-mid))", display: "inline-flex" }}
+                      >
+                        <Pencil style={{ width: 12, height: 12 }} />
+                      </button>
+                      {savedId === w.id && (
+                        <span className="flex items-center gap-1" style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-cyan))" }}>
+                          <Check style={{ width: 11, height: 11 }} /> Saved
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Public key */}
