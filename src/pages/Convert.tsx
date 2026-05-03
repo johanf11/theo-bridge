@@ -98,9 +98,12 @@ export default function Convert() {
   const submit = async () => {
     if (!canQuote) { toast.error("KYB approval required"); return; }
     if (usdcRaw < 1000 || usdcRaw > 50000) { toast.error("Enter an amount between 1,000 and 50,000 USDC"); return; }
+    if (!selectedWallet) { toast.error("Please select a destination wallet"); return; }
     try {
       setBusy(true);
-      const { data, error } = await supabase.functions.invoke("create-quote", { body: { usdc_amount: usdcRaw } });
+      const { data, error } = await supabase.functions.invoke("create-quote", {
+        body: { usdc_amount: usdcRaw, destination_wallet_address: selectedWallet },
+      });
       if (error || data?.error) { toast.error(data?.error || error?.message || "Quote failed"); return; }
       setLocked(true);
       setLockedRef(data.reference_number);
