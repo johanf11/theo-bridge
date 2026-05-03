@@ -29,6 +29,30 @@ export default function Balance() {
   const [labelError, setLabelError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState("");
+
+  const startEdit = (w: Wallet) => {
+    setEditingId(w.id);
+    setEditingValue(w.label ?? "");
+  };
+
+  const saveEdit = async (id: string) => {
+    const parsed = labelSchema.safeParse(editingValue);
+    if (!parsed.success) {
+      toast({ title: "Invalid name", description: parsed.error.issues[0].message, variant: "destructive" });
+      return;
+    }
+    const newLabel = parsed.data;
+    setWallets((prev) => prev.map((w) => (w.id === id ? { ...w, label: newLabel } : w)));
+    setEditingId(null);
+    const { error } = await supabase.from("wallets").update({ label: newLabel }).eq("id", id);
+    if (error) {
+      toast({ title: "Could not rename", description: error.message, variant: "destructive" });
+      loadWallets();
+    }
+  };
+
   const loadWallets = async () => {
     setLoading(true);
     const { data: c } = await supabase
