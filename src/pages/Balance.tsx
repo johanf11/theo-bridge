@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { fetchHorizonUsdcBalance } from "@/lib/balance";
+import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 
 type Wallet = {
   id: string;
