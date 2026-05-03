@@ -27,6 +27,7 @@ export default function Balance() {
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [balances, setBalances] = useState<Record<string, number>>({});
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const [open, setOpen] = useState(false);
