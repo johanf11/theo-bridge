@@ -3,6 +3,7 @@ import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
+import { fetchHorizonUsdcBalance, fetchTotalUsdcBalance } from "@/lib/balance";
 
 type Wallet = {
   id: string;
@@ -20,26 +21,13 @@ const walletSchema = z.object({
     .regex(/^G[A-Z2-7]{55}$/, "Must be a valid Stellar public key (G...)"),
 });
 
-async function fetchUsdcBalance(address: string): Promise<number> {
-  try {
-    const res = await fetch(`https://horizon-testnet.stellar.org/accounts/${address}`);
-    if (!res.ok) return 0;
-    const json = await res.json();
-    const usdc = (json.balances ?? []).find(
-      (b: any) => b.asset_code === "USDC"
-    );
-    return usdc ? Number(usdc.balance) : 0;
-  } catch {
-    return 0;
-  }
-}
-
 const shortAddr = (a: string) => `${a.slice(0, 6)}...${a.slice(-4)}`;
 
 export default function Balance() {
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [balances, setBalances] = useState<Record<string, number>>({});
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const [open, setOpen] = useState(false);
@@ -83,19 +71,23 @@ export default function Balance() {
     const ws = (w ?? []) as Wallet[];
     setWallets(ws);
 
-    // Fetch live balances in parallel
+    // Fetch live balances per wallet in parallel
     const entries = await Promise.all(
-      ws.map(async (x) => [x.id, await fetchUsdcBalance(x.stellar_address)] as const)
+      ws.map(async (x) => [x.id, await fetchHorizonUsdcBalance(x.stellar_address)] as const)
     );
-    setBalances(Object.fromEntries(entries));
+    const balanceMap = Object.fromEntries(entries);
+    setBalances(balanceMap);
+
+    // Hero total: live Horizon for primary KYB address, fallback to completed orders
+    const heroTotal = await fetchTotalUsdcBalance(c.id, c.stellar_wallet_address);
+    setTotal(heroTotal);
+
     setLoading(false);
   };
 
   useEffect(() => {
     loadWallets();
   }, []);
-
-  const total = wallets.reduce((s, w) => s + (balances[w.id] ?? 0), 0);
 
   const handleSave = async () => {
     const parsed = walletSchema.safeParse({ label, stellar_address: address });
