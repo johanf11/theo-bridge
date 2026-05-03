@@ -21,20 +21,6 @@ const walletSchema = z.object({
     .regex(/^G[A-Z2-7]{55}$/, "Must be a valid Stellar public key (G...)"),
 });
 
-async function fetchUsdcBalance(address: string): Promise<number> {
-  try {
-    const res = await fetch(`https://horizon-testnet.stellar.org/accounts/${address}`);
-    if (!res.ok) return 0;
-    const json = await res.json();
-    const usdc = (json.balances ?? []).find(
-      (b: any) => b.asset_code === "USDC"
-    );
-    return usdc ? Number(usdc.balance) : 0;
-  } catch {
-    return 0;
-  }
-}
-
 const shortAddr = (a: string) => `${a.slice(0, 6)}...${a.slice(-4)}`;
 
 export default function Balance() {
