@@ -26,6 +26,8 @@ export default function Convert() {
   const [busy, setBusy] = useState(false);
   const [locked, setLocked] = useState(false);
   const [lockedRef, setLockedRef] = useState("");
+  const [walletOptions, setWalletOptions] = useState<WalletOption[]>([]);
+  const [selectedWallet, setSelectedWallet] = useState<string>("");
 
   useEffect(() => {
     if (!user) return;
