@@ -118,6 +118,7 @@ Deno.serve(async (req) => {
         margin: MARGIN,
         reference_number: referenceNumber,
         quote_expires_at: expiresAt,
+        destination_wallet_address: destinationWallet || null,
       })
       .select()
       .single();
