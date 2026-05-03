@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -13,18 +14,11 @@ type Wallet = {
   wallet_type: "TREASURY" | "CUSTOMER";
 };
 
-const walletSchema = z.object({
-  label: z.string().trim().min(1, "Nickname is required").max(60),
-  stellar_address: z
-    .string()
-    .trim()
-    .regex(/^G[A-Z2-7]{55}$/, "Must be a valid Stellar public key (G...)"),
-});
-
+const labelSchema = z.string().trim().min(1, "Nickname is required").max(60);
 const shortAddr = (a: string) => `${a.slice(0, 6)}...${a.slice(-4)}`;
 
 export default function Balance() {
-  const [customerId, setCustomerId] = useState<string | null>(null);
+  const navigate = useNavigate();
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [balances, setBalances] = useState<Record<string, number>>({});
   const [total, setTotal] = useState(0);
@@ -32,28 +26,8 @@ export default function Balance() {
 
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState("");
-  const [address, setAddress] = useState("");
-  const [errors, setErrors] = useState<{ label?: string; stellar_address?: string }>({});
-  const [saving, setSaving] = useState(false);
+  const [labelError, setLabelError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-
-  const handleCreateAccount = async () => {
-    if (creating) return;
-    setCreating(true);
-    const { data, error } = await supabase.functions.invoke("create-wallet", {
-      body: { label: `Account ${new Date().toLocaleDateString()}` },
-    });
-    setCreating(false);
-    if (error) {
-      toast({ title: "Could not create account", description: error.message, variant: "destructive" });
-      return;
-    }
-    toast({
-      title: "Account created",
-      description: `Public key: ${(data as any)?.public_key?.slice(0, 12)}...`,
-    });
-    loadWallets();
-  };
 
   const loadWallets = async () => {
     setLoading(true);
@@ -65,7 +39,6 @@ export default function Balance() {
       setLoading(false);
       return;
     }
-    setCustomerId(c.id);
 
     let { data: w } = await supabase
       .from("wallets")
@@ -73,7 +46,7 @@ export default function Balance() {
       .eq("customer_id", c.id)
       .order("created_at", { ascending: true });
 
-    // Pre-populate Primary wallet from customer's KYB-approved address
+    // Auto-seed Primary wallet from the customer's KYB-approved address
     if ((!w || w.length === 0) && c.stellar_wallet_address) {
       const { data: inserted } = await supabase
         .from("wallets")
@@ -90,17 +63,12 @@ export default function Balance() {
     const ws = (w ?? []) as Wallet[];
     setWallets(ws);
 
-    // Fetch live Horizon balance per wallet — single source of truth
     const entries = await Promise.all(
       ws.map(async (x) => [x.id, await fetchHorizonUsdcBalance(x.stellar_address)] as const)
     );
     const balanceMap = Object.fromEntries(entries);
     setBalances(balanceMap);
-
-    // Hero total = sum of the same per-wallet Horizon balances (always consistent with cards)
-    const heroTotal = Object.values(balanceMap).reduce((s, v) => s + v, 0);
-    setTotal(heroTotal);
-
+    setTotal(Object.values(balanceMap).reduce((s, v) => s + v, 0));
     setLoading(false);
   };
 
@@ -108,34 +76,28 @@ export default function Balance() {
     loadWallets();
   }, []);
 
-  const handleSave = async () => {
-    const parsed = walletSchema.safeParse({ label, stellar_address: address });
+  const handleCreateAccount = async () => {
+    const parsed = labelSchema.safeParse(label);
     if (!parsed.success) {
-      const fe: typeof errors = {};
-      parsed.error.issues.forEach((i) => {
-        fe[i.path[0] as keyof typeof errors] = i.message;
-      });
-      setErrors(fe);
+      setLabelError(parsed.error.issues[0].message);
       return;
     }
-    if (!customerId) return;
-    setSaving(true);
-    const { error } = await supabase.from("wallets").insert({
-      customer_id: customerId,
-      label: parsed.data.label,
-      stellar_address: parsed.data.stellar_address,
-      wallet_type: "CUSTOMER",
+    setLabelError(null);
+    setCreating(true);
+    const { data, error } = await supabase.functions.invoke("create-wallet", {
+      body: { label: parsed.data },
     });
-    setSaving(false);
+    setCreating(false);
     if (error) {
-      toast({ title: "Could not add wallet", description: error.message, variant: "destructive" });
+      toast({ title: "Could not create account", description: error.message, variant: "destructive" });
       return;
     }
-    toast({ title: "Wallet added", description: parsed.data.label });
+    toast({
+      title: "Account created",
+      description: `Public key: ${(data as any)?.public_key?.slice(0, 12)}...`,
+    });
     setOpen(false);
     setLabel("");
-    setAddress("");
-    setErrors({});
     loadWallets();
   };
 
@@ -154,7 +116,7 @@ export default function Balance() {
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => setOpen(true)}
+            onClick={() => navigate("/convert")}
             className="flex items-center gap-1.5 font-bold transition-colors"
             style={{
               background: "transparent", border: "1.5px solid hsl(var(--theo-blue))",
@@ -165,18 +127,16 @@ export default function Balance() {
             + Fund wallet
           </button>
           <button
-            onClick={handleCreateAccount}
-            disabled={creating}
+            onClick={() => setOpen(true)}
             className="flex items-center gap-1.5 font-bold text-white transition-colors"
             style={{
               background: "hsl(var(--theo-blue))", borderRadius: 7, padding: "6px 12px",
-              fontSize: 12, border: "none", cursor: creating ? "wait" : "pointer",
-              fontFamily: "inherit", opacity: creating ? 0.7 : 1,
+              fontSize: 12, border: "none", cursor: "pointer", fontFamily: "inherit",
             }}
-            onMouseEnter={e => !creating && (e.currentTarget.style.background = "#3E40B0")}
-            onMouseLeave={e => !creating && (e.currentTarget.style.background = "hsl(var(--theo-blue))")}
+            onMouseEnter={e => (e.currentTarget.style.background = "#3E40B0")}
+            onMouseLeave={e => (e.currentTarget.style.background = "hsl(var(--theo-blue))")}
           >
-            {creating ? "Creating..." : "+ Add account"}
+            + Add account
           </button>
         </div>
       </div>
@@ -241,7 +201,7 @@ export default function Balance() {
       <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
         {wallets.length === 0 && !loading ? (
           <div className="py-10 text-center text-sm text-muted-foreground">
-            No wallets yet. Click "+ Fund account" to add one.
+            No wallets yet. Click "+ Add account" to create one.
           </div>
         ) : (
           <table className="w-full border-collapse">
@@ -283,12 +243,12 @@ export default function Balance() {
         )}
       </div>
 
-      {/* Add wallet modal */}
+      {/* Add account modal */}
       {open && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center"
           style={{ background: "rgba(15, 29, 84, 0.45)" }}
-          onClick={() => setOpen(false)}
+          onClick={() => !creating && setOpen(false)}
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -296,65 +256,52 @@ export default function Balance() {
             style={{ width: 440, maxWidth: "92vw", borderRadius: 16, padding: 28, boxShadow: "0 20px 60px rgba(0,0,0,0.18)" }}
           >
             <div className="font-extrabold mb-1" style={{ fontSize: 20, color: "hsl(var(--theo-blue))", letterSpacing: "-0.02em" }}>
-              Fund wallet
+              Create new account
             </div>
             <div style={{ fontSize: 13, color: "hsl(var(--theo-mid))", marginBottom: 18 }}>
-              Link an additional Stellar account to organize funds.
+              Generates a new Stellar account on testnet, funds it via Friendbot, and opens a USDC trustline.
             </div>
 
-            <label className="block mb-3">
+            <label className="block mb-5">
               <span className="font-bold uppercase block mb-1.5" style={{ fontSize: 11, letterSpacing: "0.14em", color: "hsl(var(--theo-mid))" }}>
                 Wallet nickname
               </span>
               <input
                 value={label}
                 maxLength={60}
+                disabled={creating}
                 onChange={(e) => setLabel(e.target.value)}
-                placeholder="Payroll Account"
+                placeholder="Payroll, Reserve, ..."
                 className="w-full border border-border rounded-lg outline-none"
                 style={{ padding: "9px 12px", fontSize: 14, fontFamily: "inherit" }}
               />
-              {errors.label && <div style={{ color: "#C0392B", fontSize: 12, marginTop: 4 }}>{errors.label}</div>}
-            </label>
-
-            <label className="block mb-5">
-              <span className="font-bold uppercase block mb-1.5" style={{ fontSize: 11, letterSpacing: "0.14em", color: "hsl(var(--theo-mid))" }}>
-                Stellar wallet address
-              </span>
-              <input
-                value={address}
-                maxLength={56}
-                onChange={(e) => setAddress(e.target.value.toUpperCase())}
-                placeholder="G..."
-                className="w-full border border-border rounded-lg outline-none"
-                style={{ padding: "9px 12px", fontSize: 13, fontFamily: "monospace" }}
-              />
-              {errors.stellar_address && <div style={{ color: "#C0392B", fontSize: 12, marginTop: 4 }}>{errors.stellar_address}</div>}
+              {labelError && <div style={{ color: "#C0392B", fontSize: 12, marginTop: 4 }}>{labelError}</div>}
             </label>
 
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setOpen(false)}
+                disabled={creating}
                 style={{
                   background: "transparent", border: "1.5px solid hsl(var(--border))",
                   color: "hsl(var(--theo-ink))", borderRadius: 10, padding: "8px 16px",
-                  fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                  fontSize: 13, fontWeight: 600, cursor: creating ? "not-allowed" : "pointer", fontFamily: "inherit",
                 }}
               >
                 Cancel
               </button>
               <button
-                onClick={handleSave}
-                disabled={saving}
+                onClick={handleCreateAccount}
+                disabled={creating}
                 className="text-white"
                 style={{
                   background: "hsl(var(--theo-blue))", border: "none",
                   borderRadius: 10, padding: "8px 18px",
-                  fontSize: 13, fontWeight: 700, cursor: saving ? "wait" : "pointer", fontFamily: "inherit",
-                  opacity: saving ? 0.7 : 1,
+                  fontSize: 13, fontWeight: 700, cursor: creating ? "wait" : "pointer", fontFamily: "inherit",
+                  opacity: creating ? 0.7 : 1,
                 }}
               >
-                {saving ? "Saving..." : "Save wallet"}
+                {creating ? "Creating..." : "Create account"}
               </button>
             </div>
           </div>
