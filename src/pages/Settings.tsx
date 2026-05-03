@@ -224,6 +224,10 @@ export default function Settings() {
           </div>
         </div>
       </div>
+
+      <div className="mt-4">
+        <WalletKeys />
+      </div>
     </AppLayout>
   );
 }
