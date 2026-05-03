@@ -257,7 +257,7 @@ export default function OrderStatus() {
         <>
           <div className="rounded-2xl bg-primary p-6 mb-4 flex items-center gap-5">
             <div className="h-12 w-12 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
-              <CheckCircle2 className="h-6 w-6 text-theo-gold" />
+              <ArrowLeftRight className="h-6 w-6 text-theo-gold" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-theo-gold">
