@@ -60,7 +60,7 @@ export default function Payout() {
           {/* Tabs */}
           <div className="flex border-b border-border mb-4 mt-3">
             <button style={tabStyle("single")} onClick={() => setTab("single")}>Single recipient</button>
-            <button style={tabStyle("bulk")} onClick={() => setTab("bulk")}>Bulk / CSV upload</button>
+            <button style={tabStyle("bulk")} onClick={() => setTab("bulk")}>Mass transfer</button>
           </div>
 
           {tab === "single" ? (
@@ -71,8 +71,8 @@ export default function Payout() {
                   <input style={{ ...inputStyle, marginBottom: 0 }} type="text" placeholder="Marie Claire Dupont" />
                 </div>
                 <div>
-                  <label style={labelStyle}>Stellar wallet address</label>
-                  <input style={{ ...inputStyle, marginBottom: 0 }} type="text" placeholder="G..." />
+                  <label style={labelStyle}>Recipient account ID</label>
+                  <input style={{ ...inputStyle, marginBottom: 0 }} type="text" placeholder="Account ID" />
                 </div>
               </div>
               <div style={{ marginBottom: 14 }}>
@@ -85,14 +85,14 @@ export default function Payout() {
                 </div>
               </div>
               <div style={{ marginBottom: 14 }}>
-                <label style={labelStyle}>Source wallet</label>
+                <label style={labelStyle}>Source account</label>
                 <select style={{ ...inputStyle, marginBottom: 0, appearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6B8A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: 28, cursor: "pointer" }}>
-                  <option>Primary — Operations</option>
-                  <option>Secondary — Payroll</option>
+                  <option>Primary</option>
+                  <option>Payroll</option>
                 </select>
               </div>
               <div style={{ marginBottom: 14 }}>
-                <label style={labelStyle}>Memo / reference (optional)</label>
+                <label style={labelStyle}>Payment note (optional)</label>
                 <input style={{ ...inputStyle, marginBottom: 0 }} type="text" placeholder="e.g. April salary — supplier payment" />
               </div>
               <div className="flex gap-2 mt-1">
@@ -127,7 +127,7 @@ export default function Payout() {
                 <Upload className="mx-auto mb-2.5 opacity-60" style={{ width: 28, height: 28, stroke: "hsl(var(--theo-blue))", strokeWidth: 1.8 }} />
                 <div style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--theo-blue))" }}>Upload CSV file</div>
                 <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 4 }}>
-                  Columns: name, stellar_address, amount_usdc, memo
+                  Columns: name, account_id, amount_usdc, note
                 </div>
               </div>
               <div style={{ marginTop: 12 }}>
