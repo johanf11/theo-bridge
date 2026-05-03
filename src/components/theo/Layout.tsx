@@ -2,8 +2,8 @@ import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth, useRoles } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  LayoutGrid, ArrowLeftRight, Wallet, SendHorizonal,
-  TrendingUp, Settings, LogOut, ShieldCheck, Search,
+  LayoutGrid, ArrowLeftRight, ArrowRightLeft, Wallet, SendHorizonal,
+  Settings, LogOut, ShieldCheck, Search,
 } from "lucide-react";
 
 const mainNav = [
@@ -11,7 +11,7 @@ const mainNav = [
   { to: "/transactions", label: "Transactions", icon: ArrowLeftRight },
   { to: "/balance", label: "Balance", icon: Wallet },
   { to: "/payout", label: "Payout", icon: SendHorizonal },
-  { to: "/convert", label: "Convert", icon: TrendingUp },
+  { to: "/convert", label: "Convert", icon: ArrowRightLeft },
 ];
 
 const SIDEBAR_BG = "#33359A";
