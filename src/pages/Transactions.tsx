@@ -136,6 +136,20 @@ export default function Transactions() {
                   <td className="px-5 py-3" style={{ fontFamily: "monospace", fontSize: 12, color: "hsl(var(--theo-mid))" }}>
                     {o.reference_number}
                   </td>
+                  <td className="px-5 py-3" style={{ fontFamily: "monospace", fontSize: 12 }}>
+                    {o.stellar_tx_hash ? (
+                      <a
+                        href={`https://stellar.expert/explorer/testnet/tx/${o.stellar_tx_hash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: "hsl(var(--theo-cyan))", fontWeight: 600 }}
+                      >
+                        {o.stellar_tx_hash.slice(0, 8)}...{o.stellar_tx_hash.slice(-4)}
+                      </a>
+                    ) : (
+                      <span style={{ color: "hsl(var(--theo-mid))" }}>—</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
