@@ -4,7 +4,7 @@ import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { StatusBadge } from "@/components/theo/StatusBadge";
 import { fmtUSDC, fmtHTG } from "@/lib/format";
-import { fetchTotalUsdcBalance } from "@/lib/balance";
+import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { Plus } from "lucide-react";
 
 type Customer = {
