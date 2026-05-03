@@ -1,74 +1,81 @@
-## Goal
 
-Give the next engineer (and you) a single place to see how Theo is wired up:
-1. A new in-app **Architecture** page at `/architecture` rendering a Mermaid diagram + narrative.
-2. A repo-root **HANDOFF.md** with concrete next steps to push the project further (Stellar testnet release flow we discussed).
+# End-to-end Stellar testnet release
 
----
+Goal: take an order all the way from `QUOTED → FUNDED → RELEASING → COMPLETED` with a real Stellar testnet transaction hash.
 
-## 1. `/architecture` page
+## 1. Secrets to add (build mode)
 
-**File:** `src/pages/Architecture.tsx`
-- Wrap in `AppLayout` (matches Dashboard/Convert styling).
-- Brand-consistent: cream bg, eyebrow + Playfair tagline, gold rule, white cards.
-- Sections:
-  - **System overview** — Mermaid diagram (rendered via `mermaid` npm pkg, dynamic import, render on mount into a ref). Light/dark safe colors.
-  - **Data model** — table of core tables: `profiles`, `user_roles`, `kyb_submissions`, `orders`, `pool_balances` (read from `src/integrations/supabase/types.ts`).
-  - **Order state machine** — second Mermaid stateDiagram: `QUOTED → FUNDED → RELEASING → COMPLETED` with `EXPIRED`/`FAILED` branches.
-  - **Edge functions** — list `create-quote` (deployed) + planned `simulate-spih-payment`, `release-usdc`.
-  - **Env / secrets** — `STELLAR_DISTRIBUTOR_SECRET`, `STELLAR_USDC_ISSUER`, `LOVABLE_API_KEY` (already auto).
-- Admin-only? No — useful for any signed-in user. Gate with `ProtectedRoute` (no `adminOnly`).
+- `STELLAR_DISTRIBUTOR_SECRET` — `S…` secret key of the Theo testnet distributor account.
+- `STELLAR_USDC_ISSUER` — `G…` issuer of the test USDC asset (we'll use one we control on testnet so we can mint freely).
+- `STELLAR_NETWORK` — defaults to `"testnet"` if unset.
 
-**Wiring:**
-- `src/App.tsx`: add `<Route path="/architecture" element={<ProtectedRoute><Architecture /></ProtectedRoute>} />`.
-- `src/components/theo/Layout.tsx`: add sidebar nav item "Architecture" (Lucide `Network` icon) under main section.
+I'll prompt for these via `add_secret` once we enter build mode.
 
-**Dep:** `bun add mermaid` (small, ~600kb gz; dynamic import keeps it out of main chunk).
+## 2. Edge function: `simulate-spih-payment`
 
----
+Path: `supabase/functions/simulate-spih-payment/index.ts`
 
-## 2. `HANDOFF.md` (repo root)
+- POST `{ orderId }`. Validates JWT, checks `has_role(uid, 'admin')`.
+- Conditional update: `orders SET status='FUNDED', funded_at=now() WHERE id=:id AND status='QUOTED'` (idempotent lock).
+- If row updated: invoke `release-usdc` with the same `orderId` (fire-and-forget via `supabase.functions.invoke`).
+- Returns `{ ok: true, status: 'FUNDED' }`.
 
-Concise markdown, ~150 lines. Sections:
+## 3. Edge function: `release-usdc`
 
-- **What's built** — auth (email + Google), KYB submit/admin review, quote creation via `create-quote` edge fn, order status page with realtime, brand system in `index.css` + `tailwind.config.ts`.
-- **What's stubbed** — SPIH payment matching, USDC release on Stellar, admin orders/pool/customers pages (links exist, pages missing).
-- **Next milestone: end-to-end testnet flow**
-  1. Add secrets `STELLAR_DISTRIBUTOR_SECRET`, `STELLAR_USDC_ISSUER` (testnet issuer `GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5`).
-  2. Edge fn `simulate-spih-payment`: admin-only; flips `QUOTED → FUNDED`, enqueues release.
-  3. Edge fn `release-usdc`: builds + signs payment op via `@stellar/stellar-sdk`, submits to Horizon testnet, writes `stellar_tx_hash`, transitions to `COMPLETED`.
-  4. UI: admin "Simulate payment received" button on `OrderStatus`.
-  5. Friendbot the distributor account, establish USDC trustline (one-shot script in `scripts/stellar-bootstrap.ts`).
-- **Testing checklist** — create quote → simulate payment → verify tx on `stellar.expert/explorer/testnet`.
-- **Known risks** — quote expiry race, idempotency on release (use order id as memo + DB lock), RLS on `orders` already restricts to owner.
-- **File map** — short pointer list (pages, layout, auth, edge fns).
+Path: `supabase/functions/release-usdc/index.ts`
 
----
+- POST `{ orderId }`. Service-role internal — admin JWT or shared check.
+- Conditional update: `status='RELEASING' WHERE id=:id AND status='FUNDED'` to lock.
+- Load order + customer (`stellar_wallet_address`, `usdc_amount`, `reference_number`).
+- Build with `npm:@stellar/stellar-sdk`:
+  - `Server('https://horizon-testnet.stellar.org')`
+  - load distributor account
+  - `Operation.payment({ destination, asset: new Asset('USDC', issuer), amount })`
+  - `Memo.text(reference_number)` for idempotent reconciliation
+  - sign with `Keypair.fromSecret(...)`, network = `Networks.TESTNET`
+  - submit to Horizon
+- Success: `status='COMPLETED'`, `stellar_tx_hash=<hash>`, `released_at=now()`, `completed_at=now()`.
+- Failure: `status='FAILED'`, `failure_reason=<error>`.
 
-## Diagram (preview of system overview)
+`supabase/config.toml` gets entries for both functions (verify_jwt = false, validate in code).
 
-```text
-Browser (React SPA)
-  ├─ Auth (Supabase) ──► profiles, user_roles
-  ├─ KYB form ─────────► kyb_submissions
-  ├─ Convert ──► edge: create-quote ──► orders (QUOTED)
-  └─ OrderStatus (realtime)
-         ▲                                    │
-         │                                    ▼
-   release-usdc ◄── simulate-spih-payment ──► orders (FUNDED→COMPLETED)
-         │
-         ▼
-   Stellar Horizon (testnet)
-```
+## 4. UI: `src/pages/OrderStatus.tsx`
 
----
+- Add admin-only "Simulate SPIH payment received" button when `status === 'QUOTED'`. Calls `supabase.functions.invoke('simulate-spih-payment', { body: { orderId } })`.
+- Add a `RELEASING` info card (spinner + "Sending USDC on Stellar testnet…").
+- Existing realtime subscription will auto-render `COMPLETED` + tx hash + stellar.expert link.
 
-## Files
+## 5. UI: `src/pages/Convert.tsx` — wallet capture for test KYB
 
-- create `src/pages/Architecture.tsx`
-- edit `src/App.tsx` (route)
-- edit `src/components/theo/Layout.tsx` (nav item)
-- edit `package.json` (+ `mermaid`)
-- create `HANDOFF.md`
+- Extend the existing "Approve test KYB" helper with a Stellar `G…` address input that writes `customers.stellar_wallet_address` alongside flipping `kyb_status='APPROVED'` (admin-only path).
 
-No DB changes, no secrets required for this step.
+## 6. Setup steps you'll run once
+
+I'll include this as a short section in `HANDOFF.md`:
+
+1. Generate distributor keypair at https://laboratory.stellar.org → Account creation → Friendbot fund.
+2. Establish trustline to `USDC:<your test issuer G…>`.
+3. From issuer account, send some USDC to distributor.
+4. Generate customer keypair → Friendbot → USDC trustline.
+5. Paste customer `G…` into "Approve test KYB" on `/convert`.
+6. Add `STELLAR_DISTRIBUTOR_SECRET` + `STELLAR_USDC_ISSUER` secrets when prompted.
+
+## Test flow
+
+`/convert` → quote 1,000 USDC → `/orders/:id` → "Simulate SPIH payment" → watch `FUNDED → RELEASING → COMPLETED` live → click tx hash → stellar.expert/testnet shows the USDC payment.
+
+## Files to add / edit
+
+- `supabase/functions/simulate-spih-payment/index.ts` (new)
+- `supabase/functions/release-usdc/index.ts` (new)
+- `supabase/config.toml` (add function blocks)
+- `src/pages/OrderStatus.tsx` (admin button + RELEASING card)
+- `src/pages/Convert.tsx` (wallet address in test-approve helper)
+- `HANDOFF.md` (testnet setup steps)
+
+## Out of scope (next round)
+
+- Real SPIH CSV import + matcher.
+- `job_queue` worker / scheduled retries (we invoke `release-usdc` inline for now).
+- Customer-side wallet self-service in `/kyb`.
+- Refund path on `FAILED`.

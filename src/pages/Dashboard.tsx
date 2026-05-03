@@ -7,7 +7,7 @@ import { fmtUSDC, fmtHTG } from "@/lib/format";
 import { Plus } from "lucide-react";
 
 type Customer = {
-  id: string; company_name: string; first_name: string | null;
+  id: string; company_name: string; contact_name: string | null;
   kyb_status: "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
 };
 type Order = {
@@ -76,7 +76,7 @@ export default function Dashboard() {
     (async () => {
       const { data: c } = await supabase
         .from("customers")
-        .select("id, company_name, first_name, kyb_status")
+        .select("id, company_name, contact_name, kyb_status")
         .maybeSingle();
       setCustomer(c as Customer | null);
       if (!c) return;
@@ -96,7 +96,7 @@ export default function Dashboard() {
     })();
   }, []);
 
-  const displayName = customer?.first_name ?? customer?.company_name ?? "there";
+  const displayName = customer?.contact_name ?? customer?.company_name ?? "there";
   const totalConverted = orders.reduce((s, o) => s + Number(o.usdc_amount), 0);
 
   return (
