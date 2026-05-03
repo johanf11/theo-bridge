@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
+import { useRoles } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/theo/StatusBadge";
 import { fmtHTG, fmtRate, fmtUSDC } from "@/lib/format";
-import { Copy, ExternalLink, CheckCircle2, Clock } from "lucide-react";
+import { Copy, ExternalLink, CheckCircle2, Clock, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -32,7 +33,9 @@ export default function OrderStatus() {
   const { id } = useParams();
   const [order, setOrder] = useState<Order | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [simulating, setSimulating] = useState(false);
   const fetchedRef = useRef(false);
+  const { isAdmin } = useRoles();
 
   useEffect(() => {
     if (!id) return;
@@ -150,6 +153,45 @@ export default function OrderStatus() {
             </div>
             <p className="text-sm text-muted-foreground">
               The reference must appear in the SPIH memo field exactly as shown. Without it, your payment cannot be matched automatically.
+            </p>
+            {isAdmin && (
+              <div className="pt-3 border-t border-border/50">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Admin debug</div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={simulating}
+                  onClick={async () => {
+                    setSimulating(true);
+                    const { error } = await supabase.functions.invoke("simulate-spih-payment", { body: { orderId: order.id } });
+                    setSimulating(false);
+                    if (error) toast.error(error.message);
+                    else toast.success("Payment simulated — releasing USDC");
+                  }}
+                >
+                  {simulating && <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />}
+                  Simulate SPIH payment received
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* RELEASING */}
+      {(order.status === "FUNDED" || order.status === "RELEASING") && (
+        <Card className="border-theo-blue/30 bg-theo-blue-soft mb-6">
+          <CardHeader>
+            <CardTitle className="font-display flex items-center gap-2 text-theo-blue">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              {order.status === "FUNDED" ? "Payment received" : "Releasing USDC on Stellar testnet"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              {order.status === "FUNDED"
+                ? "Queued for release. This usually completes within a few seconds."
+                : "Submitting payment to Horizon. The Stellar transaction hash will appear here once confirmed."}
             </p>
           </CardContent>
         </Card>
