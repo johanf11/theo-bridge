@@ -253,23 +253,54 @@ export default function OrderStatus() {
       )}
 
       {/* COMPLETED */}
-      {order.status === "COMPLETED" && order.stellar_tx_hash && (
-        <Card className="border-success/30 bg-success/5 mb-6">
-          <CardContent className="py-5 space-y-3">
-            <div className="font-display text-lg font-bold text-success flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5" /> USDC delivered
+      {order.status === "COMPLETED" && (
+        <>
+          <div className="rounded-2xl bg-primary p-6 mb-4 flex items-center gap-5">
+            <div className="h-12 w-12 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="h-6 w-6 text-theo-gold" />
             </div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Receipt ID</div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <code className="text-xs bg-muted px-2 py-1 rounded break-all">{order.stellar_tx_hash}</code>
-              <Button asChild size="sm" variant="outline">
-                <a href={`https://stellar.expert/explorer/testnet/tx/${order.stellar_tx_hash}`} target="_blank" rel="noreferrer">
-                  Verify payment <ExternalLink className="h-3 w-3 ml-1" />
-                </a>
-              </Button>
+            <div className="flex-1 min-w-0">
+              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-theo-gold">
+                Conversion complete
+              </div>
+              <div className="font-display text-2xl md:text-3xl font-extrabold text-primary-foreground mt-1 tracking-tight">
+                {fmtUSDC(Number(order.usdc_amount))} delivered
+              </div>
+              <div className="text-sm text-primary-foreground/70 mt-1">
+                Settled to your account · Theo network
+              </div>
             </div>
-          </CardContent>
-        </Card>
+            <Button asChild className="bg-theo-gold text-theo-blue hover:bg-theo-gold/90 font-semibold shrink-0">
+              <Link to="/balance">View balance →</Link>
+            </Button>
+          </div>
+
+          {order.stellar_tx_hash && (
+            <Card className="mb-6">
+              <CardContent className="py-5 space-y-3">
+                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+                  Receipt ID
+                </div>
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <code className="text-xs md:text-sm font-mono text-theo-blue break-all">{order.stellar_tx_hash}</code>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button size="sm" variant="outline" className="h-9 w-9 p-0" onClick={() => copy(order.stellar_tx_hash!, "Receipt ID")}>
+                      <Copy className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button asChild size="sm" variant="outline" className="bg-theo-cyan-soft border-theo-cyan/30 text-theo-blue hover:bg-theo-cyan-soft/80">
+                      <a href={`https://stellar.expert/explorer/testnet/tx/${order.stellar_tx_hash}`} target="_blank" rel="noreferrer">
+                        Verify <ExternalLink className="h-3 w-3 ml-1" />
+                      </a>
+                    </Button>
+                  </div>
+                </div>
+                <div className="pt-2 border-t flex items-center gap-2 text-sm font-semibold text-success">
+                  <span className="h-2 w-2 rounded-full bg-success" /> Confirmed on Theo network
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
 
       {isTerminalFail && (
