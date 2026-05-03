@@ -110,7 +110,7 @@ export default function Transactions() {
           <table className="w-full border-collapse">
             <thead>
               <tr style={{ background: "hsl(var(--theo-cream))" }}>
-                {["Date", "Type", "Amount (USDC)", "HTG Sent", "Network", "Status", "Reference"].map((h) => (
+                {["Date", "Type", "Amount (USDC)", "HTG Sent", "Network", "Status", "Reference", "Tx Hash"].map((h) => (
                   <th key={h} className="text-left px-5 py-2.5 border-b border-border" style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.10em", color: "hsl(var(--theo-mid))" }}>
                     {h}
                   </th>
