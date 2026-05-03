@@ -70,19 +70,23 @@ export default function Balance() {
     const ws = (w ?? []) as Wallet[];
     setWallets(ws);
 
-    // Fetch live balances in parallel
+    // Fetch live balances per wallet in parallel
     const entries = await Promise.all(
-      ws.map(async (x) => [x.id, await fetchUsdcBalance(x.stellar_address)] as const)
+      ws.map(async (x) => [x.id, await fetchHorizonUsdcBalance(x.stellar_address)] as const)
     );
-    setBalances(Object.fromEntries(entries));
+    const balanceMap = Object.fromEntries(entries);
+    setBalances(balanceMap);
+
+    // Hero total: live Horizon for primary KYB address, fallback to completed orders
+    const heroTotal = await fetchTotalUsdcBalance(c.id, c.stellar_wallet_address);
+    setTotal(heroTotal);
+
     setLoading(false);
   };
 
   useEffect(() => {
     loadWallets();
   }, []);
-
-  const total = wallets.reduce((s, w) => s + (balances[w.id] ?? 0), 0);
 
   const handleSave = async () => {
     const parsed = walletSchema.safeParse({ label, stellar_address: address });
