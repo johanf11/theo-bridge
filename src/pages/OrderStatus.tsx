@@ -3,11 +3,10 @@ import { useParams, Link } from "react-router-dom";
 import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { useRoles } from "@/lib/auth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { StatusBadge } from "@/components/theo/StatusBadge";
 import { fmtHTG, fmtRate, fmtUSDC } from "@/lib/format";
-import { Copy, ExternalLink, CheckCircle2, Clock, Loader2 } from "lucide-react";
+import { Copy, ExternalLink, CheckCircle2, Clock, Loader2, CreditCard, AlertTriangle, Hourglass } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -18,10 +17,10 @@ type Order = {
 };
 
 const STEPS = [
-  { key: "QUOTED", label: "Quote locked" },
-  { key: "FUNDED", label: "Payment received" },
-  { key: "RELEASING", label: "Releasing USDC" },
-  { key: "COMPLETED", label: "Complete" },
+  { key: "QUOTED", label: "Quote locked", sub: "Rate confirmed" },
+  { key: "FUNDED", label: "Payment received", sub: "SPIH confirmed" },
+  { key: "RELEASING", label: "Releasing USDC", sub: "Theo broadcast" },
+  { key: "COMPLETED", label: "Complete", sub: "USDC in account" },
 ];
 function stepIndex(status: string) {
   const i = STEPS.findIndex((s) => s.key === status);
@@ -34,6 +33,7 @@ export default function OrderStatus() {
   const [order, setOrder] = useState<Order | null>(null);
   const [now, setNow] = useState(Date.now());
   const [simulating, setSimulating] = useState(false);
+  const [debugOpen, setDebugOpen] = useState(false);
   const fetchedRef = useRef(false);
   const { isAdmin } = useRoles();
 
@@ -46,7 +46,6 @@ export default function OrderStatus() {
     load();
     fetchedRef.current = true;
 
-    // Realtime + 5s polling fallback
     const ch = supabase.channel(`order-${id}`)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders", filter: `id=eq.${id}` },
         (p) => setOrder(p.new as Order))
@@ -77,35 +76,68 @@ export default function OrderStatus() {
 
   return (
     <AppLayout>
-      <div className="flex items-center justify-between gap-4 mb-6">
-        <div>
-          <Link to="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">← Back to dashboard</Link>
-          <h1 className="font-display text-3xl md:text-4xl font-bold mt-1">Order {order.reference_number}</h1>
+      {/* Header */}
+      <div className="mb-6">
+        <Link to="/convert" className="text-sm font-medium text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
+          ← Back to Convert
+        </Link>
+        <div className="flex items-start justify-between gap-4 mt-3">
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground mb-2">
+              Conversion order
+            </div>
+            <h1 className="font-display text-3xl md:text-4xl font-extrabold text-theo-blue-deep tracking-tight">
+              Order <span className="ml-2">{order.reference_number}</span>
+            </h1>
+            <div className="h-[3px] w-10 bg-theo-gold mt-3" />
+          </div>
+          {order.status === "QUOTED" && (
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-theo-gold-soft px-3 py-1.5 text-sm font-semibold text-theo-blue-deep">
+              <Hourglass className="h-3.5 w-3.5" /> Awaiting payment
+            </div>
+          )}
+          {(order.status === "FUNDED" || order.status === "RELEASING") && (
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-theo-cyan-soft px-3 py-1.5 text-sm font-semibold text-theo-cyan">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Processing
+            </div>
+          )}
+          {order.status === "COMPLETED" && (
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-success/15 px-3 py-1.5 text-sm font-semibold text-success">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Complete
+            </div>
+          )}
+          {isTerminalFail && (
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-destructive/15 px-3 py-1.5 text-sm font-semibold text-destructive">
+              {order.status === "EXPIRED" ? "Expired" : "Failed"}
+            </div>
+          )}
         </div>
-        <StatusBadge status={order.status} />
       </div>
 
-      {/* Progress */}
+      {/* Stepper */}
       <Card className="mb-6">
-        <CardContent className="py-6">
-          <div className="flex items-center justify-between gap-2">
+        <CardContent className="py-7 px-6">
+          <div className="flex items-start justify-between gap-2">
             {STEPS.map((s, i) => {
               const reached = !isTerminalFail && i <= idx;
+              const done = !isTerminalFail && i < idx;
               const active = !isTerminalFail && i === idx && order.status !== "COMPLETED";
               return (
-                <div key={s.key} className="flex-1 flex items-center">
-                  <div className="flex flex-col items-center text-center min-w-0">
+                <div key={s.key} className="flex-1 flex items-start">
+                  <div className="flex flex-col items-center text-center min-w-0 flex-1">
                     <div className={cn(
-                      "h-9 w-9 rounded-full flex items-center justify-center text-sm font-semibold border-2 transition-colors",
-                      reached ? "bg-theo-blue border-theo-blue text-white" : "bg-background border-border text-muted-foreground",
-                      active && "ring-4 ring-theo-cyan/30 animate-pulse-soft"
+                      "h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors",
+                      reached ? "bg-primary border-primary text-primary-foreground" : "bg-card border-border text-muted-foreground",
                     )}>
-                      {reached && i < idx ? <CheckCircle2 className="h-5 w-5" /> : i + 1}
+                      {done || order.status === "COMPLETED" && i <= idx ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
                     </div>
-                    <div className="mt-2 text-xs md:text-sm font-medium truncate">{s.label}</div>
+                    <div className={cn("mt-2 text-sm font-semibold truncate", reached ? "text-foreground" : "text-muted-foreground")}>
+                      {s.label}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{s.sub}</div>
                   </div>
                   {i < STEPS.length - 1 && (
-                    <div className={cn("flex-1 h-0.5 mx-2", reached && i < idx ? "bg-theo-blue" : "bg-border")} />
+                    <div className={cn("flex-1 h-[2px] mt-4 mx-1", reached && i < idx ? "bg-primary" : "bg-border")} />
                   )}
                 </div>
               );
@@ -114,80 +146,103 @@ export default function OrderStatus() {
         </CardContent>
       </Card>
 
-      {/* Quote details */}
+      {/* Quote details — gold highlight on USDC */}
       <div className="grid md:grid-cols-3 gap-4 mb-6">
-        <Card><CardHeader><CardTitle className="text-sm font-medium text-muted-foreground">USDC</CardTitle></CardHeader>
-          <CardContent><div className="font-display text-2xl font-bold">{fmtUSDC(Number(order.usdc_amount))}</div></CardContent></Card>
-        <Card><CardHeader><CardTitle className="text-sm font-medium text-muted-foreground">HTG due</CardTitle></CardHeader>
-          <CardContent><div className="font-display text-2xl font-bold">{fmtHTG(Number(order.htg_amount))}</div></CardContent></Card>
-        <Card><CardHeader><CardTitle className="text-sm font-medium text-muted-foreground">Rate</CardTitle></CardHeader>
-          <CardContent><div className="font-display text-2xl font-bold">{fmtRate(Number(order.rate))}</div></CardContent></Card>
+        <div className="rounded-2xl bg-theo-gold p-5">
+          <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-theo-blue-deep/80">USDC</div>
+          <div className="font-display text-3xl font-extrabold text-theo-blue-deep mt-2 tracking-tight">
+            {fmtUSDC(Number(order.usdc_amount))}
+          </div>
+        </div>
+        <div className="rounded-2xl bg-card border p-5">
+          <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">HTG due</div>
+          <div className="font-display text-3xl font-extrabold text-theo-blue-deep mt-2 tracking-tight">
+            {fmtHTG(Number(order.htg_amount))}
+          </div>
+        </div>
+        <div className="rounded-2xl bg-card border p-5">
+          <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Rate</div>
+          <div className="font-display text-3xl font-extrabold text-theo-blue-deep mt-2 tracking-tight">
+            {fmtRate(Number(order.rate))}
+          </div>
+        </div>
       </div>
 
-      {/* QUOTED — show payment instructions + countdown */}
+      {/* QUOTED panel */}
       {order.status === "QUOTED" && (
-        <Card className="border-theo-cyan/30 bg-theo-blue-soft mb-6">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="font-display">Pay via SPIH</CardTitle>
+        <div className="rounded-2xl border bg-theo-blue-soft/60 mb-6 overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
+            <div className="flex items-center gap-2 font-display text-lg font-bold text-theo-blue-deep">
+              <CreditCard className="h-4 w-4" /> Pay via SPIH
+            </div>
             <div className={cn(
-              "flex items-center gap-2 font-mono text-lg font-semibold",
-              remaining < 60_000 ? "text-destructive" : "text-theo-blue"
+              "flex items-center gap-2 font-mono text-base font-semibold",
+              remaining < 60_000 ? "text-destructive" : "text-theo-blue-deep"
             )}>
               <Clock className="h-4 w-4" /> {mm}:{ss}
+              <span className="text-xs font-normal text-muted-foreground ml-1">remaining</span>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          </div>
+
+          <div className="p-5 space-y-4">
             <div className="grid sm:grid-cols-2 gap-3">
               <DetailRow label="Bank" value="UNIBANK S.A." />
               <DetailRow label="Account name" value="THEO HAITI S.A." />
               <DetailRow label="Account number" value="100-200-300-400" copyable onCopy={(v) => copy(v, "Account")} />
               <DetailRow label="SWIFT / BIC" value="UNIHTPAU" />
-              <DetailRow label="Amount" value={fmtHTG(Number(order.htg_amount))} copyable onCopy={(v) => copy(String(order.htg_amount), "Amount")} />
-              <DetailRow
-                label="Reference (memo)"
-                value={order.reference_number}
-                emphasized
-                copyable
-                onCopy={(v) => copy(v, "Reference")}
-              />
+              <DetailRow label="Amount" value={fmtHTG(Number(order.htg_amount))} copyable onCopy={() => copy(String(order.htg_amount), "Amount")} />
+              <ReferenceRow value={order.reference_number} onCopy={(v) => copy(v, "Reference")} />
             </div>
-            <p className="text-sm text-muted-foreground">
-              The reference must appear in the SPIH memo field exactly as shown. Without it, your payment cannot be matched automatically.
-            </p>
-            {isAdmin && (
-              <div className="pt-3 border-t border-border/50">
-                <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Admin debug</div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={simulating}
-                  onClick={async () => {
-                    setSimulating(true);
-                    const { error } = await supabase.functions.invoke("simulate-spih-payment", { body: { orderId: order.id } });
-                    setSimulating(false);
-                    if (error) toast.error(error.message);
-                    else toast.success("Payment simulated — releasing USDC");
-                  }}
-                >
-                  {simulating && <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />}
-                  Simulate SPIH payment received
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+
+            <div className="flex items-start gap-3 rounded-xl border border-theo-gold/40 bg-theo-gold-soft/60 p-4">
+              <AlertTriangle className="h-4 w-4 text-theo-blue-deep mt-0.5 shrink-0" />
+              <p className="text-sm text-theo-blue-deep">
+                <span className="font-semibold">The reference must appear in the SPIH memo field exactly as shown.</span>{" "}
+                <span className="text-muted-foreground">Without it, your payment cannot be matched automatically.</span>
+              </p>
+            </div>
+          </div>
+
+          {isAdmin && (
+            <div className="border-t border-border/50">
+              <button
+                onClick={() => setDebugOpen((v) => !v)}
+                className="w-full flex items-center gap-2 px-5 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground"
+              >
+                <span>•••</span> Admin debug
+              </button>
+              {debugOpen && (
+                <div className="px-5 pb-4">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={simulating}
+                    onClick={async () => {
+                      setSimulating(true);
+                      const { error } = await supabase.functions.invoke("simulate-spih-payment", { body: { orderId: order.id } });
+                      setSimulating(false);
+                      if (error) toast.error(error.message);
+                      else toast.success("Payment simulated — releasing USDC");
+                    }}
+                  >
+                    {simulating && <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />}
+                    Simulate SPIH payment received
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
       {/* RELEASING */}
       {(order.status === "FUNDED" || order.status === "RELEASING") && (
-        <Card className="border-theo-blue/30 bg-theo-blue-soft mb-6">
-          <CardHeader>
-            <CardTitle className="font-display flex items-center gap-2 text-theo-blue">
+        <Card className="border-theo-cyan/30 bg-theo-blue-soft mb-6">
+          <CardContent className="py-5">
+            <div className="font-display text-lg font-bold text-theo-blue-deep flex items-center gap-2 mb-1">
               <Loader2 className="h-5 w-5 animate-spin" />
               {order.status === "FUNDED" ? "Payment received" : "Releasing USDC"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+            </div>
             <p className="text-sm text-muted-foreground">
               {order.status === "FUNDED"
                 ? "Queued for release. This usually completes within a few seconds."
@@ -200,9 +255,11 @@ export default function OrderStatus() {
       {/* COMPLETED */}
       {order.status === "COMPLETED" && order.stellar_tx_hash && (
         <Card className="border-success/30 bg-success/5 mb-6">
-          <CardHeader><CardTitle className="font-display flex items-center gap-2 text-success"><CheckCircle2 className="h-5 w-5" /> USDC delivered</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            <div className="text-sm text-muted-foreground">Receipt ID</div>
+          <CardContent className="py-5 space-y-3">
+            <div className="font-display text-lg font-bold text-success flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5" /> USDC delivered
+            </div>
+            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Receipt ID</div>
             <div className="flex items-center gap-2 flex-wrap">
               <code className="text-xs bg-muted px-2 py-1 rounded break-all">{order.stellar_tx_hash}</code>
               <Button asChild size="sm" variant="outline">
@@ -217,8 +274,8 @@ export default function OrderStatus() {
 
       {isTerminalFail && (
         <Card className="border-destructive/30 bg-destructive/5">
-          <CardHeader><CardTitle className="text-destructive">Order {order.status.toLowerCase()}</CardTitle></CardHeader>
-          <CardContent>
+          <CardContent className="py-5">
+            <div className="font-display text-lg font-bold text-destructive mb-2">Order {order.status.toLowerCase()}</div>
             <p className="text-sm">{order.failure_reason ?? "If a payment was sent, our team will contact you about a refund."}</p>
           </CardContent>
         </Card>
@@ -227,18 +284,34 @@ export default function OrderStatus() {
   );
 }
 
-function DetailRow({ label, value, emphasized, copyable, onCopy }:
-  { label: string; value: string; emphasized?: boolean; copyable?: boolean; onCopy?: (v: string) => void }) {
+function DetailRow({ label, value, copyable, onCopy }:
+  { label: string; value: string; copyable?: boolean; onCopy?: (v: string) => void }) {
   return (
-    <div className="bg-card rounded-lg p-3 border">
-      <div className="text-xs text-muted-foreground uppercase tracking-wide">{label}</div>
-      <div className="flex items-center justify-between gap-2 mt-1">
-        <div className={cn("font-mono", emphasized ? "text-theo-blue-deep font-bold text-lg" : "text-sm")}>{value}</div>
+    <div className="bg-card rounded-xl p-4 border">
+      <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
+      <div className="flex items-center justify-between gap-2 mt-1.5">
+        <div className="font-mono text-sm font-semibold text-theo-blue-deep">{value}</div>
         {copyable && (
-          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => onCopy?.(value)}>
+          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground" onClick={() => onCopy?.(value)}>
             <Copy className="h-3.5 w-3.5" />
           </Button>
         )}
+      </div>
+    </div>
+  );
+}
+
+function ReferenceRow({ value, onCopy }: { value: string; onCopy: (v: string) => void }) {
+  return (
+    <div className="rounded-xl p-4 bg-primary text-primary-foreground">
+      <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-theo-gold">
+        Reference (memo) — Required
+      </div>
+      <div className="flex items-center justify-between gap-2 mt-1.5">
+        <div className="font-mono text-base font-bold">{value}</div>
+        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-primary-foreground hover:bg-white/10 hover:text-primary-foreground" onClick={() => onCopy(value)}>
+          <Copy className="h-4 w-4" />
+        </Button>
       </div>
     </div>
   );
