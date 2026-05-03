@@ -61,8 +61,9 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
-    const destinationWallet = typeof body.destination_wallet_address === "string"
-      ? body.destination_wallet_address.trim()
+    const destinationWalletRaw = body.destinationWalletAddress ?? body.destination_wallet_address;
+    const destinationWallet = typeof destinationWalletRaw === "string"
+      ? destinationWalletRaw.trim()
       : "";
     if (destinationWallet && (!destinationWallet.startsWith("G") || destinationWallet.length < 50)) {
       return new Response(
@@ -119,6 +120,7 @@ Deno.serve(async (req) => {
         reference_number: referenceNumber,
         quote_expires_at: expiresAt,
         destination_wallet_address: destinationWallet || null,
+        destination_stellar_address: destinationWallet || null,
       })
       .select()
       .single();
