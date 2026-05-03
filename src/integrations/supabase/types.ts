@@ -262,9 +262,11 @@ export type Database = {
       wallets: {
         Row: {
           created_at: string
+          currency: string
           customer_id: string | null
           id: string
           label: string | null
+          network: string
           stellar_address: string
           updated_at: string
           usdc_balance: number
@@ -272,9 +274,11 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          currency?: string
           customer_id?: string | null
           id?: string
           label?: string | null
+          network?: string
           stellar_address: string
           updated_at?: string
           usdc_balance?: number
@@ -282,9 +286,11 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          currency?: string
           customer_id?: string | null
           id?: string
           label?: string | null
+          network?: string
           stellar_address?: string
           updated_at?: string
           usdc_balance?: number
