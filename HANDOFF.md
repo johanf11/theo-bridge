@@ -118,3 +118,36 @@ Body: `{ orderId }`. Idempotent — must tolerate retries.
 - Lucide icons, no emoji in UI.
 - Realtime: enable per-table via `ALTER PUBLICATION supabase_realtime ADD TABLE ...`.
 - Never edit `src/integrations/supabase/{client,types}.ts` — auto-generated.
+
+---
+
+## Testnet setup (one-time, for end-to-end testing)
+
+### A. Distributor account (Theo's hot wallet on testnet)
+
+1. Go to https://laboratory.stellar.org → "Create Account" → generate keypair. Save both keys.
+2. Fund via Friendbot: `curl "https://friendbot.stellar.org?addr=<DISTRIBUTOR_G_KEY>"`
+3. Pick a USDC issuer for testnet:
+   - Easiest: create your own issuer account (Friendbot it too) — you can mint as much test USDC as you want.
+   - Or use a known testnet issuer if you trust its supply.
+4. From the distributor: build a `changeTrust` op for `USDC:<issuer G>` using Stellar Lab → Build Transaction.
+5. From the issuer: send some USDC (e.g. 1,000,000) to the distributor.
+6. Save the secrets in Lovable Cloud (already prompted for):
+   - `STELLAR_DISTRIBUTOR_SECRET` — distributor `S…` key
+   - `STELLAR_USDC_ISSUER` — issuer `G…` key
+
+### B. Customer wallet (your test recipient)
+
+1. Generate another keypair via Stellar Lab. Friendbot fund it.
+2. Create a USDC trustline against the same issuer.
+3. Copy the customer `G…` address.
+
+### C. Run the flow
+
+1. Sign up + log in. Promote yourself to admin (`user_roles` row with `role='admin'`).
+2. On `/convert`, click "Approve test KYB" — paste the customer `G…` when prompted.
+3. Submit a quote (e.g. 1,000 USDC).
+4. On the order page, click "Simulate SPIH payment received".
+5. Watch `QUOTED → FUNDED → RELEASING → COMPLETED` live, then click the tx hash to view it on stellar.expert/testnet.
+
+If it lands in `FAILED`, check `failure_reason` — most common causes are missing trustline on the customer, distributor balance, or wrong issuer.
