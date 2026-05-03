@@ -7,7 +7,7 @@ import { Download } from "lucide-react";
 
 type Order = {
   id: string; status: string; usdc_amount: number; htg_amount: number;
-  reference_number: string; created_at: string;
+  reference_number: string; created_at: string; stellar_tx_hash: string | null;
 };
 
 export default function Transactions() {
