@@ -200,7 +200,33 @@ export default function Balance() {
               >
                 <div className="absolute pointer-events-none" style={{ top: -30, right: -30, width: 120, height: 120, borderRadius: "50%", background: "rgba(255,255,255,0.07)" }} />
                 <div className="font-bold uppercase mb-2.5" style={{ fontSize: 10, letterSpacing: "0.12em", color: "rgba(255,255,255,0.50)" }}>
-                  {w.label ?? `Wallet ${i + 1}`}
+                  {editingId === w.id ? (
+                    <input
+                      autoFocus
+                      value={editingValue}
+                      maxLength={60}
+                      onChange={(e) => setEditingValue(e.target.value)}
+                      onBlur={() => saveEdit(w.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveEdit(w.id);
+                        if (e.key === "Escape") setEditingId(null);
+                      }}
+                      style={{
+                        background: "rgba(255,255,255,0.12)", color: "#fff", border: "none",
+                        outline: "none", padding: "2px 6px", borderRadius: 4,
+                        fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase",
+                        fontWeight: 700, fontFamily: "inherit", width: "100%",
+                      }}
+                    />
+                  ) : (
+                    <span
+                      onClick={() => startEdit(w)}
+                      title="Click to rename"
+                      style={{ cursor: "pointer" }}
+                    >
+                      {w.label ?? `Wallet ${i + 1}`}
+                    </span>
+                  )}
                 </div>
                 <div className="font-extrabold leading-none" style={{ fontSize: 30, letterSpacing: "-1.5px", color: "#fff" }}>
                   ${(balances[w.id] ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
