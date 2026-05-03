@@ -6,7 +6,7 @@ import { useRoles } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { fmtHTG, fmtRate, fmtUSDC } from "@/lib/format";
-import { Copy, ExternalLink, CheckCircle2, Clock, Loader2, CreditCard, AlertTriangle, Hourglass } from "lucide-react";
+import { Copy, ExternalLink, CheckCircle2, Clock, Loader2, CreditCard, AlertTriangle, Hourglass, ArrowLeftRight } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
