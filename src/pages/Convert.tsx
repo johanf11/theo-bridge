@@ -8,6 +8,7 @@ import { useAuth, useRoles } from "@/lib/auth";
 type Tab = "on" | "off";
 type KybStatus = "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
 type Profile = { kyb_status: KybStatus; stellar_wallet_address: string | null };
+type WalletOption = { id: string; label: string; stellar_address: string };
 
 export default function Convert() {
   const navigate = useNavigate();
