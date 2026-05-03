@@ -289,7 +289,7 @@ export default function Balance() {
               Create new account
             </div>
             <div style={{ fontSize: 13, color: "hsl(var(--theo-mid))", marginBottom: 18 }}>
-              Generates a new Stellar account on testnet, funds it via Friendbot, and opens a USDC trustline.
+              Creates a new account ready to receive USDC.
             </div>
 
             <label className="block mb-5">
