@@ -16,6 +16,33 @@ export function WalletKeys() {
   const [wallets, setWallets] = useState<WalletKey[]>([]);
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState("");
+  const [savedId, setSavedId] = useState<string | null>(null);
+
+  const startEdit = (w: WalletKey) => {
+    setEditingId(w.id);
+    setEditingValue(w.label ?? "");
+  };
+
+  const saveEdit = async (id: string) => {
+    const newLabel = editingValue.trim().slice(0, 60);
+    if (!newLabel) {
+      toast({ title: "Name required", variant: "destructive" });
+      return;
+    }
+    const prev = wallets;
+    setWallets((ws) => ws.map((w) => (w.id === id ? { ...w, label: newLabel } : w)));
+    setEditingId(null);
+    const { error } = await supabase.from("wallets").update({ label: newLabel }).eq("id", id);
+    if (error) {
+      setWallets(prev);
+      toast({ title: "Could not rename", description: error.message, variant: "destructive" });
+      return;
+    }
+    setSavedId(id);
+    setTimeout(() => setSavedId((s) => (s === id ? null : s)), 1500);
+  };
 
   useEffect(() => {
     (async () => {
