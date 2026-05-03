@@ -296,7 +296,7 @@ export default function Balance() {
             style={{ width: 440, maxWidth: "92vw", borderRadius: 16, padding: 28, boxShadow: "0 20px 60px rgba(0,0,0,0.18)" }}
           >
             <div className="font-extrabold mb-1" style={{ fontSize: 20, color: "hsl(var(--theo-blue))", letterSpacing: "-0.02em" }}>
-              Add wallet
+              Fund wallet
             </div>
             <div style={{ fontSize: 13, color: "hsl(var(--theo-mid))", marginBottom: 18 }}>
               Link an additional Stellar account to organize funds.
