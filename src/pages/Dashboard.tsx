@@ -76,7 +76,7 @@ export default function Dashboard() {
     (async () => {
       const { data: c } = await supabase
         .from("customers")
-        .select("id, company_name, first_name, kyb_status")
+        .select("id, company_name, contact_name, kyb_status")
         .maybeSingle();
       setCustomer(c as Customer | null);
       if (!c) return;
