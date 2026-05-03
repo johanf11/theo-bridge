@@ -70,14 +70,14 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [balance, setBalance] = useState(0);
+  const { total: balance } = useCustomerBalance();
   const [chartPeriod, setChartPeriod] = useState("1M");
 
   useEffect(() => {
     (async () => {
       const { data: c } = await supabase
         .from("customers")
-        .select("id, company_name, contact_name, kyb_status, stellar_wallet_address")
+        .select("id, company_name, contact_name, kyb_status")
         .maybeSingle();
       setCustomer(c as Customer | null);
       if (!c) return;
@@ -88,11 +88,6 @@ export default function Dashboard() {
         .order("created_at", { ascending: false })
         .limit(5);
       setOrders((o ?? []) as Order[]);
-      const total = await fetchTotalUsdcBalance(
-        c.id,
-        (c as any).stellar_wallet_address ?? null
-      );
-      setBalance(total);
     })();
   }, []);
 
