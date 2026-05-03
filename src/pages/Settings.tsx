@@ -225,9 +225,31 @@ export default function Settings() {
         </div>
       </div>
 
-      <div className="mt-4">
-        <WalletKeys />
-      </div>
+      <AdvancedSection />
     </AppLayout>
+  );
+}
+
+function AdvancedSection() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-4">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-2 font-bold"
+        style={{
+          background: "transparent", border: "1px solid hsl(var(--border))",
+          color: "hsl(var(--theo-blue))", borderRadius: 8, padding: "8px 14px",
+          fontSize: 12, cursor: "pointer", fontFamily: "inherit",
+        }}
+      >
+        {open ? "▾" : "▸"} Advanced
+      </button>
+      {open && (
+        <div className="mt-3">
+          <WalletKeys />
+        </div>
+      )}
+    </div>
   );
 }
