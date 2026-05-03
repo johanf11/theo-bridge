@@ -8,7 +8,7 @@ import {
   Asset,
   Networks,
   BASE_FEE,
-} from "https://esm.sh/@stellar/stellar-sdk@12.3.0";
+} from "npm:@stellar/stellar-sdk@12.3.0";
 
 const HORIZON_URL = "https://horizon-testnet.stellar.org";
 
