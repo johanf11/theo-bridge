@@ -1,7 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
 
-const HTGC_ISSUER = "GDSRYZWTLQLBECKCL4TV7ZRGBZGBMSPD4V47B7Y7JSQVDJRSEXQTFCQT";
-
 /** Fetch live USDC balance for a Stellar address from Horizon testnet. */
 export async function fetchHorizonUsdcBalance(address: string): Promise<number> {
   try {
@@ -23,7 +21,8 @@ export async function fetchHorizonBalances(address: string): Promise<{ usdc: num
     const json = await res.json();
     const bals: any[] = json.balances ?? [];
     const usdc = bals.find((b) => b.asset_code === "USDC");
-    const htgc = bals.find((b) => b.asset_code === "HTGC" && b.asset_issuer === HTGC_ISSUER);
+    // Match any HTGC asset (the distributor is also the HTG-C issuer in this demo).
+    const htgc = bals.find((b) => b.asset_code === "HTGC");
     return {
       usdc: usdc ? Number(usdc.balance) : 0,
       htgc: htgc ? Number(htgc.balance) : 0,
