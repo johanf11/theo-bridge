@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      bank_accounts: {
+        Row: {
+          account_name: string
+          account_number: string
+          bank_name: string
+          created_at: string
+          customer_id: string
+          id: string
+          is_default: boolean
+          routing_code: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_name: string
+          account_number: string
+          bank_name: string
+          created_at?: string
+          customer_id: string
+          id?: string
+          is_default?: boolean
+          routing_code?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_name?: string
+          account_number?: string
+          bank_name?: string
+          created_at?: string
+          customer_id?: string
+          id?: string
+          is_default?: boolean
+          routing_code?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       blend_positions: {
         Row: {
           created_at: string
