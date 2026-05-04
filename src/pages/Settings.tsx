@@ -404,21 +404,44 @@ export default function Settings() {
               <div className="grid gap-3 mb-3.5" style={{ gridTemplateColumns: "1fr 1fr" }}>
                 <div>
                   <label className="block font-bold uppercase mb-1.5" style={{ fontSize: 10, letterSpacing: "0.10em", color: "hsl(var(--theo-mid))" }}>Legal company name</label>
-                  <input className="w-full rounded-[9px] border border-border outline-none" style={{ fontFamily: "inherit", fontSize: 14, padding: "10px 12px", color: "hsl(var(--theo-ink))" }} defaultValue={customer?.company_name ?? ""} placeholder="Your company" />
+                  <input
+                    className="w-full rounded-[9px] border border-border outline-none"
+                    style={{ fontFamily: "inherit", fontSize: 14, padding: "10px 12px", color: "hsl(var(--theo-ink))" }}
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    placeholder="Your company"
+                  />
                 </div>
                 <div>
                   <label className="block font-bold uppercase mb-1.5" style={{ fontSize: 10, letterSpacing: "0.10em", color: "hsl(var(--theo-mid))" }}>Registration no.</label>
-                  <input className="w-full rounded-[9px] border border-border outline-none" style={{ fontFamily: "inherit", fontSize: 14, padding: "10px 12px", color: "hsl(var(--theo-ink))" }} placeholder="RNFE-XXXXX" />
+                  <input
+                    className="w-full rounded-[9px] border border-border outline-none"
+                    style={{ fontFamily: "inherit", fontSize: 14, padding: "10px 12px", color: "hsl(var(--theo-ink))" }}
+                    value={registrationNo}
+                    onChange={(e) => setRegistrationNo(e.target.value)}
+                    placeholder="RNFE-XXXXX"
+                  />
                 </div>
               </div>
               <div className="mb-3.5">
                 <label className="block font-bold uppercase mb-1.5" style={{ fontSize: 10, letterSpacing: "0.10em", color: "hsl(var(--theo-mid))" }}>Country</label>
-                <select className="w-full rounded-[9px] border border-border outline-none" style={{ fontFamily: "inherit", fontSize: 14, padding: "10px 12px", color: "hsl(var(--theo-ink))", appearance: "none" }}>
+                <select
+                  className="w-full rounded-[9px] border border-border outline-none"
+                  style={{ fontFamily: "inherit", fontSize: 14, padding: "10px 12px", color: "hsl(var(--theo-ink))", appearance: "none" }}
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                >
                   <option>Haiti</option>
                   <option>Dominican Republic</option>
                 </select>
               </div>
-              <button className="font-bold text-white" style={{ background: "hsl(var(--theo-blue))", borderRadius: 7, padding: "6px 12px", fontSize: 12, border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+              <button
+                onClick={handleSaveBusiness}
+                disabled={savingBiz}
+                className="font-bold text-white inline-flex items-center gap-1.5"
+                style={{ background: "hsl(var(--theo-blue))", borderRadius: 7, padding: "6px 12px", fontSize: 12, border: "none", cursor: savingBiz ? "wait" : "pointer", fontFamily: "inherit", opacity: savingBiz ? 0.7 : 1 }}
+              >
+                {savingBiz && <Loader2 className="animate-spin" style={{ width: 12, height: 12 }} />}
                 Save changes
               </button>
             </div>
