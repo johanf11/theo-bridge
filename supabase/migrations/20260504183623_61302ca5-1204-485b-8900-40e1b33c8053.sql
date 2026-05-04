@@ -1,0 +1,5 @@
+ALTER TABLE public.blend_positions
+  ADD COLUMN IF NOT EXISTS deposited_at timestamptz NOT NULL DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS gross_apy numeric(6,4) NOT NULL DEFAULT 0.0900,
+  ADD COLUMN IF NOT EXISTS net_apy numeric(6,4) NOT NULL DEFAULT 0.0700,
+  ADD COLUMN IF NOT EXISTS fee_bps integer NOT NULL DEFAULT 200;

@@ -18,10 +18,14 @@ export type Database = {
         Row: {
           created_at: string
           customer_id: string
+          deposited_at: string
           deposited_usdc: number
+          fee_bps: number
+          gross_apy: number
           id: string
           last_synced_at: string | null
           last_tx_hash: string | null
+          net_apy: number
           pool_address: string
           reserve_asset: string
           updated_at: string
@@ -30,10 +34,14 @@ export type Database = {
         Insert: {
           created_at?: string
           customer_id: string
+          deposited_at?: string
           deposited_usdc?: number
+          fee_bps?: number
+          gross_apy?: number
           id?: string
           last_synced_at?: string | null
           last_tx_hash?: string | null
+          net_apy?: number
           pool_address: string
           reserve_asset?: string
           updated_at?: string
@@ -42,10 +50,14 @@ export type Database = {
         Update: {
           created_at?: string
           customer_id?: string
+          deposited_at?: string
           deposited_usdc?: number
+          fee_bps?: number
+          gross_apy?: number
           id?: string
           last_synced_at?: string | null
           last_tx_hash?: string | null
+          net_apy?: number
           pool_address?: string
           reserve_asset?: string
           updated_at?: string
