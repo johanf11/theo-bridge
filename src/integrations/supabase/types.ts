@@ -190,6 +190,83 @@ export type Database = {
           },
         ]
       }
+      org_members: {
+        Row: {
+          accepted_at: string | null
+          customer_id: string
+          email: string
+          id: string
+          invited_at: string
+          role_id: string
+          user_id: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          customer_id: string
+          email: string
+          id?: string
+          invited_at?: string
+          role_id: string
+          user_id?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          customer_id?: string
+          email?: string
+          id?: string
+          invited_at?: string
+          role_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_members_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_members_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "org_roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      org_roles: {
+        Row: {
+          created_at: string
+          customer_id: string
+          id: string
+          is_system: boolean
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          id?: string
+          is_system?: boolean
+          name: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          id?: string
+          is_system?: boolean
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_roles_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payouts: {
         Row: {
           amount_usdc: number
@@ -270,6 +347,35 @@ export type Database = {
           spot_rate?: number
         }
         Relationships: []
+      }
+      role_permissions: {
+        Row: {
+          enabled: boolean
+          id: string
+          permission: Database["public"]["Enums"]["org_permission"]
+          role_id: string
+        }
+        Insert: {
+          enabled?: boolean
+          id?: string
+          permission: Database["public"]["Enums"]["org_permission"]
+          role_id: string
+        }
+        Update: {
+          enabled?: boolean
+          id?: string
+          permission?: Database["public"]["Enums"]["org_permission"]
+          role_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_permissions_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "org_roles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       spih_imports: {
         Row: {
@@ -387,6 +493,16 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_org_member: { Args: { p_customer_id: string }; Returns: boolean }
+      is_org_owner: { Args: { p_customer_id: string }; Returns: boolean }
+      seed_default_roles: {
+        Args: {
+          p_customer_id: string
+          p_owner_email: string
+          p_owner_user_id: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "customer"
@@ -402,6 +518,12 @@ export type Database = {
         | "FAILED"
         | "EXPIRED"
         | "REFUNDED"
+      org_permission:
+        | "convert"
+        | "payout_send"
+        | "balance_view_keys"
+        | "accounts_manage"
+        | "view_balances"
       payout_status: "PENDING" | "COMPLETED" | "FAILED"
       wallet_type: "TREASURY" | "CUSTOMER"
     }
@@ -544,6 +666,13 @@ export const Constants = {
         "FAILED",
         "EXPIRED",
         "REFUNDED",
+      ],
+      org_permission: [
+        "convert",
+        "payout_send",
+        "balance_view_keys",
+        "accounts_manage",
+        "view_balances",
       ],
       payout_status: ["PENDING", "COMPLETED", "FAILED"],
       wallet_type: ["TREASURY", "CUSTOMER"],
