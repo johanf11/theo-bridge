@@ -18,10 +18,11 @@ export default function Convert() {
   const [tab, setTab] = useState<Tab>("on");
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
-  const [spotRate, setSpotRate] = useState(135.0);
-  const [liveRate, setLiveRate] = useState(135.0);
+  const [spotRate, setSpotRate] = useState<number | null>(null);
+  const [liveRate, setLiveRate] = useState<number | null>(null);
   const [rateSource, setRateSource] = useState<"brh" | "cache" | "seed">("seed");
   const [rateCapturedAt, setRateCapturedAt] = useState<string | null>(null);
+  const [rateLoading, setRateLoading] = useState(true);
   const [usdcRaw, setUsdcRaw] = useState(10000);
   const [usdcDisplay, setUsdcDisplay] = useState("10,000");
   const [lockSecs, setLockSecs] = useState(15 * 60);
@@ -57,26 +58,52 @@ export default function Convert() {
         else setSelectedWallet("");
       }
     });
-    // Fetch live BRH reference rate — shown as-is to the customer.
-    // Theo's margin is captured via fee_bps, not rate inflation.
-    supabase.functions.invoke("fetch-brh-rate").then(({ data, error }) => {
-      if (cancelled || error || !data?.rate) return;
-      const spot = Number(data.rate);
+    // Fetch live BRH reference rate.
+    // Falls back to latest rate_snapshots row if edge function isn't deployed yet.
+    const applyRate = (spot: number, source: string, capturedAt?: string) => {
+      if (cancelled) return;
       setSpotRate(spot);
       setLiveRate(spot);
-      setRateSource(data.source ?? "brh");
-      setRateCapturedAt(data.captured_at ?? null);
-    });
+      setRateSource(source as "brh" | "cache" | "seed");
+      setRateCapturedAt(capturedAt ?? null);
+      setRateLoading(false);
+    };
+
+    supabase.functions.invoke("fetch-brh-rate")
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (!error && data?.rate) {
+          applyRate(Number(data.rate), data.source ?? "brh", data.captured_at);
+        } else {
+          // Edge function not deployed yet — read directly from rate_snapshots
+          supabase
+            .from("rate_snapshots")
+            .select("spot_rate, source, captured_at")
+            .order("captured_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+            .then(({ data: snap }) => {
+              applyRate(Number(snap?.spot_rate ?? 130), snap?.source ?? "cache", snap?.captured_at);
+            });
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        supabase
+          .from("rate_snapshots")
+          .select("spot_rate, source, captured_at")
+          .order("captured_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+          .then(({ data: snap }) => {
+            applyRate(Number(snap?.spot_rate ?? 130), snap?.source ?? "cache", snap?.captured_at);
+          });
+      });
+
     return () => { cancelled = true; };
   }, [user]);
 
-  // Rate ticker
-  useEffect(() => {
-    const id = setInterval(() => {
-      setLiveRate((r) => parseFloat((r + (Math.random() - 0.5) * 0.12).toFixed(2)));
-    }, 5000);
-    return () => clearInterval(id);
-  }, []);
+  // No random ticker — rate is BRH official, only refreshes on page load.
 
   // Countdown
   useEffect(() => {
@@ -91,9 +118,9 @@ export default function Convert() {
     setUsdcDisplay(num ? num.toLocaleString("en-US") : "");
   };
 
-  const htg = Math.round(usdcRaw * liveRate);
+  const htg = liveRate ? Math.round(usdcRaw * liveRate) : null;
   const timerLabel = `${Math.floor(lockSecs / 60)}:${String(lockSecs % 60).padStart(2, "0")}`;
-  const canQuote = profile?.kyb_status === "APPROVED" && !profileLoading;
+  const canQuote = profile?.kyb_status === "APPROVED" && !profileLoading && !rateLoading;
 
   // Fee breakdown — bps applied to USDC notional
   const feeBps      = profile?.fee_bps      ?? 150; // Theo margin
@@ -246,11 +273,11 @@ export default function Convert() {
               <div className="rounded-xl mb-4" style={{ background: "hsl(var(--theo-blue-soft))", border: "1px solid hsl(var(--theo-blue-chip))", padding: "14px 16px" }}>
                 <div className="flex justify-between mb-1.5">
                   <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>HTG to send</span>
-                  <span style={{ fontSize: 15, fontWeight: 800, color: "hsl(var(--theo-blue))" }}>{htg.toLocaleString("en-US")}</span>
+                  <span style={{ fontSize: 15, fontWeight: 800, color: "hsl(var(--theo-blue))" }}>{htg != null ? htg.toLocaleString("en-US") : "—"}</span>
                 </div>
                 <div className="flex justify-between mb-1.5">
                   <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Rate</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>{liveRate.toFixed(2)} HTG/USDC</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>{liveRate != null ? liveRate.toFixed(2) : "—"} HTG/USDC</span>
                 </div>
                 <div>
                   <div className="flex justify-between items-center">
@@ -375,7 +402,7 @@ export default function Convert() {
               )}
             </div>
             <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1px", color: "hsl(var(--theo-blue))" }}>
-              {liveRate.toFixed(2)}
+              {rateLoading ? "…" : liveRate != null ? liveRate.toFixed(2) : "—"}
             </div>
             <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 2 }}>HTG per USDC</div>
             <div className="flex items-center gap-1.5 mt-1.5">
