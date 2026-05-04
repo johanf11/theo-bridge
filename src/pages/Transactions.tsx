@@ -6,7 +6,7 @@ import { fmtUSDC, fmtHTG } from "@/lib/format";
 import { Download } from "lucide-react";
 import { useSearch } from "@/contexts/SearchContext";
 
-type TxType = "conversion" | "payout";
+type TxType = "conversion" | "payout" | "yield";
 
 type UnifiedTx = {
   id: string;
@@ -21,6 +21,8 @@ type UnifiedTx = {
   // payout-only
   recipient_name?: string;
   memo?: string | null;
+  // yield-only
+  wallet_label?: string;
 };
 
 // Map payout statuses → the same style system StatusBadge uses
