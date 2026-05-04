@@ -19,9 +19,11 @@ export type Database = {
           business_type: string | null
           company_name: string
           contact_name: string | null
+          corridor_bps: number
           country: string | null
           created_at: string
           email: string
+          fee_bps: number
           id: string
           kyb_rejection_reason: string | null
           kyb_status: Database["public"]["Enums"]["kyb_status"]
@@ -37,9 +39,11 @@ export type Database = {
           business_type?: string | null
           company_name: string
           contact_name?: string | null
+          corridor_bps?: number
           country?: string | null
           created_at?: string
           email: string
+          fee_bps?: number
           id?: string
           kyb_rejection_reason?: string | null
           kyb_status?: Database["public"]["Enums"]["kyb_status"]
@@ -55,9 +59,11 @@ export type Database = {
           business_type?: string | null
           company_name?: string
           contact_name?: string | null
+          corridor_bps?: number
           country?: string | null
           created_at?: string
           email?: string
+          fee_bps?: number
           id?: string
           kyb_rejection_reason?: string | null
           kyb_status?: Database["public"]["Enums"]["kyb_status"]
