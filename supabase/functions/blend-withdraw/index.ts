@@ -1,8 +1,9 @@
-// Withdraw USDC from a Blend lending pool back to the customer wallet on Stellar testnet.
+// Withdraw USDC from the yield treasury back to the customer wallet.
+// Returns principal + accrued net yield (computed from elapsed time × net APY).
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import {
-  Address, Asset, Contract, Keypair, Networks, TransactionBuilder,
-  nativeToScVal, rpc, xdr,
+  Asset, Horizon, Keypair, Memo, Networks,
+  Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
 
 const corsHeaders = {
@@ -11,13 +12,8 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const SOROBAN_RPC = "https://soroban-testnet.stellar.org";
-const NETWORK = Networks.TESTNET;
-
-// Blend RequestType: 3 = WithdrawCollateral
-const REQUEST_WITHDRAW_COLLATERAL = 3;
-// i128 max — used as "withdraw all"
-const MAX_I128 = (BigInt(1) << BigInt(127)) - BigInt(1);
+const HORIZON_URL = "https://horizon-testnet.stellar.org";
+const TREASURY_POOL_ID = "theo-yield-v1";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -32,8 +28,8 @@ Deno.serve(async (req) => {
     const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
     const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const usdcIssuer = Deno.env.get("STELLAR_USDC_ISSUER");
-    const poolAddress = Deno.env.get("BLEND_POOL_ADDRESS");
-    if (!usdcIssuer || !poolAddress) return json({ error: "Stellar/Blend not configured" }, 500);
+    const treasurySecret = Deno.env.get("STELLAR_DISTRIBUTOR_SECRET");
+    if (!usdcIssuer || !treasurySecret) return json({ error: "Stellar treasury not configured" }, 500);
 
     const userClient = createClient(url, anon, { global: { headers: { Authorization: authHeader } } });
     const { data: { user } } = await userClient.auth.getUser();
@@ -49,85 +45,73 @@ Deno.serve(async (req) => {
 
     const { data: wallet } = await admin
       .from("wallets")
-      .select("id, stellar_address, stellar_secret")
+      .select("id, stellar_address")
       .eq("id", walletId).eq("customer_id", customer.id).maybeSingle();
-    if (!wallet?.stellar_secret) return json({ error: "Wallet not found or unsigned" }, 404);
+    if (!wallet) return json({ error: "Wallet not found" }, 404);
 
     const { data: position } = await admin
-      .from("blend_positions").select("id, deposited_usdc")
-      .eq("wallet_id", walletId).eq("pool_address", poolAddress).maybeSingle();
-    if (!position) return json({ error: "No Blend position for this wallet" }, 404);
+      .from("blend_positions")
+      .select("id, deposited_usdc, deposited_at, net_apy")
+      .eq("wallet_id", walletId).eq("pool_address", TREASURY_POOL_ID).maybeSingle();
+    if (!position) return json({ error: "No yield position for this wallet" }, 404);
+
+    // Compute accrued yield since deposit (simple interest, demo-grade).
+    const principal = Number(position.deposited_usdc);
+    const netApy = Number(position.net_apy);
+    const elapsedSec = (Date.now() - new Date(position.deposited_at).getTime()) / 1000;
+    const accrued = principal * netApy * (elapsedSec / (365 * 24 * 3600));
+    const totalAvailable = principal + accrued;
 
     const isMax = amount === "max" || amount === undefined;
-    const parsedAmount = isMax ? Number(position.deposited_usdc) : parseFloat(amount);
-    if (!isMax && (!parsedAmount || parsedAmount <= 0)) return json({ error: "Valid amount required" }, 400);
-
-    const sourceKp = Keypair.fromSecret(wallet.stellar_secret);
-    const usdcContractId = new Asset("USDC", usdcIssuer).contractId(NETWORK);
-    const amountStroops = isMax ? MAX_I128 : BigInt(Math.round(parsedAmount * 10_000_000));
-
-    const server = new rpc.Server(SOROBAN_RPC, { allowHttp: false });
-    const account = await server.getAccount(sourceKp.publicKey());
-    const fromAddr = Address.fromString(sourceKp.publicKey());
-    const poolContract = new Contract(poolAddress);
-
-    const request = xdr.ScVal.scvMap([
-      new xdr.ScMapEntry({
-        key: nativeToScVal("address", { type: "symbol" }),
-        val: nativeToScVal(usdcContractId, { type: "address" }),
-      }),
-      new xdr.ScMapEntry({
-        key: nativeToScVal("amount", { type: "symbol" }),
-        val: nativeToScVal(amountStroops, { type: "i128" }),
-      }),
-      new xdr.ScMapEntry({
-        key: nativeToScVal("request_type", { type: "symbol" }),
-        val: nativeToScVal(REQUEST_WITHDRAW_COLLATERAL, { type: "u32" }),
-      }),
-    ]);
-
-    const operation = poolContract.call(
-      "submit",
-      nativeToScVal(fromAddr, { type: "address" }),
-      nativeToScVal(fromAddr, { type: "address" }),
-      nativeToScVal(fromAddr, { type: "address" }),
-      xdr.ScVal.scvVec([request]),
-    );
-
-    let tx = new TransactionBuilder(account, { fee: "1000000", networkPassphrase: NETWORK })
-      .addOperation(operation).setTimeout(60).build();
-
-    const sim = await server.simulateTransaction(tx);
-    if (rpc.Api.isSimulationError(sim)) return json({ error: `Simulation failed: ${sim.error}` }, 502);
-    tx = rpc.assembleTransaction(tx, sim).build();
-    tx.sign(sourceKp);
-
-    const send = await server.sendTransaction(tx);
-    if (send.status === "ERROR") return json({ error: `Submit failed: ${JSON.stringify(send.errorResult)}` }, 502);
-
-    let getResp = await server.getTransaction(send.hash);
-    const start = Date.now();
-    while (getResp.status === "NOT_FOUND" && Date.now() - start < 30_000) {
-      await new Promise((r) => setTimeout(r, 1500));
-      getResp = await server.getTransaction(send.hash);
+    const requested = isMax ? totalAvailable : parseFloat(amount);
+    if (!isMax && (!requested || requested <= 0)) return json({ error: "Valid amount required" }, 400);
+    if (requested > totalAvailable + 0.0000001) {
+      return json({ error: `Requested ${requested.toFixed(2)} exceeds available ${totalAvailable.toFixed(2)}` }, 400);
     }
-    if (getResp.status !== "SUCCESS") return json({ error: `Tx ${getResp.status}`, hash: send.hash }, 502);
+    const payoutAmount = Math.min(requested, totalAvailable);
 
+    // On-chain: treasury → customer wallet.
+    const server = new Horizon.Server(HORIZON_URL);
+    const treasuryKp = Keypair.fromSecret(treasurySecret);
+    const treasuryAccount = await server.loadAccount(treasuryKp.publicKey());
+    const usdc = new Asset("USDC", usdcIssuer);
+
+    const tx = new TransactionBuilder(treasuryAccount, {
+      fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
+    })
+      .addOperation(Operation.payment({
+        destination: wallet.stellar_address, asset: usdc, amount: payoutAmount.toFixed(7),
+      }))
+      .addMemo(Memo.text("theo-yield-withdraw"))
+      .setTimeout(60).build();
+    tx.sign(treasuryKp);
+
+    let hash: string;
+    try {
+      const result = await server.submitTransaction(tx);
+      hash = (result as { hash: string }).hash;
+    } catch (stellarErr: unknown) {
+      const msg = (stellarErr as { response?: { data?: unknown } })?.response?.data
+        ? JSON.stringify((stellarErr as { response: { data: unknown } }).response.data)
+        : (stellarErr as Error).message;
+      return json({ error: String(msg) }, 502);
+    }
+
+    // Update or delete position.
+    const remaining = totalAvailable - payoutAmount;
     const now = new Date().toISOString();
-    if (isMax) {
+    if (remaining < 0.01) {
       await admin.from("blend_positions").delete().eq("id", position.id);
     } else {
-      const remaining = Math.max(0, Number(position.deposited_usdc) - parsedAmount);
-      if (remaining <= 0) {
-        await admin.from("blend_positions").delete().eq("id", position.id);
-      } else {
-        await admin.from("blend_positions").update({
-          deposited_usdc: remaining, last_tx_hash: send.hash, last_synced_at: now,
-        }).eq("id", position.id);
-      }
+      await admin.from("blend_positions").update({
+        deposited_usdc: remaining,
+        deposited_at: now, // restart accrual clock on the remainder
+        last_tx_hash: hash,
+        last_synced_at: now,
+      }).eq("id", position.id);
     }
 
-    return json({ ok: true, hash: send.hash });
+    return json({ ok: true, hash, withdrawn: payoutAmount, accrued });
   } catch (e) {
     console.error("blend-withdraw error", e);
     return json({ error: (e as Error).message }, 500);
