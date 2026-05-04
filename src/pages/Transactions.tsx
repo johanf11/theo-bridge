@@ -100,19 +100,15 @@ export default function Transactions() {
           recipient_name: p.recipient_name,
           memo: p.memo,
         })),
-        ...(yields ?? []).map((y) => {
-          // Fetch wallet label via separate lookup map below; here just default.
-          const label = (y as { wallets?: { label?: string | null } | null }).wallets?.label ?? "Wallet";
-          return {
-            id: y.id,
-            type: "yield" as TxType,
-            created_at: y.deposited_at,
-            usdc_amount: Number(y.deposited_usdc),
-            status: "COMPLETED",
-            stellar_tx_hash: y.last_tx_hash ?? null,
-            wallet_label: label,
-          };
-        }),
+        ...(yields ?? []).map((y) => ({
+          id: y.id,
+          type: "yield" as TxType,
+          created_at: y.deposited_at,
+          usdc_amount: Number(y.deposited_usdc),
+          status: "EARNING",
+          stellar_tx_hash: y.last_tx_hash ?? null,
+          wallet_label: walletLabel.get(y.wallet_id) ?? "Wallet",
+        })),
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       setAll(merged);
