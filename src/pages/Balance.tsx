@@ -23,13 +23,9 @@ type BlendPosition = {
   walletLabel: string;
   deposited: number;
   accrued: number;
-  depositedAt: Date;
 };
 
-const BLEND_APY = 0.092; // 9.2% — update when pulling live from Blend oracle
-const dailyYield = (principal: number) => principal * BLEND_APY / 365;
-const monthlyYield = (principal: number) => principal * BLEND_APY / 12;
-const annualYield = (principal: number) => principal * BLEND_APY;
+const fmtPct = (n: number) => (n * 100).toFixed(1);
 
 const fmt = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
