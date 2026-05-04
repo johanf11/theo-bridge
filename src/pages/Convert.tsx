@@ -419,10 +419,10 @@ export default function Convert() {
     <AppLayout>
       <div className="mb-1">
         <div className="font-extrabold" style={{ fontSize: 22, color: "hsl(var(--theo-blue))", letterSpacing: "-0.02em" }}>
-          Convert
+          On / Off Ramp
         </div>
         <div style={{ fontSize: 13, color: "hsl(var(--theo-mid))", marginTop: 2 }}>
-          Fund your account or withdraw to a bank.
+          Deposit HTG, swap between currencies, or withdraw to a bank.
         </div>
       </div>
       <div className="mb-5" style={{ width: 28, height: 3, background: "hsl(var(--theo-gold))", borderRadius: 2, marginTop: 8 }} />
@@ -432,20 +432,45 @@ export default function Convert() {
         <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
           <div className="flex border-b border-border mb-4" style={{ overflowX: "auto" }}>
             <button style={tabStyle("htg")} onClick={() => setTab("htg")}>Deposit HTG</button>
-            <button style={tabStyle("swap")} onClick={() => setTab("swap")}>Convert</button>
+            <button style={tabStyle("swap")} onClick={() => setTab("swap")}>Swap</button>
             <button style={tabStyle("off")} onClick={() => setTab("off")}>Withdraw to Bank</button>
           </div>
 
-          {/* ── Tab 1: Deposit HTG → auto-mint HTG-C ───────────────────── */}
+          {/* ── Tab 1: Deposit HTG → mint HTG-C OR auto-convert to USDC ── */}
           {tab === "htg" && (
             <>
               {/* How it works banner */}
               <div className="rounded-xl mb-4 flex items-start gap-2.5" style={{ background: "hsl(var(--theo-blue-soft))", border: "1px solid hsl(var(--theo-blue-chip))", padding: "12px 14px" }}>
-                <span style={{ fontSize: 18, lineHeight: 1 }}>🏦</span>
+                <Building2 className="shrink-0" style={{ width: 16, height: 16, color: "hsl(var(--theo-blue))", marginTop: 1 }} />
                 <div style={{ fontSize: 12, color: "hsl(var(--theo-blue))", lineHeight: 1.6 }}>
-                  Send HTG to Theo via <strong>SPIH</strong>. Once received, HTG-C is automatically minted 1:1 to your wallet on Stellar.
+                  {htgReceiveMode === "htgc"
+                    ? <>Send HTG to Theo via <strong>SPIH</strong>. Once received, HTG-C is automatically minted 1:1 to your wallet on Stellar.</>
+                    : <>Send HTG to Theo via <strong>SPIH</strong>. We auto-convert at the locked rate and deliver USDC to your wallet.</>}
                 </div>
               </div>
+
+              {/* Receive mode toggle */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelStyle}>You receive</label>
+                <div className="flex items-center gap-2">
+                  {dirToggle(htgReceiveMode === "htgc", () => setHtgReceiveMode("htgc"), "HTG-C · 1:1 mint")}
+                  {dirToggle(htgReceiveMode === "usdc", () => setHtgReceiveMode("usdc"), "USDC · auto-convert")}
+                </div>
+              </div>
+
+              {/* KYB gate (USDC mode only) */}
+              {htgReceiveMode === "usdc" && !canQuote && !profileLoading && (
+                <div className="mb-4 rounded-xl p-4" style={{ background: "hsl(var(--theo-blue-soft))", border: "1px solid hsl(var(--theo-blue-chip))" }}>
+                  <div style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>
+                    <strong>KYB approval required</strong> to convert directly to USDC.{" "}
+                    {isAdmin && profile?.kyb_status !== "APPROVED" && (
+                      <button onClick={approveTestKyb} disabled={busy} className="underline cursor-pointer border-none bg-transparent" style={{ fontFamily: "inherit", fontSize: 13, color: "hsl(var(--theo-cyan))" }}>
+                        Approve test KYB
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div style={{ marginBottom: 14 }}>
                 <label style={labelStyle}>HTG to deposit</label>
@@ -486,24 +511,53 @@ export default function Convert() {
                   <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>You send</span>
                   <span style={{ fontSize: 15, fontWeight: 800, color: "hsl(var(--theo-blue))" }}>{htgAmount || "0"} HTG</span>
                 </div>
-                <div className="flex justify-between mb-1.5">
-                  <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>You receive</span>
-                  <span style={{ fontSize: 15, fontWeight: 800, color: "hsl(var(--theo-blue))" }}>{htgAmount || "0"} HTG-C</span>
-                </div>
-                <div className="flex justify-between mb-1.5">
-                  <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Peg</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>1:1 · guaranteed</span>
-                </div>
-                <div className="flex justify-between">
-                  <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Settlement</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>Auto · same business day</span>
-                </div>
-                <div className="flex items-center gap-1.5 mt-2.5 pt-2.5" style={{ borderTop: "1px solid hsl(var(--theo-blue-chip))" }}>
-                  <div className="rounded-full" style={{ width: 6, height: 6, background: "#22c55e" }} />
-                  <span style={{ fontSize: 11, color: "#15803d", fontWeight: 600 }}>
-                    HTG-C is fully collateralised by HTG held in Theo's segregated bank account · quarterly audited attestations
-                  </span>
-                </div>
+                {htgReceiveMode === "htgc" ? (
+                  <>
+                    <div className="flex justify-between mb-1.5">
+                      <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>You receive</span>
+                      <span style={{ fontSize: 15, fontWeight: 800, color: "hsl(var(--theo-blue))" }}>{htgAmount || "0"} HTG-C</span>
+                    </div>
+                    <div className="flex justify-between mb-1.5">
+                      <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Peg</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>1:1 · guaranteed</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Settlement</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>Auto · same business day</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-2.5 pt-2.5" style={{ borderTop: "1px solid hsl(var(--theo-blue-chip))" }}>
+                      <div className="rounded-full" style={{ width: 6, height: 6, background: "#22c55e" }} />
+                      <span style={{ fontSize: 11, color: "#15803d", fontWeight: 600 }}>
+                        HTG-C is fully collateralised by HTG held in Theo's segregated bank account · quarterly audited attestations
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex justify-between mb-1.5">
+                      <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>You receive (≈)</span>
+                      <span style={{ fontSize: 15, fontWeight: 800, color: "hsl(var(--theo-blue))" }}>
+                        {liveRate && htgAmountRaw > 0 ? `$${(htgAmountRaw / liveRate).toLocaleString("en-US", { maximumFractionDigits: 2 })} USDC` : "—"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between mb-1.5">
+                      <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Rate</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
+                        {liveRate ? `${liveRate.toFixed(2)} HTG / USDC` : "—"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Quote lock</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>15 minutes</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-2.5 pt-2.5" style={{ borderTop: "1px solid hsl(var(--theo-blue-chip))" }}>
+                      <div className="rounded-full" style={{ width: 6, height: 6, background: "hsl(var(--theo-cyan))" }} />
+                      <span style={{ fontSize: 11, color: "hsl(var(--theo-blue))", fontWeight: 600 }}>
+                        Min $1,000 · max $50,000 USDC equivalent · fees applied at settlement
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
 
               <button
@@ -517,12 +571,14 @@ export default function Convert() {
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}
               >
-                {htgBusy ? "Generating deposit instructions…" : "Get deposit reference →"}
+                {htgBusy
+                  ? "Generating deposit instructions…"
+                  : htgReceiveMode === "usdc" ? "Lock rate & get deposit reference →" : "Get deposit reference →"}
               </button>
             </>
           )}
 
-          {/* ── Tab 2: HTG-C ↔ USDC ────────────────────────────────────── */}
+          {/* ── Tab 2: Swap HTG-C ↔ USDC ──────────────────────────────── */}
           {tab === "swap" && (
             <>
               {/* KYB gate */}
