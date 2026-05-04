@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { StatusBadge } from "@/components/theo/StatusBadge";
 import { fmtUSDC, fmtHTG } from "@/lib/format";
 import { Download } from "lucide-react";
+import { useSearch } from "@/contexts/SearchContext";
 
 type Order = {
   id: string; status: string; usdc_amount: number; htg_amount: number;
@@ -13,6 +14,22 @@ type Order = {
 export default function Transactions() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [customerId, setCustomerId] = useState<string | null>(null);
+  const { query } = useSearch();
+  const highlightRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
+
+  // Client-side filter: match reference, amount, date, or type
+  const filtered = query.trim()
+    ? orders.filter((o) => {
+        const q = query.toLowerCase();
+        return (
+          (o.reference_number ?? "").toLowerCase().includes(q) ||
+          String(o.usdc_amount).includes(q) ||
+          String(o.htg_amount).includes(q) ||
+          new Date(o.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }).toLowerCase().includes(q) ||
+          "conversion".includes(q)
+        );
+      })
+    : orders;
 
   useEffect(() => {
     (async () => {
@@ -103,9 +120,19 @@ export default function Transactions() {
         ))}
       </div>
 
+      {query.trim() && (
+        <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))", marginBottom: 8 }}>
+          {filtered.length === 0
+            ? `No results for "${query}"`
+            : `${filtered.length} result${filtered.length !== 1 ? "s" : ""} for "${query}"`}
+        </div>
+      )}
+
       <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
         {orders.length === 0 ? (
           <div className="py-14 text-center text-sm text-muted-foreground">No transactions yet.</div>
+        ) : filtered.length === 0 ? (
+          <div className="py-14 text-center text-sm text-muted-foreground">No matching transactions.</div>
         ) : (
           <table className="w-full border-collapse">
             <thead>
@@ -118,40 +145,49 @@ export default function Transactions() {
               </tr>
             </thead>
             <tbody>
-              {orders.map((o) => (
-                <tr key={o.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
-                  <td className="px-5 py-3" style={{ fontSize: 13 }}>
-                    {new Date(o.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                  </td>
-                  <td className="px-5 py-3" style={{ fontSize: 13 }}>Conversion</td>
-                  <td className="px-5 py-3" style={{ fontSize: 13, fontWeight: 700 }}>{fmtUSDC(Number(o.usdc_amount))}</td>
-                  <td className="px-5 py-3" style={{ fontSize: 13 }}>{fmtHTG(Number(o.htg_amount))}</td>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-1.5">
-                      <div className="rounded-full" style={{ width: 8, height: 8, background: "hsl(var(--theo-cyan))", flexShrink: 0 }} />
-                      <span style={{ fontSize: 13 }}>Theo</span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3"><StatusBadge status={o.status} /></td>
-                  <td className="px-5 py-3" style={{ fontFamily: "monospace", fontSize: 12, color: "hsl(var(--theo-mid))" }}>
-                    {o.reference_number}
-                  </td>
-                  <td className="px-5 py-3" style={{ fontFamily: "monospace", fontSize: 12 }}>
-                    {o.stellar_tx_hash ? (
-                      <a
-                        href={`https://stellar.expert/explorer/testnet/tx/${o.stellar_tx_hash}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ color: "hsl(var(--theo-cyan))", fontWeight: 600 }}
-                      >
-                        {o.stellar_tx_hash.slice(0, 8)}...{o.stellar_tx_hash.slice(-4)}
-                      </a>
-                    ) : (
-                      <span style={{ color: "hsl(var(--theo-mid))" }}>—</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((o) => {
+                const isHighlighted = query.trim() &&
+                  (o.reference_number ?? "").toLowerCase().includes(query.toLowerCase());
+                return (
+                  <tr
+                    key={o.id}
+                    ref={(el) => { highlightRefs.current[o.id] = el; }}
+                    className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors"
+                    style={isHighlighted ? { background: "hsl(var(--theo-blue-soft))" } : undefined}
+                  >
+                    <td className="px-5 py-3" style={{ fontSize: 13 }}>
+                      {new Date(o.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </td>
+                    <td className="px-5 py-3" style={{ fontSize: 13 }}>Conversion</td>
+                    <td className="px-5 py-3" style={{ fontSize: 13, fontWeight: 700 }}>{fmtUSDC(Number(o.usdc_amount))}</td>
+                    <td className="px-5 py-3" style={{ fontSize: 13 }}>{fmtHTG(Number(o.htg_amount))}</td>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-1.5">
+                        <div className="rounded-full" style={{ width: 8, height: 8, background: "hsl(var(--theo-cyan))", flexShrink: 0 }} />
+                        <span style={{ fontSize: 13 }}>Theo</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3"><StatusBadge status={o.status} /></td>
+                    <td className="px-5 py-3" style={{ fontFamily: "monospace", fontSize: 12, color: "hsl(var(--theo-mid))" }}>
+                      {o.reference_number}
+                    </td>
+                    <td className="px-5 py-3" style={{ fontFamily: "monospace", fontSize: 12 }}>
+                      {o.stellar_tx_hash ? (
+                        <a
+                          href={`https://stellar.expert/explorer/testnet/tx/${o.stellar_tx_hash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: "hsl(var(--theo-cyan))", fontWeight: 600 }}
+                        >
+                          {o.stellar_tx_hash.slice(0, 8)}...{o.stellar_tx_hash.slice(-4)}
+                        </a>
+                      ) : (
+                        <span style={{ color: "hsl(var(--theo-mid))" }}>—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
