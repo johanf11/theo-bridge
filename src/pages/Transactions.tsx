@@ -130,6 +130,7 @@ export default function Transactions() {
     if (typeFilter === "Conversion" && tx.type !== "conversion") return false;
     if (typeFilter === "Payout" && tx.type !== "payout") return false;
     if (typeFilter === "Yield" && tx.type !== "yield") return false;
+    if (typeFilter === "Transfer" && tx.type !== "transfer") return false;
 
     const statusLabel = tx.status.toLowerCase();
     if (statusFilter === "Settled" && !statusLabel.includes("complet")) return false;
