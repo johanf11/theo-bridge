@@ -380,31 +380,6 @@ export default function Settings() {
             </div>
           </div>
 
-          <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
-            <SectionHeader icon={Bell} title="Notifications" />
-            <div className="px-5 py-1">
-              <SettingsRow label="Transaction confirmations" sub="Email on every settled conversion" right={<Toggle on />} />
-              <SettingsRow label="Rate alerts" sub="Notify when HTG/USDC moves ±1%" right={<Toggle />} />
-              <SettingsRow label="Payout receipts" sub="Email receipt on every payout" right={<Toggle on />} />
-            </div>
-          </div>
-        </div>
-
-        {/* Right */}
-        <div className="flex flex-col gap-4">
-          <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
-            <SectionHeader icon={Lock} title="Security" />
-            <div className="px-5 py-1">
-              <SettingsRow label="Two-factor authentication" sub="TOTP via authenticator app" right={<Toggle on />} />
-              <SettingsRow label="Login notifications" sub="Email on new device sign-in" right={<Toggle on />} />
-            </div>
-            <div className="px-5 pb-4 pt-2">
-              <button className="font-bold" style={{ background: "transparent", border: "1.5px solid hsl(var(--theo-blue))", color: "hsl(var(--theo-blue))", borderRadius: 7, padding: "6px 12px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-                Change password
-              </button>
-            </div>
-          </div>
-
           {/* Members card */}
           <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-border" style={{ background: "hsl(var(--theo-blue-soft))" }}>
@@ -508,6 +483,31 @@ export default function Settings() {
                     </div>
                   </div>
                 ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Right */}
+        <div className="flex flex-col gap-4">
+          <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
+            <SectionHeader icon={Lock} title="Security" />
+            <div className="px-5 py-1">
+              <SettingsRow label="Two-factor authentication" sub="TOTP via authenticator app" right={<Toggle on />} />
+              <SettingsRow label="Login notifications" sub="Email on new device sign-in" right={<Toggle on />} />
+            </div>
+            <div className="px-5 pb-4 pt-2">
+              <button className="font-bold" style={{ background: "transparent", border: "1.5px solid hsl(var(--theo-blue))", color: "hsl(var(--theo-blue))", borderRadius: 7, padding: "6px 12px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+                Change password
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
+            <SectionHeader icon={Bell} title="Notifications" />
+            <div className="px-5 py-1">
+              <SettingsRow label="Transaction confirmations" sub="Email on every settled conversion" right={<Toggle on />} />
+              <SettingsRow label="Rate alerts" sub="Notify when HTG/USDC moves ±1%" right={<Toggle />} />
+              <SettingsRow label="Payout receipts" sub="Email receipt on every payout" right={<Toggle on />} />
             </div>
           </div>
         </div>
