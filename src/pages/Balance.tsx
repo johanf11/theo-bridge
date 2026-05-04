@@ -88,6 +88,14 @@ export default function Balance() {
   const [withdrawingId, setWithdrawingId] = useState<string | null>(null);
   const [showBlendTooltip, setShowBlendTooltip] = useState(false);
 
+  // Move funds (between own wallets) modal
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [moveSourceId, setMoveSourceId] = useState<string>("");
+  const [moveDestId, setMoveDestId] = useState<string>("");
+  const [moveAmount, setMoveAmount] = useState("");
+  const [moveMemo, setMoveMemo] = useState("");
+  const [moving, setMoving] = useState(false);
+
   const totalEarning = useMemo(() =>
     Object.values(blendPositions).reduce((s, p) => s + p.deposited + p.accrued, 0), [blendPositions]);
   const totalAccruedToday = Object.values(blendPositions).reduce((s, p) => s + dailyYield(p.deposited), 0);
