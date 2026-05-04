@@ -350,7 +350,7 @@ export default function Balance() {
             </div>
             <div>
               <div className="font-bold flex items-center gap-1.5" style={{ fontSize: 14, color: "#14532D" }}>
-                Earn {(BLEND_APY * 100).toFixed(1)}% APY on idle USDC
+                Earn {(NET_APY * 100).toFixed(2)}% APY on idle USDC
                 <span
                   style={{ position: "relative", display: "inline-flex", alignItems: "center" }}
                   onMouseEnter={() => setShowBlendTooltip(true)}
