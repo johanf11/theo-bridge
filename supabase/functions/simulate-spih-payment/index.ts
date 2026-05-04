@@ -1,5 +1,12 @@
 // Admin-only debug: flip QUOTED -> FUNDED, then invoke release-usdc.
+// For htgc_mint orders: mint HTG-C 1:1 from the distributor (acting as HTG-C issuer)
+// directly to the destination wallet, opening a trustline first if needed.
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import {
+  Asset, Horizon, Keypair, Memo, Networks, Operation, TransactionBuilder, BASE_FEE,
+} from "npm:@stellar/stellar-sdk@12.3.0";
+
+const HORIZON = "https://horizon-testnet.stellar.org";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
