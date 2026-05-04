@@ -260,6 +260,19 @@ export default function Balance() {
           </div>
         </div>
         <div className="flex gap-2">
+          {can("payout_send") && wallets.length >= 2 && (
+            <button
+              onClick={() => openMoveModal()}
+              style={{
+                background: "transparent", border: "1.5px solid hsl(var(--theo-blue))",
+                color: "hsl(var(--theo-blue))", borderRadius: 7, padding: "6px 12px",
+                fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                display: "inline-flex", alignItems: "center", gap: 6,
+              }}
+            >
+              <ArrowLeftRight size={12} /> Move funds
+            </button>
+          )}
           <button
             onClick={() => navigate("/convert")}
             style={{
