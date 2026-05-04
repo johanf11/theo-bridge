@@ -8,3 +8,12 @@ verify_jwt = false
 
 [functions.release-usdc]
 verify_jwt = false
+
+[functions.blend-sweep]
+verify_jwt = false
+
+[functions.blend-withdraw]
+verify_jwt = false
+
+[functions.blend-positions]
+verify_jwt = false

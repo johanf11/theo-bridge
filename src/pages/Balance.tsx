@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { fetchHorizonUsdcBalance } from "@/lib/balance";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
+import { useBlendPositions } from "@/hooks/useBlendPositions";
 import { usePermissions } from "@/hooks/usePermissions";
 import { TrendingUp, Zap, X, Loader2, ArrowDownToLine, ArrowUpFromLine, Info } from "lucide-react";
 
@@ -22,13 +23,10 @@ type BlendPosition = {
   walletLabel: string;
   deposited: number;
   accrued: number;
-  depositedAt: Date;
 };
 
-const BLEND_APY = 0.092; // 9.2% — update when pulling live from Blend oracle
-const dailyYield = (principal: number) => principal * BLEND_APY / 365;
-const monthlyYield = (principal: number) => principal * BLEND_APY / 12;
-const annualYield = (principal: number) => principal * BLEND_APY;
+// Default APY shown until the live value loads from the blend-positions edge function.
+const DEFAULT_APY = 0.092;
 
 const fmt = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -53,8 +51,26 @@ export default function Balance() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
 
-  // Blend yield state
-  const [blendPositions, setBlendPositions] = useState<Record<string, BlendPosition>>({});
+  // Blend yield — live from edge function
+  const { positions: livePositions, apy: liveApy, refresh: refreshBlend } = useBlendPositions();
+  const BLEND_APY = liveApy || DEFAULT_APY;
+  const dailyYield = (principal: number) => principal * BLEND_APY / 365;
+  const monthlyYield = (principal: number) => principal * BLEND_APY / 12;
+  const annualYield = (principal: number) => principal * BLEND_APY;
+
+  const blendPositions: Record<string, BlendPosition> = useMemo(() => {
+    const map: Record<string, BlendPosition> = {};
+    for (const p of livePositions) {
+      map[p.walletId] = {
+        walletId: p.walletId,
+        walletLabel: p.walletLabel,
+        deposited: p.deposited,
+        accrued: 0, // live accrual reads not yet wired; show principal only
+      };
+    }
+    return map;
+  }, [livePositions]);
+
   const [sweepWallet, setSweepWallet] = useState<Wallet | null>(null);
   const [sweepAmount, setSweepAmount] = useState("");
   const [sweeping, setSweeping] = useState(false);
@@ -63,10 +79,8 @@ export default function Balance() {
 
   const totalEarning = useMemo(() =>
     Object.values(blendPositions).reduce((s, p) => s + p.deposited + p.accrued, 0), [blendPositions]);
-  const totalAccruedToday = useMemo(() =>
-    Object.values(blendPositions).reduce((s, p) => s + dailyYield(p.deposited), 0), [blendPositions]);
-  const totalAccruedMonth = useMemo(() =>
-    Object.values(blendPositions).reduce((s, p) => s + monthlyYield(p.deposited), 0), [blendPositions]);
+  const totalAccruedToday = Object.values(blendPositions).reduce((s, p) => s + dailyYield(p.deposited), 0);
+  const totalAccruedMonth = Object.values(blendPositions).reduce((s, p) => s + monthlyYield(p.deposited), 0);
   const hasPositions = Object.keys(blendPositions).length > 0;
 
   const sweepAmountNum = parseFloat(sweepAmount) || 0;
@@ -137,39 +151,38 @@ export default function Balance() {
   const handleSweep = async () => {
     if (!sweepWallet || !sweepValid) return;
     setSweeping(true);
-    // Stub: will call `sweep-to-blend` edge function once contract integration is wired
-    await new Promise((r) => setTimeout(r, 1400));
-    setBlendPositions((prev) => {
-      const existing = prev[sweepWallet.id];
-      return {
-        ...prev,
-        [sweepWallet.id]: {
-          walletId: sweepWallet.id,
-          walletLabel: sweepWallet.label ?? "Wallet",
-          deposited: (existing?.deposited ?? 0) + sweepAmountNum,
-          accrued: existing?.accrued ?? 0,
-          depositedAt: existing?.depositedAt ?? new Date(),
-        },
-      };
+    const { data, error } = await supabase.functions.invoke("blend-sweep", {
+      body: { sourceWalletId: sweepWallet.id, amount: sweepAmountNum },
     });
-    // Simulate balance reduction
-    setBalances((prev) => ({ ...prev, [sweepWallet.id]: (prev[sweepWallet.id] ?? 0) - sweepAmountNum }));
     setSweeping(false);
+    if (error || (data as { error?: string })?.error) {
+      const msg = (data as { error?: string })?.error ?? error?.message ?? "Sweep failed";
+      toast.error(msg);
+      return;
+    }
+    const hash = (data as { hash?: string })?.hash ?? "";
+    toast.success(`Swept ${fmt(sweepAmountNum)} USDC to Blend · ${hash.slice(0, 8)}…`);
     setSweepWallet(null);
     setSweepAmount("");
-    toast.success(`${fmt(sweepAmountNum)} USDC swept to Blend — earning at ${(BLEND_APY * 100).toFixed(1)}% APY`);
+    await Promise.all([loadWallets(), refreshBlend(), refreshTotal()]);
   };
 
   const handleWithdraw = async (walletId: string) => {
     const pos = blendPositions[walletId];
     if (!pos) return;
     setWithdrawingId(walletId);
-    await new Promise((r) => setTimeout(r, 1200));
-    const returned = pos.deposited + pos.accrued;
-    setBalances((prev) => ({ ...prev, [walletId]: (prev[walletId] ?? 0) + returned }));
-    setBlendPositions((prev) => { const n = { ...prev }; delete n[walletId]; return n; });
+    const { data, error } = await supabase.functions.invoke("blend-withdraw", {
+      body: { walletId, amount: "max" },
+    });
     setWithdrawingId(null);
-    toast.success(`${fmt(returned)} USDC returned from Blend (incl. ${fmt(pos.accrued)} yield)`);
+    if (error || (data as { error?: string })?.error) {
+      const msg = (data as { error?: string })?.error ?? error?.message ?? "Withdraw failed";
+      toast.error(msg);
+      return;
+    }
+    const hash = (data as { hash?: string })?.hash ?? "";
+    toast.success(`Withdrawn from Blend · ${hash.slice(0, 8)}…`);
+    await Promise.all([loadWallets(), refreshBlend(), refreshTotal()]);
   };
 
   const walletColors = ["hsl(var(--theo-blue))", "#1A2966", "#0F1D54"];
@@ -716,7 +729,7 @@ function LedgerRow({
               ${fmt(blendPosition.deposited + blendPosition.accrued)} USDC
             </div>
             <div style={{ fontSize: 11, color: "#15803D", opacity: 0.8 }}>
-              +${fmt(dailyYield(blendPosition.deposited))}/day
+              +${fmt(blendPosition.deposited * DEFAULT_APY / 365)}/day
             </div>
           </div>
         ) : (
