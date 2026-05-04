@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      blend_positions: {
+        Row: {
+          created_at: string
+          customer_id: string
+          deposited_usdc: number
+          id: string
+          last_synced_at: string | null
+          last_tx_hash: string | null
+          pool_address: string
+          reserve_asset: string
+          updated_at: string
+          wallet_id: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          deposited_usdc?: number
+          id?: string
+          last_synced_at?: string | null
+          last_tx_hash?: string | null
+          pool_address: string
+          reserve_asset?: string
+          updated_at?: string
+          wallet_id: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          deposited_usdc?: number
+          id?: string
+          last_synced_at?: string | null
+          last_tx_hash?: string | null
+          pool_address?: string
+          reserve_asset?: string
+          updated_at?: string
+          wallet_id?: string
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           business_type: string | null
