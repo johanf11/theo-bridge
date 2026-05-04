@@ -190,6 +190,66 @@ export type Database = {
           },
         ]
       }
+      payouts: {
+        Row: {
+          amount_usdc: number
+          completed_at: string | null
+          created_at: string
+          customer_id: string
+          failure_reason: string | null
+          id: string
+          memo: string | null
+          recipient_address: string
+          recipient_name: string
+          source_wallet_id: string | null
+          status: Database["public"]["Enums"]["payout_status"]
+          stellar_tx_hash: string | null
+        }
+        Insert: {
+          amount_usdc: number
+          completed_at?: string | null
+          created_at?: string
+          customer_id: string
+          failure_reason?: string | null
+          id?: string
+          memo?: string | null
+          recipient_address: string
+          recipient_name: string
+          source_wallet_id?: string | null
+          status?: Database["public"]["Enums"]["payout_status"]
+          stellar_tx_hash?: string | null
+        }
+        Update: {
+          amount_usdc?: number
+          completed_at?: string | null
+          created_at?: string
+          customer_id?: string
+          failure_reason?: string | null
+          id?: string
+          memo?: string | null
+          recipient_address?: string
+          recipient_name?: string
+          source_wallet_id?: string | null
+          status?: Database["public"]["Enums"]["payout_status"]
+          stellar_tx_hash?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payouts_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payouts_source_wallet_id_fkey"
+            columns: ["source_wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rate_snapshots: {
         Row: {
           captured_at: string
@@ -342,6 +402,7 @@ export type Database = {
         | "FAILED"
         | "EXPIRED"
         | "REFUNDED"
+      payout_status: "PENDING" | "COMPLETED" | "FAILED"
       wallet_type: "TREASURY" | "CUSTOMER"
     }
     CompositeTypes: {
@@ -484,6 +545,7 @@ export const Constants = {
         "EXPIRED",
         "REFUNDED",
       ],
+      payout_status: ["PENDING", "COMPLETED", "FAILED"],
       wallet_type: ["TREASURY", "CUSTOMER"],
     },
   },
