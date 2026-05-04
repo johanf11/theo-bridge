@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 type Order = {
   id: string; status: string; htg_amount: number; usdc_amount: number; rate: number;
   reference_number: string; quote_expires_at: string; stellar_tx_hash: string | null;
-  failure_reason: string | null; created_at: string;
+  failure_reason: string | null; created_at: string; order_kind?: string | null;
 };
 
 const STEPS = [
