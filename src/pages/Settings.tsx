@@ -298,65 +298,62 @@ export default function Settings() {
         </div>
       </div>
 
+      {/* Your profile — full width above the grid */}
+      <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden mb-4">
+        <SectionHeader icon={User} title="Your profile" />
+        <div className="p-5 flex items-center gap-6">
+          {/* Avatar + email */}
+          <div className="flex items-center gap-3 pr-6" style={{ borderRight: "1px solid hsl(var(--border))", flexShrink: 0 }}>
+            <div className="flex items-center justify-center font-extrabold rounded-full flex-shrink-0" style={{ width: 44, height: 44, background: "hsl(var(--theo-gold))", color: "hsl(var(--theo-blue))", fontSize: 16 }}>
+              {initials}
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "hsl(var(--theo-ink))" }}>{savedName}</div>
+              <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))", marginTop: 2 }}>{user?.email}</div>
+            </div>
+          </div>
+
+          {/* Display name input — inline */}
+          <div className="flex items-end gap-3 flex-1">
+            <label className="flex-1">
+              <span className="block font-bold uppercase mb-1.5" style={{ fontSize: 10, letterSpacing: "0.10em", color: "hsl(var(--theo-mid))" }}>
+                Display name
+              </span>
+              <input
+                value={displayName}
+                onChange={(e) => { setDisplayName(e.target.value); setNameSaved(false); }}
+                onKeyDown={(e) => e.key === "Enter" && handleSaveName()}
+                maxLength={60}
+                placeholder="Your name"
+                className="w-full rounded-[9px] border border-border outline-none"
+                style={{ fontFamily: "inherit", fontSize: 14, padding: "10px 12px", color: "hsl(var(--theo-ink))" }}
+              />
+            </label>
+            <button
+              onClick={handleSaveName}
+              disabled={savingName || !displayName.trim()}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                background: nameSaved ? "#1A7F37" : "hsl(var(--theo-blue))",
+                border: "none", color: "#fff", borderRadius: 7,
+                padding: "10px 16px", fontSize: 12, fontWeight: 700,
+                cursor: savingName || !displayName.trim() ? "not-allowed" : "pointer",
+                fontFamily: "inherit", opacity: !displayName.trim() ? 0.5 : 1,
+                transition: "background 200ms", whiteSpace: "nowrap", flexShrink: 0,
+              }}
+            >
+              {savingName ? <><Loader2 size={12} className="animate-spin" /> Saving…</>
+                : nameSaved ? <><Check size={12} /> Saved</>
+                : "Save name"}
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Two-column grid */}
       <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "1fr 1fr", alignItems: "start" }}>
         {/* Left */}
         <div className="flex flex-col gap-4">
-
-          {/* Your profile */}
-          <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
-            <SectionHeader icon={User} title="Your profile" />
-            <div className="p-5">
-              {/* Avatar + email */}
-              <div className="flex items-center gap-3 mb-4 pb-4" style={{ borderBottom: "1px solid hsl(var(--border))" }}>
-                <div className="flex items-center justify-center font-extrabold rounded-full flex-shrink-0" style={{ width: 44, height: 44, background: "hsl(var(--theo-gold))", color: "hsl(var(--theo-blue))", fontSize: 16 }}>
-                  {initials}
-                </div>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "hsl(var(--theo-ink))" }}>{savedName}</div>
-                  <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))", marginTop: 2 }}>{user?.email}</div>
-                </div>
-              </div>
-
-              {/* Display name input */}
-              <label className="block mb-3">
-                <span className="block font-bold uppercase mb-1.5" style={{ fontSize: 10, letterSpacing: "0.10em", color: "hsl(var(--theo-mid))" }}>
-                  Display name
-                </span>
-                <input
-                  value={displayName}
-                  onChange={(e) => { setDisplayName(e.target.value); setNameSaved(false); }}
-                  onKeyDown={(e) => e.key === "Enter" && handleSaveName()}
-                  maxLength={60}
-                  placeholder="Your name"
-                  className="w-full rounded-[9px] border border-border outline-none"
-                  style={{ fontFamily: "inherit", fontSize: 14, padding: "10px 12px", color: "hsl(var(--theo-ink))" }}
-                />
-                <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 5 }}>
-                  Shown on invoices, receipts, and team lists.
-                </div>
-              </label>
-
-              <button
-                onClick={handleSaveName}
-                disabled={savingName || !displayName.trim()}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  background: nameSaved ? "#1A7F37" : "hsl(var(--theo-blue))",
-                  border: "none", color: "#fff", borderRadius: 7,
-                  padding: "7px 14px", fontSize: 12, fontWeight: 700,
-                  cursor: savingName || !displayName.trim() ? "not-allowed" : "pointer",
-                  fontFamily: "inherit", opacity: !displayName.trim() ? 0.5 : 1,
-                  transition: "background 200ms",
-                }}
-              >
-                {savingName ? <><Loader2 size={12} className="animate-spin" /> Saving…</>
-                  : nameSaved ? <><Check size={12} /> Saved</>
-                  : "Save name"}
-              </button>
-            </div>
-          </div>
-
           <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
             <SectionHeader icon={Home} title="Business profile" />
             <div className="p-5">
