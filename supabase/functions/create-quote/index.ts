@@ -55,12 +55,27 @@ Deno.serve(async (req) => {
     const userId = userData.user.id;
 
     const body = await req.json().catch(() => ({}));
-    const usdc = Number(body.usdc_amount);
-    if (!Number.isFinite(usdc) || usdc < MIN_USDC || usdc > MAX_USDC) {
-      return new Response(
-        JSON.stringify({ error: `usdc_amount must be between ${MIN_USDC} and ${MAX_USDC}` }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+    const orderKind: "usdc_conversion" | "htgc_mint" =
+      body.order_kind === "htgc_mint" ? "htgc_mint" : "usdc_conversion";
+
+    let usdc = 0;
+    let htgMint = 0;
+    if (orderKind === "usdc_conversion") {
+      usdc = Number(body.usdc_amount);
+      if (!Number.isFinite(usdc) || usdc < MIN_USDC || usdc > MAX_USDC) {
+        return new Response(
+          JSON.stringify({ error: `usdc_amount must be between ${MIN_USDC} and ${MAX_USDC}` }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+    } else {
+      htgMint = Number(body.htg_amount);
+      if (!Number.isFinite(htgMint) || htgMint < 1) {
+        return new Response(
+          JSON.stringify({ error: "htg_amount must be a positive number" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
     }
     const destinationWalletRaw = body.destinationWalletAddress ?? body.destination_wallet_address;
     const destinationWallet = typeof destinationWalletRaw === "string"
