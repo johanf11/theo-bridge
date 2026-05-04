@@ -1,112 +1,71 @@
-## Goal
+## Move funds between accounts
 
-Replace the stubbed `handleSweep` in `src/pages/Balance.tsx` with a real Soroban contract call to a Blend Capital lending pool on Stellar testnet. Same pattern as `send-payment`: signing happens server-side in an edge function using the wallet's `stellar_secret`, so the browser never touches keys.
+Today, customers can fund a wallet (Convert), pay external recipients (Payout), sweep into Yield, and withdraw from Yield — but they cannot shift USDC from one of their own wallets to another (e.g. Operations → Reserve). This plan adds that.
 
-## Approach
+### UX
 
-Mirror the existing `send-payment` architecture. Create two new edge functions that wrap the Blend SDK and a new `blend_positions` table to track on-chain state. Wire the UI to invoke them and refresh real positions instead of mutating local React state.
+On `/balance`:
 
-## Backend
+1. New header button **"⇄ Move funds"** next to "+ Fund wallet" / "+ Add account".
+2. Each wallet card and each ledger row gets a small **"Move"** action that opens the same modal pre-filled with the source.
+3. Modal: **Move between accounts**
+   - From: dropdown of the customer's wallets (defaults to the row clicked)
+   - To: dropdown of the customer's *other* wallets
+   - Amount in USDC (with **Max** chip — capped at source's available balance)
+   - Optional memo (max 28 chars, Stellar text-memo limit)
+   - Helper line: "On-chain Stellar transfer · Settles in seconds · No fee"
+   - Buttons: Cancel / **Move $X →**
+4. On success: toast "Moved $X from A to B · `<hash>`", balances + ledger refresh, modal closes.
 
-### 1. Migration — `blend_positions` table
+Permission: gated by the existing `payout_send` permission (same risk class as sending USDC).
 
-```text
-blend_positions
-  id              uuid pk
-  customer_id     uuid -> customers(id)
-  wallet_id       uuid -> wallets(id)
-  pool_address    text                 -- Blend pool contract id
-  reserve_asset   text default 'USDC'
-  deposited_usdc  numeric(20,7) default 0
-  last_tx_hash    text
-  last_synced_at  timestamptz
-  created_at, updated_at
-  unique (wallet_id, pool_address)
+### Transactions log
+
+Moves show up in `/transactions` as a new type **"Transfer"** (cyan badge, like Yield), with details `From <A> → <B>` and the Stellar tx hash as the receipt. The existing `payouts` table is the cleanest place to record these (one row per move) — we'll set `recipient_name` to the destination wallet's label and `memo` to `"internal-transfer"` so we can distinguish them in the UI.
+
+### Backend — new edge function `move-funds`
+
+Mirrors `send-payment` but enforces destination is one of the caller's own wallets:
+
+```
+POST /functions/v1/move-funds
+Body: { sourceWalletId, destinationWalletId, amount, memo? }
 ```
 
-RLS: customers can SELECT their own rows (via `customer_id` -> `customers.user_id = auth.uid()`); writes only via service_role.
+Steps:
+1. Auth caller, look up `customers.id` for `auth.uid()`.
+2. Load source wallet — must belong to customer, must have `stellar_secret`.
+3. Load destination wallet — must belong to same customer, must have `stellar_address`, must differ from source.
+4. Validate amount > 0; let Horizon reject if insufficient (no need to pre-check).
+5. Insert `payouts` row (PENDING) with:
+   - `recipient_name` = dest wallet label
+   - `recipient_address` = dest stellar address
+   - `memo` = `"internal-transfer"` (so the UI can identify it)
+   - `source_wallet_id` = source
+6. Build + sign + submit Stellar USDC payment from source → destination, with optional user memo (truncated to 28 chars).
+7. On success: update payout to COMPLETED with `stellar_tx_hash`. On failure: FAILED + `failure_reason`.
+8. Return `{ ok, hash, payoutId }`.
 
-### 2. Edge function `blend-sweep`
+No DB schema changes needed.
 
-Path: `supabase/functions/blend-sweep/index.ts`
+### Transactions page changes
 
-- Auth: verify caller JWT, resolve `customer_id`.
-- Body: `{ sourceWalletId, amount }`. Validate with Zod; amount > 0.
-- Load wallet (must belong to customer) → get `stellar_address` + `stellar_secret`.
-- Build Soroban tx using `npm:@blend-capital/blend-sdk` and `npm:@stellar/stellar-sdk@12.3.0`:
-  - Use Blend testnet pool address (from SDK constants or env `BLEND_POOL_ADDRESS`).
-  - Build `RequestType.SupplyCollateral` (or `Supply`) request via `PoolContractV1.submit({ from, spender, to, requests: [{ request_type, address: USDC_ASSET_ADDRESS, amount }] })`.
-  - Wrap with `SorobanRpc.Server('https://soroban-testnet.stellar.org')`, simulate → assemble → sign with `Keypair.fromSecret` → submit → poll until success.
-- On success: upsert `blend_positions` row (add to `deposited_usdc`, store `last_tx_hash`, `last_synced_at = now()`).
-- Return `{ ok, hash, position }`.
-- On failure: return 502 with the Soroban diagnostic event message; do not write to DB.
+In `src/pages/Transactions.tsx`, when fetching payouts also classify rows where `memo === 'internal-transfer'` as `type: "transfer"`:
+- New badge: "Transfer" in cyan
+- Details cell: `From <source label> → <recipient_name>` (we already join source wallet by id)
+- Add "Transfer" to the Type filter dropdown
 
-### 3. Edge function `blend-withdraw`
+### Files
 
-Path: `supabase/functions/blend-withdraw/index.ts`
+**New**
+- `supabase/functions/move-funds/index.ts`
 
-- Same auth/loading.
-- Body: `{ walletId, amount }` (amount can be `"max"` → use position's deposited+accrued from on-chain query).
-- Build a `RequestType.Withdraw` (or `WithdrawCollateral`) submit call against the same pool, signed by the wallet keypair.
-- On success: subtract from `deposited_usdc`; if 0, delete row. Update `last_tx_hash`.
+**Edited**
+- `src/pages/Balance.tsx` — add Move modal + button + handler, wire `move-funds` invoke
+- `src/pages/Transactions.tsx` — recognize internal-transfer payouts, render Transfer badge, extend filter
 
-### 4. Edge function `blend-positions`
+### Out of scope
 
-Path: `supabase/functions/blend-positions/index.ts`
-
-- GET, returns the customer's live positions:
-  - Read `blend_positions` rows (per wallet).
-  - For each, query the Blend pool via SDK (`Pool.load` → `pool.loadUser(address)`) to get the *current* supply balance in USDC (principal + accrued interest in bToken units, converted to underlying).
-  - Return `[{ walletId, walletLabel, deposited, current, accrued, apy }]`. Pull pool APY from `pool.metadata` / reserve data so the UI no longer hard-codes 9.2%.
-
-### 5. config.toml
-
-Add three function blocks with `verify_jwt = false` (we validate inside the function), matching existing convention.
-
-## Frontend (`src/pages/Balance.tsx`)
-
-- Remove local `BlendPosition` state mutation. Replace with a `useBlendPositions()` hook that calls the `blend-positions` edge function and refreshes after sweep/withdraw.
-- Replace `BLEND_APY` constant with the live APY returned by the function (fall back to a sensible default while loading).
-- `handleSweep`:
-  ```ts
-  const { data, error } = await supabase.functions.invoke("blend-sweep", {
-    body: { sourceWalletId: sweepWallet.id, amount: sweepAmountNum },
-  });
-  if (error) return toast.error(error.message);
-  await Promise.all([refreshTotal(), loadWallets(), refreshBlend()]);
-  toast.success(`Swept · tx ${data.hash.slice(0,8)}…`);
-  ```
-- `handleWithdraw`: same pattern against `blend-withdraw`, `{ walletId, amount: "max" }`.
-- After both actions, re-fetch live Horizon balances so the wallet card drops by the correct amount (no manual `setBalances` math).
-
-## Secrets to add
-
-- `BLEND_POOL_ADDRESS` — testnet Blend pool contract id (e.g. the public USDC pool from blend.capital docs). I'll prompt via `add_secret` if it's not present.
-- `BLEND_USDC_ASSET_ADDRESS` — Soroban asset contract id for testnet USDC (matches `STELLAR_USDC_ISSUER` wrapped). Optional — can derive at runtime via `Asset.contractId(networkPassphrase)`.
-
-`STELLAR_USDC_ISSUER` and `STELLAR_DISTRIBUTOR_SECRET` are already configured.
-
-## Out of scope
-
-- Multi-pool selection UI — sweeping always targets one configured pool.
-- Mainnet support.
-- Auto-sweep rules / scheduled rebalancing.
-- Position interest accrual chart.
-
-## Files to add / edit
-
-- `supabase/migrations/<ts>_blend_positions.sql` (new)
-- `supabase/functions/blend-sweep/index.ts` (new)
-- `supabase/functions/blend-withdraw/index.ts` (new)
-- `supabase/functions/blend-positions/index.ts` (new)
-- `supabase/config.toml` (add 3 function entries)
-- `src/hooks/useBlendPositions.ts` (new)
-- `src/pages/Balance.tsx` (replace stub handlers + remove hard-coded APY)
-
-## Test plan (testnet)
-
-1. Confirm distributor + a customer wallet have USDC trustline + balance.
-2. UI → "Sweep to Blend" 100 USDC → expect Horizon balance to drop, `blend_positions.deposited_usdc=100`, tx visible on stellar.expert/testnet (Soroban invoke).
-3. Reload Balance page → live position pulled from on-chain shows ≥100 USDC supplied.
-4. "Withdraw" → balance returns, row deleted, tx hash visible.
-5. Failure path: try sweep with 0 trustline → function returns 502 with diagnostic, UI toasts the error, no DB row.
+- Cross-currency moves (still USDC only)
+- Scheduling / recurring transfers
+- Bulk transfers

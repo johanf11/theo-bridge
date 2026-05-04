@@ -8,7 +8,7 @@ import { fetchHorizonUsdcBalance } from "@/lib/balance";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useBlendPositions } from "@/hooks/useBlendPositions";
 import { usePermissions } from "@/hooks/usePermissions";
-import { TrendingUp, Zap, X, Loader2, ArrowDownToLine, ArrowUpFromLine, Info } from "lucide-react";
+import { TrendingUp, Zap, X, Loader2, ArrowDownToLine, ArrowUpFromLine, Info, ArrowLeftRight } from "lucide-react";
 
 type Wallet = {
   id: string;
@@ -87,6 +87,14 @@ export default function Balance() {
   const [sweeping, setSweeping] = useState(false);
   const [withdrawingId, setWithdrawingId] = useState<string | null>(null);
   const [showBlendTooltip, setShowBlendTooltip] = useState(false);
+
+  // Move funds (between own wallets) modal
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [moveSourceId, setMoveSourceId] = useState<string>("");
+  const [moveDestId, setMoveDestId] = useState<string>("");
+  const [moveAmount, setMoveAmount] = useState("");
+  const [moveMemo, setMoveMemo] = useState("");
+  const [moving, setMoving] = useState(false);
 
   const totalEarning = useMemo(() =>
     Object.values(blendPositions).reduce((s, p) => s + p.deposited + p.accrued, 0), [blendPositions]);
@@ -196,6 +204,47 @@ export default function Balance() {
     await Promise.all([loadWallets(), refreshBlend(), refreshTotal()]);
   };
 
+  const openMoveModal = (sourceId?: string) => {
+    const src = sourceId && wallets.find((w) => w.id === sourceId) ? sourceId : (wallets[0]?.id ?? "");
+    const dst = wallets.find((w) => w.id !== src)?.id ?? "";
+    setMoveSourceId(src);
+    setMoveDestId(dst);
+    setMoveAmount("");
+    setMoveMemo("");
+    setMoveOpen(true);
+  };
+
+  const moveAmountNum = parseFloat(moveAmount) || 0;
+  const moveSourceBalance = moveSourceId ? (balances[moveSourceId] ?? 0) : 0;
+  const moveSourceLabel = wallets.find((w) => w.id === moveSourceId)?.label ?? "Source";
+  const moveDestLabel = wallets.find((w) => w.id === moveDestId)?.label ?? "Destination";
+  const moveValid =
+    moveSourceId && moveDestId && moveSourceId !== moveDestId &&
+    moveAmountNum > 0 && moveAmountNum <= moveSourceBalance;
+
+  const handleMove = async () => {
+    if (!moveValid) return;
+    setMoving(true);
+    const { data, error } = await supabase.functions.invoke("move-funds", {
+      body: {
+        sourceWalletId: moveSourceId,
+        destinationWalletId: moveDestId,
+        amount: moveAmountNum,
+        memo: moveMemo.trim() || undefined,
+      },
+    });
+    setMoving(false);
+    if (error || (data as { error?: string })?.error) {
+      const msg = (data as { error?: string })?.error ?? error?.message ?? "Transfer failed";
+      toast.error(msg);
+      return;
+    }
+    const hash = (data as { hash?: string })?.hash ?? "";
+    toast.success(`Moved $${fmt(moveAmountNum)} from ${moveSourceLabel} to ${moveDestLabel} · ${hash.slice(0, 8)}…`);
+    setMoveOpen(false);
+    await Promise.all([loadWallets(), refreshTotal()]);
+  };
+
   const walletColors = ["hsl(var(--theo-blue))", "#1A2966", "#0F1D54"];
 
   return (
@@ -211,6 +260,19 @@ export default function Balance() {
           </div>
         </div>
         <div className="flex gap-2">
+          {can("payout_send") && wallets.length >= 2 && (
+            <button
+              onClick={() => openMoveModal()}
+              style={{
+                background: "transparent", border: "1.5px solid hsl(var(--theo-blue))",
+                color: "hsl(var(--theo-blue))", borderRadius: 7, padding: "6px 12px",
+                fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                display: "inline-flex", alignItems: "center", gap: 6,
+              }}
+            >
+              <ArrowLeftRight size={12} /> Move funds
+            </button>
+          )}
           <button
             onClick={() => navigate("/convert")}
             style={{
@@ -466,18 +528,35 @@ export default function Balance() {
                       <div className="rounded-full" style={{ width: 6, height: 6, background: "hsl(var(--theo-cyan))" }} />
                       <span style={{ fontSize: 11, color: "rgba(255,255,255,0.50)", fontWeight: 500 }}>Active · 1:1 verified</span>
                     </div>
-                    <button
-                      onClick={() => setSweepWallet(w)}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 4,
-                        background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)",
-                        color: "#fff", borderRadius: 6, padding: "4px 9px",
-                        fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                      }}
-                    >
-                      <ArrowDownToLine size={10} />
-                      {pos ? "Add more" : "Earn"}
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      {can("payout_send") && wallets.length >= 2 && (
+                        <button
+                          onClick={() => openMoveModal(w.id)}
+                          title="Move funds to another account"
+                          style={{
+                            display: "flex", alignItems: "center", gap: 4,
+                            background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)",
+                            color: "#fff", borderRadius: 6, padding: "4px 9px",
+                            fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                          }}
+                        >
+                          <ArrowLeftRight size={10} />
+                          Move
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setSweepWallet(w)}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 4,
+                          background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)",
+                          color: "#fff", borderRadius: 6, padding: "4px 9px",
+                          fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                        }}
+                      >
+                        <ArrowDownToLine size={10} />
+                        {pos ? "Add more" : "Earn"}
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -650,6 +729,175 @@ export default function Balance() {
                 {sweeping
                   ? <><Loader2 size={13} className="animate-spin" /> Sweeping…</>
                   : <><ArrowDownToLine size={13} /> Sweep {sweepAmountNum > 0 ? `$${fmt(sweepAmountNum)}` : ""} to Blend</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Move funds modal ── */}
+      {moveOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: "rgba(15, 29, 84, 0.45)" }}
+          onClick={() => !moving && setMoveOpen(false)}
+        >
+          <div
+            className="bg-card rounded-2xl shadow-xl"
+            style={{ width: 460, maxWidth: "90vw", padding: 24 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center rounded-lg" style={{ width: 32, height: 32, background: "hsl(var(--theo-blue-soft))" }}>
+                  <ArrowLeftRight size={15} color="hsl(var(--theo-blue))" />
+                </div>
+                <div>
+                  <div className="font-extrabold" style={{ fontSize: 16, color: "hsl(var(--theo-blue))", letterSpacing: "-0.01em" }}>
+                    Move funds
+                  </div>
+                  <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 1 }}>
+                    Between your own accounts · settles in seconds
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setMoveOpen(false)}
+                style={{ background: "transparent", border: "none", cursor: "pointer", padding: 4 }}
+                aria-label="Close"
+              >
+                <X size={16} color="hsl(var(--theo-mid))" />
+              </button>
+            </div>
+
+            {/* From */}
+            <label className="block mb-3">
+              <div className="font-bold uppercase mb-1.5" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>
+                From
+              </div>
+              <select
+                value={moveSourceId}
+                onChange={(e) => setMoveSourceId(e.target.value)}
+                disabled={moving}
+                className="w-full bg-card border border-border rounded-lg"
+                style={{ padding: "10px 12px", fontSize: 13, fontFamily: "inherit", color: "hsl(var(--theo-ink))" }}
+              >
+                {wallets.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.label ?? "Wallet"} · ${fmt(balances[w.id] ?? 0)} available
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {/* To */}
+            <label className="block mb-3">
+              <div className="font-bold uppercase mb-1.5" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>
+                To
+              </div>
+              <select
+                value={moveDestId}
+                onChange={(e) => setMoveDestId(e.target.value)}
+                disabled={moving}
+                className="w-full bg-card border border-border rounded-lg"
+                style={{ padding: "10px 12px", fontSize: 13, fontFamily: "inherit", color: "hsl(var(--theo-ink))" }}
+              >
+                {wallets.filter((w) => w.id !== moveSourceId).map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.label ?? "Wallet"} · ${fmt(balances[w.id] ?? 0)} balance
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {/* Amount */}
+            <label className="block mb-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="font-bold uppercase" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>
+                  Amount
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setMoveAmount(String(moveSourceBalance))}
+                  style={{
+                    background: "hsl(var(--theo-blue-soft))", border: "none",
+                    color: "hsl(var(--theo-blue))", borderRadius: 5, padding: "2px 8px",
+                    fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                  }}
+                >
+                  Max ${fmt(moveSourceBalance)}
+                </button>
+              </div>
+              <div className="flex items-center bg-card border border-border rounded-lg" style={{ padding: "0 12px" }}>
+                <span style={{ fontSize: 16, fontWeight: 700, color: "hsl(var(--theo-mid))", marginRight: 6 }}>$</span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  value={moveAmount}
+                  onChange={(e) => setMoveAmount(e.target.value)}
+                  placeholder="0.00"
+                  disabled={moving}
+                  className="flex-1 bg-transparent outline-none"
+                  style={{ padding: "10px 0", fontSize: 18, fontWeight: 700, fontFamily: "inherit", color: "hsl(var(--theo-ink))" }}
+                />
+                <span style={{ fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>USDC</span>
+              </div>
+              {moveAmountNum > moveSourceBalance && (
+                <div style={{ fontSize: 11, color: "hsl(0 70% 45%)", marginTop: 4 }}>
+                  Exceeds available balance.
+                </div>
+              )}
+            </label>
+
+            {/* Memo (optional) */}
+            <label className="block mb-4">
+              <div className="font-bold uppercase mb-1.5" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>
+                Memo · optional
+              </div>
+              <input
+                type="text"
+                maxLength={28}
+                value={moveMemo}
+                onChange={(e) => setMoveMemo(e.target.value)}
+                placeholder="e.g. payroll top-up"
+                disabled={moving}
+                className="w-full bg-card border border-border rounded-lg"
+                style={{ padding: "10px 12px", fontSize: 13, fontFamily: "inherit", color: "hsl(var(--theo-ink))" }}
+              />
+            </label>
+
+            <div className="flex items-start gap-2 mb-4" style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>
+              <Info size={13} style={{ marginTop: 1, flexShrink: 0, color: "hsl(var(--theo-cyan))" }} />
+              <span>On-chain Stellar transfer between your own accounts. No platform fee.</span>
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setMoveOpen(false)}
+                disabled={moving}
+                style={{
+                  background: "transparent", border: "1.5px solid hsl(var(--theo-mid))",
+                  color: "hsl(var(--theo-mid))", borderRadius: 7, padding: "8px 16px",
+                  fontSize: 13, fontWeight: 700, cursor: moving ? "wait" : "pointer", fontFamily: "inherit",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMove}
+                disabled={!moveValid || moving}
+                style={{
+                  background: moveValid && !moving ? "hsl(var(--theo-blue))" : "hsl(var(--theo-mid))",
+                  border: "none", color: "#fff", borderRadius: 7, padding: "8px 16px",
+                  fontSize: 13, fontWeight: 700, cursor: moveValid && !moving ? "pointer" : "not-allowed",
+                  fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6,
+                }}
+              >
+                {moving
+                  ? <><Loader2 size={13} className="animate-spin" /> Moving…</>
+                  : <><ArrowLeftRight size={13} /> Move {moveAmountNum > 0 ? `$${fmt(moveAmountNum)}` : ""} →</>}
               </button>
             </div>
           </div>
