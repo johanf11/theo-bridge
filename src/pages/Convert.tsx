@@ -585,7 +585,7 @@ export default function Convert() {
               {!canQuote && !profileLoading && (
                 <div className="mb-4 rounded-xl p-4" style={{ background: "hsl(var(--theo-blue-soft))", border: "1px solid hsl(var(--theo-blue-chip))" }}>
                   <div style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>
-                    <strong>KYB approval required</strong> to unlock conversions.{" "}
+                    <strong>KYB approval required</strong> to unlock swaps.{" "}
                     {isAdmin && profile?.kyb_status !== "APPROVED" && (
                       <button onClick={approveTestKyb} disabled={busy} className="underline cursor-pointer border-none bg-transparent" style={{ fontFamily: "inherit", fontSize: 13, color: "hsl(var(--theo-cyan))" }}>
                         Approve test KYB
