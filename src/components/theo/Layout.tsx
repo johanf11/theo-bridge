@@ -13,7 +13,7 @@ const mainNav = [
   { to: "/transactions", label: "Transactions", icon: ArrowLeftRight, keywords: ["transactions", "history", "orders"] },
   { to: "/balance", label: "Balance", icon: Wallet, keywords: ["balance", "wallet", "account", "funds"] },
   { to: "/payout", label: "Payout", icon: SendHorizonal, keywords: ["payout", "send", "payment", "transfer"] },
-  { to: "/convert", label: "Convert", icon: ArrowRightLeft, keywords: ["convert", "on ramp", "buy", "exchange"] },
+  { to: "/convert", label: "On / Off Ramp", icon: ArrowRightLeft, keywords: ["convert", "on ramp", "off ramp", "buy", "exchange"] },
   { to: "/settings", label: "Settings", icon: Settings, keywords: ["settings", "profile", "account"] },
 ];
 
