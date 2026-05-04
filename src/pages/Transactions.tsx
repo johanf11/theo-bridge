@@ -267,14 +267,16 @@ export default function Transactions() {
                     {/* Type badge */}
                     <td className="px-5 py-3">
                       {(() => {
-                        const isPayout = tx.type === "payout";
-                        const isYield = tx.type === "yield";
-                        const bg = isYield ? "hsl(140 60% 92%)" : isPayout ? "hsl(var(--theo-blue-soft))" : "hsl(var(--theo-gold-soft))";
-                        const fg = isYield ? "hsl(150 70% 25%)" : isPayout ? "hsl(var(--theo-blue))" : "#7A5F00";
-                        const label = isYield ? "Yield Sweep" : isPayout ? "Payout" : "Conversion";
+                        const palette: Record<TxType, { bg: string; fg: string; label: string }> = {
+                          conversion: { bg: "hsl(var(--theo-gold-soft))", fg: "#7A5F00", label: "Conversion" },
+                          payout: { bg: "hsl(var(--theo-blue-soft))", fg: "hsl(var(--theo-blue))", label: "Payout" },
+                          yield: { bg: "hsl(140 60% 92%)", fg: "hsl(150 70% 25%)", label: "Yield Sweep" },
+                          transfer: { bg: "hsl(195 85% 92%)", fg: "hsl(200 80% 25%)", label: "Transfer" },
+                        };
+                        const p = palette[tx.type];
                         return (
-                          <span className="rounded-full font-bold" style={{ fontSize: 11, padding: "3px 8px", background: bg, color: fg }}>
-                            {label}
+                          <span className="rounded-full font-bold" style={{ fontSize: 11, padding: "3px 8px", background: p.bg, color: p.fg }}>
+                            {p.label}
                           </span>
                         );
                       })()}
@@ -285,12 +287,14 @@ export default function Transactions() {
                       {fmtUSDC(tx.usdc_amount)}
                     </td>
 
-                    {/* Details: HTG for conversions, recipient for payouts, wallet for yield */}
+                    {/* Details: HTG for conversions, recipient for payouts, wallet for yield, source→dest for transfer */}
                     <td className="px-5 py-3" style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>
                       {tx.type === "conversion" ? (
                         fmtHTG(tx.htg_amount ?? 0)
                       ) : tx.type === "yield" ? (
                         <span style={{ color: "hsl(var(--theo-ink))" }}>From {tx.wallet_label} → Yield treasury</span>
+                      ) : tx.type === "transfer" ? (
+                        <span style={{ color: "hsl(var(--theo-ink))" }}>From {tx.wallet_label} → {tx.recipient_name}</span>
                       ) : (
                         <span style={{ color: "hsl(var(--theo-ink))" }}>{tx.recipient_name}{tx.memo ? <span style={{ color: "hsl(var(--theo-mid))" }}> · {tx.memo}</span> : ""}</span>
                       )}
