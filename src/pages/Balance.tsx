@@ -4,7 +4,7 @@ import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { z } from "zod";
-import { fetchHorizonUsdcBalance } from "@/lib/balance";
+import { fetchHorizonBalances } from "@/lib/balance";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useBlendPositions } from "@/hooks/useBlendPositions";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -41,6 +41,7 @@ export default function Balance() {
   const { can } = usePermissions();
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [balances, setBalances] = useState<Record<string, number>>({});
+  const [htgcBalances, setHtgcBalances] = useState<Record<string, number>>({});
   const { total, refresh: refreshTotal } = useCustomerBalance();
   const [loading, setLoading] = useState(true);
 
@@ -145,8 +146,12 @@ export default function Balance() {
 
     const ws = (w ?? []) as Wallet[];
     setWallets(ws);
-    const entries = await Promise.all(ws.map(async (x) => [x.id, await fetchHorizonUsdcBalance(x.stellar_address)] as const));
-    setBalances(Object.fromEntries(entries));
+    const entries = await Promise.all(ws.map(async (x) => {
+      const bals = await fetchHorizonBalances(x.stellar_address);
+      return { id: x.id, usdc: bals.usdc, htgc: bals.htgc };
+    }));
+    setBalances(Object.fromEntries(entries.map((e) => [e.id, e.usdc])));
+    setHtgcBalances(Object.fromEntries(entries.map((e) => [e.id, e.htgc])));
     refreshTotal();
     setLoading(false);
   };
@@ -475,6 +480,7 @@ export default function Balance() {
             {wallets.map((w, i) => {
               const pos = blendPositions[w.id];
               const bal = balances[w.id] ?? 0;
+              const htgc = htgcBalances[w.id] ?? 0;
               return (
                 <div
                   key={w.id}
@@ -508,11 +514,21 @@ export default function Balance() {
                     )}
                   </div>
 
-                  {/* Balance */}
+                  {/* Balance — USDC primary */}
                   <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1.5px", color: "#fff" }}>
                     ${fmt(bal)}
                   </div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.50)", marginTop: 4 }}>USDC available</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.50)", marginTop: 3 }}>USDC</div>
+
+                  {/* HTG-C balance row */}
+                  {htgc > 0 && (
+                    <div className="flex items-center gap-1.5 mt-2.5 pt-2.5" style={{ borderTop: "1px solid rgba(255,255,255,0.12)" }}>
+                      <span style={{ fontSize: 16, fontWeight: 800, color: "hsl(var(--theo-gold))", letterSpacing: "-0.5px" }}>
+                        {Math.round(htgc).toLocaleString("en-US")}
+                      </span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "hsl(var(--theo-gold))", opacity: 0.85 }}>HTG-C</span>
+                    </div>
+                  )}
 
                   {/* Blend position badge — reserve a fixed-height row so all cards align */}
                   {pos ? (
@@ -602,6 +618,7 @@ export default function Balance() {
                 <LedgerRow
                   key={w.id} w={w} idx={i}
                   balance={balances[w.id] ?? 0}
+                  htgcBalance={htgcBalances[w.id] ?? 0}
                   blendPosition={blendPositions[w.id] ?? null}
                   canViewKeys={can("balance_view_keys")}
                 />
@@ -978,9 +995,9 @@ export default function Balance() {
 }
 
 function LedgerRow({
-  w, idx, balance, blendPosition, canViewKeys,
+  w, idx, balance, htgcBalance, blendPosition, canViewKeys,
 }: {
-  w: Wallet; idx: number; balance: number;
+  w: Wallet; idx: number; balance: number; htgcBalance: number;
   blendPosition: BlendPosition | null;
   canViewKeys: boolean;
 }) {
@@ -1002,8 +1019,15 @@ function LedgerRow({
           </button>
         )}
       </td>
-      <td className="px-5 py-3" style={{ fontSize: 13, fontWeight: 700 }}>
-        ${balance.toLocaleString("en-US", { minimumFractionDigits: 2 })} USDC
+      <td className="px-5 py-3">
+        <div style={{ fontSize: 13, fontWeight: 700 }}>
+          ${balance.toLocaleString("en-US", { minimumFractionDigits: 2 })} USDC
+        </div>
+        {htgcBalance > 0 && (
+          <div style={{ fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-gold))", marginTop: 2 }}>
+            {Math.round(htgcBalance).toLocaleString("en-US")} HTG-C
+          </div>
+        )}
       </td>
       <td className="px-5 py-3">
         {blendPosition ? (

@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { useAuth, useRoles } from "@/lib/auth";
 import { X, Plus, Building2, CheckCircle2 } from "lucide-react";
 
-type Tab = "on" | "off";
+type Tab = "htg" | "swap" | "off";
 type KybStatus = "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
 type Profile = { kyb_status: KybStatus; stellar_wallet_address: string | null; fee_bps: number; corridor_bps: number };
 type WalletOption = { id: string; label: string; stellar_address: string };
@@ -29,7 +29,16 @@ export default function Convert() {
   const { user } = useAuth();
   const { isAdmin } = useRoles();
 
-  const [tab, setTab] = useState<Tab>("on");
+  const [tab, setTab] = useState<Tab>("htg");
+  // Tab 1: Deposit HTG → mint HTG-C
+  const [htgAmount, setHtgAmount] = useState("50,000");
+  const [htgAmountRaw, setHtgAmountRaw] = useState(50000);
+  const [htgBusy, setHtgBusy] = useState(false);
+  // Tab 2: HTG-C ↔ USDC
+  const [swapDir, setSwapDir] = useState<"htgc_to_usdc" | "usdc_to_htgc">("htgc_to_usdc");
+  const [swapAmount, setSwapAmount] = useState("5,000");
+  const [swapAmountRaw, setSwapAmountRaw] = useState(5000);
+  const [swapBusy, setSwapBusy] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [spotRate, setSpotRate] = useState<number | null>(null);
@@ -284,19 +293,67 @@ export default function Convert() {
     await new Promise((r) => setTimeout(r, 1500));
     setOffBusy(false);
     setOffConfirm(false);
-    toast.success(`Withdrawal of $${offAmount} USDC initiated — arrives in 1–2 business days`);
+    toast.success(`${offAmount} HTG-C burned — ${offAmountRaw.toLocaleString("en-US")} HTG will arrive at your bank in 1–2 business days`);
   };
 
   const maskAccount = (num: string) =>
     num.length > 4 ? `**** ${num.slice(-4)}` : num;
 
-  const tabStyle = (t: Tab) => ({
-    padding: "9px 16px", fontSize: 13, fontWeight: 600,
+  const tabStyle = (t: Tab): React.CSSProperties => ({
+    padding: "9px 14px", fontSize: 13, fontWeight: 600,
     color: tab === t ? "hsl(var(--theo-blue))" : "hsl(var(--theo-mid))",
     border: "none", background: "none", cursor: "pointer", fontFamily: "inherit",
     borderBottom: tab === t ? "2px solid hsl(var(--theo-blue))" : "2px solid transparent",
-    marginBottom: -1, transition: "all 130ms",
-  } as React.CSSProperties);
+    marginBottom: -1, transition: "all 130ms", whiteSpace: "nowrap",
+  });
+
+  const handleHtgInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/[^\d]/g, "");
+    const num = parseInt(raw, 10) || 0;
+    setHtgAmountRaw(num);
+    setHtgAmount(num ? num.toLocaleString("en-US") : "");
+  };
+
+  const handleSwapInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/[^\d]/g, "");
+    const num = parseInt(raw, 10) || 0;
+    setSwapAmountRaw(num);
+    setSwapAmount(num ? num.toLocaleString("en-US") : "");
+  };
+
+  const handleHtgSubmit = async () => {
+    if (htgAmountRaw < 1) { toast.error("Enter an amount"); return; }
+    setHtgBusy(true);
+    await new Promise((r) => setTimeout(r, 1400));
+    setHtgBusy(false);
+    const action = htgDir === "deposit" ? "minted" : "redeemed";
+    toast.success(`${htgAmount} HTG-C ${action} successfully`);
+  };
+
+  const handleSwapSubmit = async () => {
+    if (swapAmountRaw < 1) { toast.error("Enter an amount"); return; }
+    setSwapBusy(true);
+    await new Promise((r) => setTimeout(r, 1400));
+    setSwapBusy(false);
+    const fromLabel = swapDir === "htgc_to_usdc" ? `${swapAmount} HTG-C` : `$${swapAmount} USDC`;
+    const toLabel = swapDir === "htgc_to_usdc" ? `$${swapAmountRaw && liveRate ? (swapAmountRaw / liveRate).toFixed(2) : "—"} USDC` : `${swapAmountRaw && liveRate ? Math.round(swapAmountRaw * liveRate).toLocaleString() : "—"} HTG-C`;
+    toast.success(`Converted ${fromLabel} → ${toLabel}`);
+  };
+
+  const dirToggle = (active: boolean, onClick: () => void, label: string) => (
+    <button
+      onClick={onClick}
+      style={{
+        padding: "4px 10px", fontSize: 11, fontWeight: 700, borderRadius: 6, cursor: "pointer",
+        border: active ? "none" : "1.5px solid hsl(var(--theo-light))",
+        background: active ? "hsl(var(--theo-blue))" : "transparent",
+        color: active ? "#fff" : "hsl(var(--theo-mid))",
+        fontFamily: "inherit", transition: "all 130ms",
+      }}
+    >
+      {label}
+    </button>
+  );
 
   const labelStyle: React.CSSProperties = {
     display: "block", fontSize: 10, fontWeight: 700,
@@ -327,16 +384,104 @@ export default function Convert() {
       <div className="grid gap-4" style={{ gridTemplateColumns: "3fr 2fr" }}>
         {/* Main form */}
         <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
-          <div className="flex border-b border-border mb-4">
-            <button style={tabStyle("on")} onClick={() => setTab("on")}>HTG → USDC</button>
-            <button style={tabStyle("off")} onClick={() => setTab("off")}>USDC → Bank</button>
+          <div className="flex border-b border-border mb-4" style={{ overflowX: "auto" }}>
+            <button style={tabStyle("htg")} onClick={() => setTab("htg")}>Deposit HTG</button>
+            <button style={tabStyle("swap")} onClick={() => setTab("swap")}>Convert</button>
+            <button style={tabStyle("off")} onClick={() => setTab("off")}>Withdraw to Bank</button>
           </div>
 
-          {tab === "on" ? (
+          {/* ── Tab 1: Deposit HTG → auto-mint HTG-C ───────────────────── */}
+          {tab === "htg" && (
+            <>
+              {/* How it works banner */}
+              <div className="rounded-xl mb-4 flex items-start gap-2.5" style={{ background: "hsl(var(--theo-blue-soft))", border: "1px solid hsl(var(--theo-blue-chip))", padding: "12px 14px" }}>
+                <span style={{ fontSize: 18, lineHeight: 1 }}>🏦</span>
+                <div style={{ fontSize: 12, color: "hsl(var(--theo-blue))", lineHeight: 1.6 }}>
+                  Send HTG to Theo via <strong>SPIH</strong>. Once received, HTG-C is automatically minted 1:1 to your wallet on Stellar.
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelStyle}>HTG to deposit</label>
+                <div style={{ position: "relative" }}>
+                  <input
+                    style={{ ...inputStyle, paddingRight: 56 }}
+                    type="text" inputMode="numeric"
+                    value={htgAmount}
+                    onChange={handleHtgInput}
+                    placeholder="0"
+                  />
+                  <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>HTG</span>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelStyle}>Destination account</label>
+                {walletOptions.length === 0 ? (
+                  <div style={{ ...inputStyle, display: "flex", alignItems: "center", color: "hsl(var(--theo-mid))", fontSize: 13 }}>
+                    No accounts yet — create one on the Balance page.
+                  </div>
+                ) : (
+                  <select
+                    value={selectedWallet}
+                    onChange={(e) => setSelectedWallet(e.target.value)}
+                    style={{ ...inputStyle, appearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6B8A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: 28, cursor: "pointer" }}
+                  >
+                    {walletOptions.map((w) => (
+                      <option key={w.id} value={w.stellar_address}>{w.label}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Quote box */}
+              <div className="rounded-xl mb-4" style={{ background: "hsl(var(--theo-blue-soft))", border: "1px solid hsl(var(--theo-blue-chip))", padding: "14px 16px" }}>
+                <div className="flex justify-between mb-1.5">
+                  <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>You send</span>
+                  <span style={{ fontSize: 15, fontWeight: 800, color: "hsl(var(--theo-blue))" }}>{htgAmount || "0"} HTG</span>
+                </div>
+                <div className="flex justify-between mb-1.5">
+                  <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>You receive</span>
+                  <span style={{ fontSize: 15, fontWeight: 800, color: "hsl(var(--theo-blue))" }}>{htgAmount || "0"} HTG-C</span>
+                </div>
+                <div className="flex justify-between mb-1.5">
+                  <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Peg</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>1:1 · guaranteed</span>
+                </div>
+                <div className="flex justify-between">
+                  <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Settlement</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>Auto · same business day</span>
+                </div>
+                <div className="flex items-center gap-1.5 mt-2.5 pt-2.5" style={{ borderTop: "1px solid hsl(var(--theo-blue-chip))" }}>
+                  <div className="rounded-full" style={{ width: 6, height: 6, background: "#22c55e" }} />
+                  <span style={{ fontSize: 11, color: "#15803d", fontWeight: 600 }}>
+                    HTG-C is fully collateralised by HTG held in Theo's segregated bank account · quarterly audited attestations
+                  </span>
+                </div>
+              </div>
+
+              <button
+                onClick={handleHtgSubmit}
+                disabled={htgBusy || htgAmountRaw < 1}
+                className="w-full font-bold text-white"
+                style={{
+                  background: htgBusy || htgAmountRaw < 1 ? "hsl(var(--theo-mid))" : "hsl(var(--theo-blue))",
+                  borderRadius: 9, padding: "12px", fontSize: 14, border: "none",
+                  cursor: htgBusy || htgAmountRaw < 1 ? "not-allowed" : "pointer", fontFamily: "inherit",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}
+              >
+                {htgBusy ? "Generating deposit instructions…" : "Get deposit reference →"}
+              </button>
+            </>
+          )}
+
+          {/* ── Tab 2: HTG-C ↔ USDC ────────────────────────────────────── */}
+          {tab === "swap" && (
             <>
               {/* KYB gate */}
               {!canQuote && !profileLoading && (
-                <div className="mb-4 rounded-xl p-4 flex items-start gap-3" style={{ background: "hsl(var(--theo-blue-soft))", border: "1px solid hsl(var(--theo-blue-chip))" }}>
+                <div className="mb-4 rounded-xl p-4" style={{ background: "hsl(var(--theo-blue-soft))", border: "1px solid hsl(var(--theo-blue-chip))" }}>
                   <div style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>
                     <strong>KYB approval required</strong> to unlock conversions.{" "}
                     {isAdmin && profile?.kyb_status !== "APPROVED" && (
@@ -348,29 +493,33 @@ export default function Convert() {
                 </div>
               )}
 
-              <div style={{ marginBottom: 14 }}>
-                <label style={labelStyle}>USDC you want to receive</label>
-                <div style={{ position: "relative" }}>
-                  <input
-                    style={{ ...inputStyle, paddingRight: 56 }}
-                    type="text"
-                    inputMode="numeric"
-                    value={usdcDisplay}
-                    onChange={handleUsdcInput}
-                    placeholder="0"
-                  />
-                  <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>
-                    USDC
-                  </span>
-                </div>
-                <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 4 }}>Min $1,000 · Max $50,000</div>
+              {/* Direction toggle */}
+              <div className="flex items-center gap-2 mb-4">
+                {dirToggle(swapDir === "htgc_to_usdc", () => setSwapDir("htgc_to_usdc"), "HTG-C → USDC")}
+                {dirToggle(swapDir === "usdc_to_htgc", () => setSwapDir("usdc_to_htgc"), "USDC → HTG-C")}
               </div>
 
               <div style={{ marginBottom: 14 }}>
-                <label style={labelStyle}>Destination account</label>
+                <label style={labelStyle}>{swapDir === "htgc_to_usdc" ? "HTG-C to convert" : "USDC to convert"}</label>
+                <div style={{ position: "relative" }}>
+                  <input
+                    style={{ ...inputStyle, paddingRight: 64 }}
+                    type="text" inputMode="numeric"
+                    value={swapAmount}
+                    onChange={handleSwapInput}
+                    placeholder="0"
+                  />
+                  <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>
+                    {swapDir === "htgc_to_usdc" ? "HTG-C" : "USDC"}
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelStyle}>Account</label>
                 {walletOptions.length === 0 ? (
                   <div style={{ ...inputStyle, display: "flex", alignItems: "center", color: "hsl(var(--theo-mid))", fontSize: 13 }}>
-                    No accounts yet — create one with “+ Add account” on the Balance page.
+                    No accounts yet — create one on the Balance page.
                   </div>
                 ) : (
                   <select
@@ -379,23 +528,33 @@ export default function Convert() {
                     style={{ ...inputStyle, appearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6B8A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: 28, cursor: "pointer" }}
                   >
                     {walletOptions.map((w) => (
-                      <option key={w.id} value={w.stellar_address}>
-                        {w.label}
-                      </option>
+                      <option key={w.id} value={w.stellar_address}>{w.label}</option>
                     ))}
                   </select>
                 )}
               </div>
 
-              {/* Live quote */}
+              {/* Quote */}
               <div className="rounded-xl mb-4" style={{ background: "hsl(var(--theo-blue-soft))", border: "1px solid hsl(var(--theo-blue-chip))", padding: "14px 16px" }}>
                 <div className="flex justify-between mb-1.5">
-                  <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>HTG to send</span>
-                  <span style={{ fontSize: 15, fontWeight: 800, color: "hsl(var(--theo-blue))" }}>{htg != null ? htg.toLocaleString("en-US") : "—"}</span>
+                  <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>You send</span>
+                  <span style={{ fontSize: 15, fontWeight: 800, color: "hsl(var(--theo-blue))" }}>
+                    {swapAmount || "0"} {swapDir === "htgc_to_usdc" ? "HTG-C" : "USDC"}
+                  </span>
+                </div>
+                <div className="flex justify-between mb-1.5">
+                  <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>You receive</span>
+                  <span style={{ fontSize: 15, fontWeight: 800, color: "hsl(var(--theo-blue))" }}>
+                    {liveRate
+                      ? swapDir === "htgc_to_usdc"
+                        ? `$${(swapAmountRaw / liveRate).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC`
+                        : `${Math.round(swapAmountRaw * liveRate).toLocaleString("en-US")} HTG-C`
+                      : "—"}
+                  </span>
                 </div>
                 <div className="flex justify-between mb-1.5">
                   <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Rate</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>{liveRate != null ? liveRate.toFixed(2) : "—"} HTG/USDC</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>{liveRate != null ? liveRate.toFixed(2) : "—"} HTG-C/USDC</span>
                 </div>
                 <div>
                   <div className="flex justify-between items-center">
@@ -406,18 +565,18 @@ export default function Convert() {
                       Fee <span style={{ fontSize: 10 }}>{showFeeBreakdown ? "▲" : "▼"}</span>
                     </button>
                     <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
-                      {fmtFee(feeUSDC)}
+                      {fmtFee(swapAmountRaw * (swapDir === "htgc_to_usdc" ? 1 / (liveRate ?? 130) : 1) * (totalBps / 10_000))}
                     </span>
                   </div>
                   {showFeeBreakdown && (
                     <div className="mt-2 rounded-lg" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid hsl(var(--theo-blue-chip))", padding: "8px 10px" }}>
                       <div className="flex justify-between mb-1">
                         <span style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>Corridor ({corridorBps / 100}%)</span>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-blue))" }}>{fmtFee(usdcRaw * corridorBps / 10_000)}</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-blue))" }}>{fmtFee(swapAmountRaw * (swapDir === "htgc_to_usdc" ? 1 / (liveRate ?? 130) : 1) * corridorBps / 10_000)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>Theo service ({feeBps / 100}%)</span>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-blue))" }}>{fmtFee(usdcRaw * feeBps / 10_000)}</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-blue))" }}>{fmtFee(swapAmountRaw * (swapDir === "htgc_to_usdc" ? 1 / (liveRate ?? 130) : 1) * feeBps / 10_000)}</span>
                       </div>
                     </div>
                   )}
@@ -429,38 +588,43 @@ export default function Convert() {
                       Rate locked for <strong>{timerLabel}</strong>
                     </span>
                   </div>
-                  <span style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>Updates every 5s</span>
+                  <span style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>BRH official</span>
                 </div>
               </div>
 
               <button
-                onClick={submit}
-                disabled={busy || !canQuote}
-                className="w-full font-bold text-white transition-colors"
+                onClick={handleSwapSubmit}
+                disabled={swapBusy || swapAmountRaw < 1 || !canQuote}
+                className="w-full font-bold text-white"
                 style={{
-                  background: busy || !canQuote ? "hsl(var(--theo-mid))" : "hsl(var(--theo-blue))",
-                  borderRadius: 9, padding: "12px", fontSize: 14,
-                  border: "none", cursor: busy || !canQuote ? "not-allowed" : "pointer",
+                  background: swapBusy || swapAmountRaw < 1 || !canQuote ? "hsl(var(--theo-mid))" : "hsl(var(--theo-blue))",
+                  borderRadius: 9, padding: "12px", fontSize: 14, border: "none",
+                  cursor: swapBusy || swapAmountRaw < 1 || !canQuote ? "not-allowed" : "pointer",
                   fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center",
                 }}
               >
-                {busy ? "Generating quote…" : "Get payment reference →"}
+                {swapBusy ? "Converting…" : swapDir === "htgc_to_usdc" ? "Convert HTG-C → USDC →" : "Convert USDC → HTG-C →"}
               </button>
             </>
-          ) : (
+          )}
+
+          {tab === "off" && (
             <>
               {/* Amount */}
               <div style={{ marginBottom: 14 }}>
-                <label style={labelStyle}>USDC to withdraw</label>
+                <label style={labelStyle}>HTG-C to redeem</label>
                 <div style={{ position: "relative" }}>
                   <input
-                    style={{ ...inputStyle, paddingRight: 56 }}
+                    style={{ ...inputStyle, paddingRight: 60 }}
                     type="text" inputMode="numeric"
                     value={offAmount}
                     onChange={handleOffAmountInput}
                     placeholder="0"
                   />
-                  <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>USDC</span>
+                  <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>HTG-C</span>
+                </div>
+                <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 4 }}>
+                  You receive <strong>{offAmountRaw > 0 ? offAmountRaw.toLocaleString("en-US") : "—"} HTG</strong> at your bank · 1:1 peg
                 </div>
               </div>
 
@@ -534,7 +698,7 @@ export default function Convert() {
 
               {/* Settlement note */}
               <div className="rounded-xl mb-4" style={{ background: "hsl(var(--theo-gold-soft))", border: "1px solid #F0C000", padding: "12px 14px", fontSize: 12, color: "#7A5F00", lineHeight: 1.5 }}>
-                <strong>Note:</strong> Off-ramp withdrawals are processed via SPIH and typically arrive in 1–2 business days.
+                <strong>How it works:</strong> Your HTG-C is burned on Stellar and an equivalent amount of HTG is sent to your bank via <strong>SPIH</strong>. Typically arrives in 1–2 business days.
               </div>
 
               <button
@@ -548,7 +712,7 @@ export default function Convert() {
                   fontFamily: "inherit",
                 }}
               >
-                Initiate withdrawal →
+                Withdraw to bank →
               </button>
             </>
           )}
@@ -712,14 +876,15 @@ export default function Convert() {
             <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 420, boxShadow: "0 20px 60px rgba(0,0,0,0.2)", overflow: "hidden" }}>
               <div className="px-5 py-4" style={{ borderBottom: "1px solid hsl(var(--theo-light))" }}>
                 <div className="font-bold" style={{ fontSize: 15, color: "hsl(var(--theo-blue))" }}>Confirm withdrawal</div>
-                <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))", marginTop: 1 }}>Review details before submitting</div>
+                <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))", marginTop: 1 }}>HTG-C will be burned · HTG sent to your bank</div>
               </div>
 
               <div className="p-5">
                 {/* Summary rows */}
                 {[
-                  ["Amount", `$${offAmount} USDC`],
-                  ["From", wallet?.label ?? "—"],
+                  ["HTG-C to burn", `${offAmount} HTG-C`],
+                  ["HTG you receive", `${offAmountRaw.toLocaleString("en-US")} HTG`],
+                  ["From account", wallet?.label ?? "—"],
                   ["To bank", bank.bank_name],
                   ["Account", `${bank.account_name} · ${maskAccount(bank.account_number)}`],
                   ["Settlement", "1–2 business days via SPIH"],

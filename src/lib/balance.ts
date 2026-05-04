@@ -1,5 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 
+const HTGC_ISSUER = "GDSRYZWTLQLBECKCL4TV7ZRGBZGBMSPD4V47B7Y7JSQVDJRSEXQTFCQT";
+
 /** Fetch live USDC balance for a Stellar address from Horizon testnet. */
 export async function fetchHorizonUsdcBalance(address: string): Promise<number> {
   try {
@@ -10,6 +12,24 @@ export async function fetchHorizonUsdcBalance(address: string): Promise<number> 
     return usdc ? Number(usdc.balance) : 0;
   } catch {
     return 0;
+  }
+}
+
+/** Fetch both USDC and HTG-C balances in a single Horizon call. */
+export async function fetchHorizonBalances(address: string): Promise<{ usdc: number; htgc: number }> {
+  try {
+    const res = await fetch(`https://horizon-testnet.stellar.org/accounts/${address}`);
+    if (!res.ok) return { usdc: 0, htgc: 0 };
+    const json = await res.json();
+    const bals: any[] = json.balances ?? [];
+    const usdc = bals.find((b) => b.asset_code === "USDC");
+    const htgc = bals.find((b) => b.asset_code === "HTGC" && b.asset_issuer === HTGC_ISSUER);
+    return {
+      usdc: usdc ? Number(usdc.balance) : 0,
+      htgc: htgc ? Number(htgc.balance) : 0,
+    };
+  } catch {
+    return { usdc: 0, htgc: 0 };
   }
 }
 
