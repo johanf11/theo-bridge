@@ -4,11 +4,25 @@ import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth, useRoles } from "@/lib/auth";
+import { X, Plus, Building2, CheckCircle2 } from "lucide-react";
 
 type Tab = "on" | "off";
 type KybStatus = "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
 type Profile = { kyb_status: KybStatus; stellar_wallet_address: string | null; fee_bps: number; corridor_bps: number };
 type WalletOption = { id: string; label: string; stellar_address: string };
+type BankAccount = { id: string; bank_name: string; account_name: string; account_number: string; routing_code: string | null; is_default: boolean };
+
+const HAITI_BANKS = [
+  "BNC (Banque Nationale de Crédit)",
+  "Sogebank",
+  "Unibank",
+  "BH (Banque de l'Habitat)",
+  "Capital Bank",
+  "Scotiabank Haïti",
+  "Citibank Haïti",
+  "Fonkoze",
+  "Other",
+];
 
 export default function Convert() {
   const navigate = useNavigate();
@@ -32,6 +46,24 @@ export default function Convert() {
   const [walletOptions, setWalletOptions] = useState<WalletOption[]>([]);
   const [selectedWallet, setSelectedWallet] = useState<string>("");
 
+  // ── Off-ramp state ──────────────────────────────────────────────────────
+  const [offAmount, setOffAmount] = useState("5,000");
+  const [offAmountRaw, setOffAmountRaw] = useState(5000);
+  const [offSourceWallet, setOffSourceWallet] = useState<string>("");
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [selectedBank, setSelectedBank] = useState<string>("");
+  const [bankLoading, setBankLoading] = useState(false);
+  const [showAddBank, setShowAddBank] = useState(false);
+  const [offConfirm, setOffConfirm] = useState(false);
+  const [offBusy, setOffBusy] = useState(false);
+
+  // Add bank form
+  const [addBankName, setAddBankName] = useState("");
+  const [addAccountName, setAddAccountName] = useState("");
+  const [addAccountNumber, setAddAccountNumber] = useState("");
+  const [addRoutingCode, setAddRoutingCode] = useState("");
+  const [addBankBusy, setAddBankBusy] = useState(false);
+
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
@@ -54,8 +86,27 @@ export default function Convert() {
           stellar_address: w.stellar_address,
         }));
         setWalletOptions(opts);
-        if (opts.length > 0) setSelectedWallet(opts[0].stellar_address);
-        else setSelectedWallet("");
+        if (opts.length > 0) {
+          setSelectedWallet(opts[0].stellar_address);
+          setOffSourceWallet(opts[0].id);
+        } else {
+          setSelectedWallet("");
+        }
+
+        // Load bank accounts
+        setBankLoading(true);
+        const { data: banks } = await supabase
+          .from("bank_accounts")
+          .select("id, bank_name, account_name, account_number, routing_code, is_default")
+          .eq("customer_id", data.id)
+          .order("is_default", { ascending: false });
+        if (!cancelled) {
+          const b = (banks ?? []) as BankAccount[];
+          setBankAccounts(b);
+          const def = b.find((x) => x.is_default) ?? b[0];
+          if (def) setSelectedBank(def.id);
+          setBankLoading(false);
+        }
       }
     });
     // Fetch live BRH reference rate.
@@ -171,6 +222,73 @@ export default function Convert() {
     setProfile(data as Profile | null);
     toast.success("KYB approved + wallet saved");
   };
+
+  const handleOffAmountInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/[^\d]/g, "");
+    const num = parseInt(raw, 10) || 0;
+    setOffAmountRaw(num);
+    setOffAmount(num ? num.toLocaleString("en-US") : "");
+  };
+
+  const loadBankAccounts = async () => {
+    const { data: c } = await supabase.from("customers").select("id").maybeSingle();
+    if (!c) return;
+    const { data: banks } = await supabase
+      .from("bank_accounts")
+      .select("id, bank_name, account_name, account_number, routing_code, is_default")
+      .eq("customer_id", c.id)
+      .order("is_default", { ascending: false });
+    const b = (banks ?? []) as BankAccount[];
+    setBankAccounts(b);
+    const def = b.find((x) => x.is_default) ?? b[0];
+    if (def) setSelectedBank(def.id);
+  };
+
+  const handleAddBank = async () => {
+    if (!addBankName || !addAccountName || !addAccountNumber) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+    setAddBankBusy(true);
+    const { data: c } = await supabase.from("customers").select("id").maybeSingle();
+    if (!c) { toast.error("Customer not found"); setAddBankBusy(false); return; }
+
+    const isFirst = bankAccounts.length === 0;
+    const { data, error } = await supabase
+      .from("bank_accounts")
+      .insert({
+        customer_id: c.id,
+        bank_name: addBankName,
+        account_name: addAccountName,
+        account_number: addAccountNumber,
+        routing_code: addRoutingCode || null,
+        is_default: isFirst,
+      })
+      .select()
+      .single();
+    setAddBankBusy(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Bank account added");
+    setShowAddBank(false);
+    setAddBankName(""); setAddAccountName(""); setAddAccountNumber(""); setAddRoutingCode("");
+    await loadBankAccounts();
+    if (data) setSelectedBank(data.id);
+  };
+
+  const handleWithdraw = async () => {
+    const bank = bankAccounts.find((b) => b.id === selectedBank);
+    if (!bank) { toast.error("Please select a destination bank account"); return; }
+    if (offAmountRaw < 100) { toast.error("Minimum withdrawal is $100 USDC"); return; }
+    setOffBusy(true);
+    // Stub — wire to withdraw edge function
+    await new Promise((r) => setTimeout(r, 1500));
+    setOffBusy(false);
+    setOffConfirm(false);
+    toast.success(`Withdrawal of $${offAmount} USDC initiated — arrives in 1–2 business days`);
+  };
+
+  const maskAccount = (num: string) =>
+    num.length > 4 ? `**** ${num.slice(-4)}` : num;
 
   const tabStyle = (t: Tab) => ({
     padding: "9px 16px", fontSize: 13, fontWeight: 600,
@@ -331,35 +449,104 @@ export default function Convert() {
             </>
           ) : (
             <>
+              {/* Amount */}
               <div style={{ marginBottom: 14 }}>
                 <label style={labelStyle}>USDC to withdraw</label>
                 <div style={{ position: "relative" }}>
-                  <input style={{ ...inputStyle, paddingRight: 56 }} type="text" inputMode="numeric" defaultValue="5,000" />
+                  <input
+                    style={{ ...inputStyle, paddingRight: 56 }}
+                    type="text" inputMode="numeric"
+                    value={offAmount}
+                    onChange={handleOffAmountInput}
+                    placeholder="0"
+                  />
                   <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>USDC</span>
                 </div>
               </div>
+
+              {/* Source wallet */}
               <div style={{ marginBottom: 14 }}>
                 <label style={labelStyle}>Source account</label>
-                <select style={{ ...inputStyle, appearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6B8A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: 28, cursor: "pointer" }}>
+                <select
+                  value={offSourceWallet}
+                  onChange={(e) => setOffSourceWallet(e.target.value)}
+                  style={{ ...inputStyle, appearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6B8A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: 28, cursor: "pointer" }}
+                >
                   {walletOptions.length === 0
                     ? <option>No accounts yet</option>
-                    : walletOptions.map((w) => <option key={w.id}>{w.label}</option>)}
+                    : walletOptions.map((w) => <option key={w.id} value={w.id}>{w.label}</option>)}
                 </select>
               </div>
+
+              {/* Destination bank account */}
               <div style={{ marginBottom: 14 }}>
                 <label style={labelStyle}>Destination bank account</label>
-                <select style={{ ...inputStyle, appearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6B8A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: 28, cursor: "pointer" }}>
-                  <option>BNC — **** 4821</option>
-                  <option>Sogebank — **** 3301</option>
-                  <option>+ Add new account</option>
-                </select>
+                {bankLoading ? (
+                  <div style={{ ...inputStyle, color: "hsl(var(--theo-mid))", fontSize: 13 }}>Loading…</div>
+                ) : bankAccounts.length === 0 ? (
+                  <button
+                    onClick={() => setShowAddBank(true)}
+                    style={{ ...inputStyle, background: "hsl(var(--theo-blue-soft))", border: "1.5px dashed hsl(var(--theo-blue))", color: "hsl(var(--theo-blue))", fontWeight: 600, fontSize: 13, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 8 }}
+                  >
+                    <Plus size={14} /> Add a bank account
+                  </button>
+                ) : (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <select
+                      value={selectedBank}
+                      onChange={(e) => setSelectedBank(e.target.value)}
+                      style={{ ...inputStyle, flex: 1, appearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6B8A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: 28, cursor: "pointer" }}
+                    >
+                      {bankAccounts.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.bank_name} — {maskAccount(b.account_number)}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => setShowAddBank(true)}
+                      title="Add bank account"
+                      style={{ background: "hsl(var(--theo-blue-soft))", border: "1.5px solid hsl(var(--theo-blue-chip))", borderRadius: 9, padding: "0 11px", cursor: "pointer", color: "hsl(var(--theo-blue))", display: "flex", alignItems: "center" }}
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                )}
               </div>
+
+              {/* Selected bank summary */}
+              {selectedBank && (() => {
+                const b = bankAccounts.find((x) => x.id === selectedBank);
+                if (!b) return null;
+                return (
+                  <div className="rounded-xl mb-3" style={{ background: "hsl(var(--theo-blue-soft))", border: "1px solid hsl(var(--theo-blue-chip))", padding: "10px 14px" }}>
+                    <div className="flex items-center gap-2">
+                      <Building2 size={13} color="hsl(var(--theo-blue))" />
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>{b.bank_name}</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 3 }}>
+                      {b.account_name} · {maskAccount(b.account_number)}
+                      {b.routing_code && ` · ${b.routing_code}`}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Settlement note */}
               <div className="rounded-xl mb-4" style={{ background: "hsl(var(--theo-gold-soft))", border: "1px solid #F0C000", padding: "12px 14px", fontSize: 12, color: "#7A5F00", lineHeight: 1.5 }}>
                 <strong>Note:</strong> Off-ramp withdrawals are processed via SPIH and typically arrive in 1–2 business days.
               </div>
+
               <button
+                onClick={() => setOffConfirm(true)}
+                disabled={!selectedBank || offAmountRaw < 100}
                 className="w-full font-bold text-white"
-                style={{ background: "hsl(var(--theo-blue))", borderRadius: 9, padding: "12px", fontSize: 14, border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                style={{
+                  background: !selectedBank || offAmountRaw < 100 ? "hsl(var(--theo-mid))" : "hsl(var(--theo-blue))",
+                  borderRadius: 9, padding: "12px", fontSize: 14,
+                  border: "none", cursor: !selectedBank || offAmountRaw < 100 ? "not-allowed" : "pointer",
+                  fontFamily: "inherit",
+                }}
               >
                 Initiate withdrawal →
               </button>
@@ -419,6 +606,151 @@ export default function Convert() {
           </div>
         </div>
       </div>
+
+      {/* ── Add Bank Account Modal ─────────────────────────────────────── */}
+      {showAddBank && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 460, boxShadow: "0 20px 60px rgba(0,0,0,0.2)", overflow: "hidden" }}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid hsl(var(--theo-light))" }}>
+              <div>
+                <div className="font-bold" style={{ fontSize: 15, color: "hsl(var(--theo-blue))" }}>Add bank account</div>
+                <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))", marginTop: 1 }}>HTG withdrawals will be sent here via SPIH</div>
+              </div>
+              <button onClick={() => setShowAddBank(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "hsl(var(--theo-mid))", padding: 4 }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-5">
+              {/* Bank name */}
+              <div style={{ marginBottom: 12 }}>
+                <label style={labelStyle}>Bank <span style={{ color: "#C00" }}>*</span></label>
+                <select
+                  value={addBankName}
+                  onChange={(e) => setAddBankName(e.target.value)}
+                  style={{ ...inputStyle, appearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6B8A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: 28, cursor: "pointer" }}
+                >
+                  <option value="">Select bank…</option>
+                  {HAITI_BANKS.map((b) => <option key={b} value={b}>{b}</option>)}
+                </select>
+              </div>
+
+              {/* Account name */}
+              <div style={{ marginBottom: 12 }}>
+                <label style={labelStyle}>Account holder name <span style={{ color: "#C00" }}>*</span></label>
+                <input
+                  style={inputStyle}
+                  type="text"
+                  placeholder="Full legal name on account"
+                  value={addAccountName}
+                  onChange={(e) => setAddAccountName(e.target.value)}
+                />
+              </div>
+
+              {/* Account number */}
+              <div style={{ marginBottom: 12 }}>
+                <label style={labelStyle}>Account number <span style={{ color: "#C00" }}>*</span></label>
+                <input
+                  style={inputStyle}
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="e.g. 0012345678"
+                  value={addAccountNumber}
+                  onChange={(e) => setAddAccountNumber(e.target.value.replace(/[^\d]/g, ""))}
+                />
+              </div>
+
+              {/* Routing / BIC */}
+              <div style={{ marginBottom: 16 }}>
+                <label style={labelStyle}>Routing / BIC code <span style={{ color: "hsl(var(--theo-mid))", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(optional)</span></label>
+                <input
+                  style={inputStyle}
+                  type="text"
+                  placeholder="e.g. BNCAHAHX"
+                  value={addRoutingCode}
+                  onChange={(e) => setAddRoutingCode(e.target.value.toUpperCase())}
+                />
+              </div>
+
+              <div className="rounded-lg mb-4" style={{ background: "hsl(var(--theo-blue-soft))", border: "1px solid hsl(var(--theo-blue-chip))", padding: "10px 12px", fontSize: 11, color: "hsl(var(--theo-blue))", lineHeight: 1.6 }}>
+                Your account details are stored securely and only used to process withdrawals you initiate.
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowAddBank(false)}
+                  style={{ flex: 1, background: "transparent", border: "1.5px solid hsl(var(--theo-light))", color: "hsl(var(--theo-mid))", borderRadius: 9, padding: "10px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddBank}
+                  disabled={addBankBusy || !addBankName || !addAccountName || !addAccountNumber}
+                  style={{
+                    flex: 2, background: !addBankName || !addAccountName || !addAccountNumber ? "hsl(var(--theo-mid))" : "hsl(var(--theo-blue))",
+                    color: "#fff", border: "none", borderRadius: 9, padding: "10px", fontSize: 13,
+                    fontWeight: 700, cursor: !addBankName || !addAccountName || !addAccountNumber ? "not-allowed" : "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  {addBankBusy ? "Saving…" : "Save bank account"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Withdrawal Confirm Modal ────────────────────────────────────── */}
+      {offConfirm && (() => {
+        const bank = bankAccounts.find((b) => b.id === selectedBank);
+        const wallet = walletOptions.find((w) => w.id === offSourceWallet);
+        if (!bank) return null;
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+            <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 420, boxShadow: "0 20px 60px rgba(0,0,0,0.2)", overflow: "hidden" }}>
+              <div className="px-5 py-4" style={{ borderBottom: "1px solid hsl(var(--theo-light))" }}>
+                <div className="font-bold" style={{ fontSize: 15, color: "hsl(var(--theo-blue))" }}>Confirm withdrawal</div>
+                <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))", marginTop: 1 }}>Review details before submitting</div>
+              </div>
+
+              <div className="p-5">
+                {/* Summary rows */}
+                {[
+                  ["Amount", `$${offAmount} USDC`],
+                  ["From", wallet?.label ?? "—"],
+                  ["To bank", bank.bank_name],
+                  ["Account", `${bank.account_name} · ${maskAccount(bank.account_number)}`],
+                  ["Settlement", "1–2 business days via SPIH"],
+                ].map(([k, v]) => (
+                  <div key={k} className="flex justify-between py-2.5" style={{ borderBottom: "1px solid hsl(var(--theo-light))", fontSize: 13 }}>
+                    <span style={{ color: "hsl(var(--theo-mid))" }}>{k}</span>
+                    <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>{v}</span>
+                  </div>
+                ))}
+
+                <div className="flex gap-2 mt-4">
+                  <button
+                    onClick={() => setOffConfirm(false)}
+                    style={{ flex: 1, background: "transparent", border: "1.5px solid hsl(var(--theo-light))", color: "hsl(var(--theo-mid))", borderRadius: 9, padding: "10px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleWithdraw}
+                    disabled={offBusy}
+                    className="flex items-center justify-center gap-2"
+                    style={{ flex: 2, background: offBusy ? "hsl(var(--theo-mid))" : "hsl(var(--theo-blue))", color: "#fff", border: "none", borderRadius: 9, padding: "10px", fontSize: 13, fontWeight: 700, cursor: offBusy ? "not-allowed" : "pointer", fontFamily: "inherit" }}
+                  >
+                    {offBusy ? "Processing…" : <><CheckCircle2 size={14} /> Confirm withdrawal</>}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </AppLayout>
   );
 }
