@@ -7,7 +7,7 @@ import { useAuth, useRoles } from "@/lib/auth";
 
 type Tab = "on" | "off";
 type KybStatus = "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
-type Profile = { kyb_status: KybStatus; stellar_wallet_address: string | null };
+type Profile = { kyb_status: KybStatus; stellar_wallet_address: string | null; fee_bps: number; corridor_bps: number };
 type WalletOption = { id: string; label: string; stellar_address: string };
 
 export default function Convert() {
@@ -33,7 +33,7 @@ export default function Convert() {
     if (!user) return;
     let cancelled = false;
     setProfileLoading(true);
-    supabase.from("customers").select("id, kyb_status, stellar_wallet_address").eq("user_id", user.id).maybeSingle().then(async ({ data }) => {
+    supabase.from("customers").select("id, kyb_status, stellar_wallet_address, fee_bps, corridor_bps").eq("user_id", user.id).maybeSingle().then(async ({ data }) => {
       if (cancelled) return;
       setProfile(data as Profile | null);
       setProfileLoading(false);
@@ -87,6 +87,14 @@ export default function Convert() {
   const htg = Math.round(usdcRaw * liveRate);
   const timerLabel = `${Math.floor(lockSecs / 60)}:${String(lockSecs % 60).padStart(2, "0")}`;
   const canQuote = profile?.kyb_status === "APPROVED" && !profileLoading;
+
+  // Fee breakdown — bps applied to USDC notional
+  const feeBps      = profile?.fee_bps      ?? 150; // Theo margin
+  const corridorBps = profile?.corridor_bps ?? 70;  // MoneyGram corridor
+  const totalBps    = feeBps + corridorBps;
+  const feeUSDC     = usdcRaw * (totalBps / 10_000);
+  const fmtFee = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const [showFeeBreakdown, setShowFeeBreakdown] = useState(false);
 
   const submit = async () => {
     if (!canQuote) { toast.error("KYB approval required"); return; }
@@ -237,9 +245,30 @@ export default function Convert() {
                   <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Rate</span>
                   <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>{liveRate.toFixed(2)} HTG/USDC</span>
                 </div>
-                <div className="flex justify-between">
-                  <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Fee</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>$0.00</span>
+                <div>
+                  <div className="flex justify-between items-center">
+                    <button
+                      onClick={() => setShowFeeBreakdown((v) => !v)}
+                      style={{ fontSize: 12, color: "hsl(var(--theo-mid))", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 3 }}
+                    >
+                      Fee <span style={{ fontSize: 10 }}>{showFeeBreakdown ? "▲" : "▼"}</span>
+                    </button>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
+                      {fmtFee(feeUSDC)}
+                    </span>
+                  </div>
+                  {showFeeBreakdown && (
+                    <div className="mt-2 rounded-lg" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid hsl(var(--theo-blue-chip))", padding: "8px 10px" }}>
+                      <div className="flex justify-between mb-1">
+                        <span style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>Corridor ({corridorBps / 100}%)</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-blue))" }}>{fmtFee(usdcRaw * corridorBps / 10_000)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>Theo service ({feeBps / 100}%)</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-blue))" }}>{fmtFee(usdcRaw * feeBps / 10_000)}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center justify-between mt-2.5 pt-2.5" style={{ borderTop: "1px solid hsl(var(--theo-blue-chip))" }}>
                   <div className="flex items-center gap-1.5">
