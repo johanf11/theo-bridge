@@ -54,12 +54,20 @@ export default function Balance() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
 
-  // Blend yield — live from edge function
-  const { positions: livePositions, apy: liveApy, refresh: refreshBlend } = useBlendPositions();
-  const BLEND_APY = liveApy || DEFAULT_APY;
-  const dailyYield = (principal: number) => principal * BLEND_APY / 365;
-  const monthlyYield = (principal: number) => principal * BLEND_APY / 12;
-  const annualYield = (principal: number) => principal * BLEND_APY;
+  // Blend yield — live from edge function (now synthetic gross/net/fee split)
+  const {
+    positions: livePositions,
+    grossApy: liveGrossApy,
+    netApy: liveNetApy,
+    feeBps: liveFeeBps,
+    refresh: refreshBlend,
+  } = useBlendPositions();
+  const NET_APY = liveNetApy || DEFAULT_NET_APY;
+  const GROSS_APY = liveGrossApy || DEFAULT_GROSS_APY;
+  const FEE_BPS = liveFeeBps || DEFAULT_FEE_BPS;
+  const dailyYield = (principal: number) => principal * NET_APY / 365;
+  const monthlyYield = (principal: number) => principal * NET_APY / 12;
+  const annualYield = (principal: number) => principal * NET_APY;
 
   const blendPositions: Record<string, BlendPosition> = useMemo(() => {
     const map: Record<string, BlendPosition> = {};
@@ -68,7 +76,7 @@ export default function Balance() {
         walletId: p.walletId,
         walletLabel: p.walletLabel,
         deposited: p.deposited,
-        accrued: 0, // live accrual reads not yet wired; show principal only
+        accrued: p.accrued,
       };
     }
     return map;
