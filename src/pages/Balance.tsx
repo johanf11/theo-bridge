@@ -22,7 +22,7 @@ export default function Balance() {
   const navigate = useNavigate();
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [balances, setBalances] = useState<Record<string, number>>({});
-  const [total, setTotal] = useState(0);
+  const { total, refresh: refreshTotal } = useCustomerBalance();
   const [loading, setLoading] = useState(true);
 
   const [open, setOpen] = useState(false);
