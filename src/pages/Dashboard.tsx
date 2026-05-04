@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
-import { StatusBadge } from "@/components/theo/StatusBadge";
 import { fmtUSDC, fmtHTG } from "@/lib/format";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { Plus } from "lucide-react";
@@ -11,9 +10,17 @@ type Customer = {
   id: string; company_name: string; contact_name: string | null;
   kyb_status: "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
 };
-type Order = {
-  id: string; status: string; usdc_amount: number; htg_amount: number;
-  reference_number: string; created_at: string;
+
+type UnifiedTx = {
+  id: string;
+  type: "conversion" | "payout";
+  status: string;
+  usdc_amount: number;
+  htg_amount: number | null;
+  rate: number | null;
+  reference: string;
+  description: string;
+  created_at: string;
 };
 
 const CHART_DATA: Record<string, { vals: number[]; labels: string[]; active: number }> = {
@@ -40,9 +47,7 @@ function BarChart({ period }: { period: string }) {
               style={{
                 height: `${Math.round((v / max) * 100)}%`,
                 minHeight: 4,
-                background: i === d.active
-                  ? "hsl(var(--theo-gold))"
-                  : "hsl(var(--theo-blue-chip))",
+                background: i === d.active ? "hsl(var(--theo-gold))" : "hsl(var(--theo-blue-chip))",
               }}
             />
           </div>
@@ -66,10 +71,48 @@ const GREETING = (() => {
   return "Good evening";
 })();
 
+const STATUS_PILL: Record<string, { bg: string; color: string; label: string }> = {
+  COMPLETED: { bg: "#EFFBF3", color: "#1A7F37", label: "Settled" },
+  QUOTED:    { bg: "#FFF8E0", color: "#7A5F00", label: "Awaiting" },
+  FUNDED:    { bg: "#E0F5FF", color: "#0A5A8A", label: "Processing" },
+  RELEASING: { bg: "#E0F5FF", color: "#0A5A8A", label: "Releasing" },
+  FAILED:    { bg: "#FEE2E2", color: "#B91C1C", label: "Failed" },
+  EXPIRED:   { bg: "#F3F4F6", color: "#6B7280", label: "Expired" },
+  PENDING:   { bg: "#FFF8E0", color: "#7A5F00", label: "Processing" },
+};
+
+function StatusPill({ status }: { status: string }) {
+  const s = STATUS_PILL[status] ?? STATUS_PILL.PENDING;
+  return (
+    <span style={{ background: s.bg, color: s.color, fontSize: 11, fontWeight: 700, borderRadius: 99, padding: "3px 8px" }}>
+      {s.label}
+    </span>
+  );
+}
+
+const QUICK_ACTIONS = [
+  {
+    label: "Start a conversion", to: "/convert",
+    icon: <svg viewBox="0 0 24 24" style={{ width: 14, height: 14, stroke: "hsl(var(--theo-blue))", fill: "none", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, flexShrink: 0, opacity: 0.7 }}><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>,
+  },
+  {
+    label: "Send a payout", to: "/payout",
+    icon: <svg viewBox="0 0 24 24" style={{ width: 14, height: 14, stroke: "hsl(var(--theo-blue))", fill: "none", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, flexShrink: 0, opacity: 0.7 }}><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
+  },
+  {
+    label: "View balances", to: "/balance",
+    icon: <svg viewBox="0 0 24 24" style={{ width: 14, height: 14, stroke: "hsl(var(--theo-blue))", fill: "none", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, flexShrink: 0, opacity: 0.7 }}><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>,
+  },
+  {
+    label: "Team & permissions", to: "/settings",
+    icon: <svg viewBox="0 0 24 24" style={{ width: 14, height: 14, stroke: "hsl(var(--theo-blue))", fill: "none", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, flexShrink: 0, opacity: 0.7 }}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+  },
+];
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const [customer, setCustomer] = useState<Customer | null>(null);
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [txs, setTxs] = useState<UnifiedTx[]>([]);
   const { total: balance } = useCustomerBalance();
   const [chartPeriod, setChartPeriod] = useState("1M");
 
@@ -81,18 +124,62 @@ export default function Dashboard() {
         .maybeSingle();
       setCustomer(c as Customer | null);
       if (!c) return;
-      const { data: o } = await supabase
-        .from("orders")
-        .select("id, status, usdc_amount, htg_amount, reference_number, created_at")
-        .eq("customer_id", c.id)
-        .order("created_at", { ascending: false })
-        .limit(5);
-      setOrders((o ?? []) as Order[]);
+
+      const monthStart = new Date();
+      monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+
+      const [{ data: orders }, { data: payouts }] = await Promise.all([
+        supabase
+          .from("orders")
+          .select("id, status, usdc_amount, htg_amount, rate, reference_number, created_at")
+          .eq("customer_id", c.id)
+          .order("created_at", { ascending: false })
+          .limit(5),
+        supabase
+          .from("payouts")
+          .select("id, status, amount_usdc, recipient_name, memo, created_at")
+          .eq("customer_id", c.id)
+          .order("created_at", { ascending: false })
+          .limit(5),
+      ]);
+
+      const orderTxs: UnifiedTx[] = (orders ?? []).map((o: any) => ({
+        id: o.id, type: "conversion",
+        status: o.status,
+        usdc_amount: Number(o.usdc_amount),
+        htg_amount: Number(o.htg_amount),
+        rate: o.rate ? Number(o.rate) : null,
+        reference: o.reference_number,
+        description: "HTG → USDC",
+        created_at: o.created_at,
+      }));
+
+      const payoutTxs: UnifiedTx[] = (payouts ?? []).map((p: any) => ({
+        id: p.id, type: "payout",
+        status: p.status,
+        usdc_amount: Number(p.amount_usdc),
+        htg_amount: null,
+        rate: null,
+        reference: p.id.slice(0, 8).toUpperCase(),
+        description: p.recipient_name + (p.memo ? ` · ${p.memo}` : ""),
+        created_at: p.created_at,
+      }));
+
+      const merged = [...orderTxs, ...payoutTxs]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 6);
+
+      setTxs(merged);
     })();
   }, []);
 
   const displayName = customer?.contact_name ?? customer?.company_name ?? "there";
-  const totalConverted = orders.reduce((s, o) => s + Number(o.usdc_amount), 0);
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const convertedThisMonth = txs
+    .filter((t) => t.type === "conversion" && t.status === "COMPLETED" && new Date(t.created_at) >= monthStart)
+    .reduce((s, t) => s + t.usdc_amount, 0);
+  const txCount = txs.length;
 
   return (
     <AppLayout>
@@ -109,12 +196,7 @@ export default function Dashboard() {
         <button
           onClick={() => navigate("/convert")}
           className="flex items-center gap-1.5 font-bold text-white transition-colors"
-          style={{
-            background: "hsl(var(--theo-blue))",
-            borderRadius: 8, padding: "8px 16px",
-            fontSize: 13, border: "none", cursor: "pointer",
-            fontFamily: "inherit",
-          }}
+          style={{ background: "hsl(var(--theo-blue))", borderRadius: 8, padding: "8px 16px", fontSize: 13, border: "none", cursor: "pointer", fontFamily: "inherit" }}
           onMouseEnter={e => (e.currentTarget.style.background = "#3E40B0")}
           onMouseLeave={e => (e.currentTarget.style.background = "hsl(var(--theo-blue))")}
         >
@@ -122,70 +204,48 @@ export default function Dashboard() {
           New conversion
         </button>
       </div>
-      <div className="mb-5" style={{ width: 28, height: 3, background: "hsl(var(--theo-gold))", borderRadius: 2, marginTop: 8 }} />
+      <div className="mb-4" style={{ width: 28, height: 3, background: "hsl(var(--theo-gold))", borderRadius: 2, marginTop: 8 }} />
 
       {/* Stat cards */}
       <div className="grid grid-cols-4 gap-3.5 mb-4">
-        {/* Gold: balance */}
         <div className="rounded-xl p-4 shadow-xs" style={{ background: "hsl(var(--theo-gold))" }}>
-          <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "rgba(51,53,154,0.55)" }}>
-            Total USDC Balance
-          </div>
+          <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "rgba(51,53,154,0.55)" }}>Total USDC Balance</div>
           <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1.5px", color: "hsl(var(--theo-blue))" }}>
             ${balance.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </div>
-          <div className="flex items-center gap-1 mt-1.5" style={{ fontSize: 11, fontWeight: 600, color: "#1A7F37" }}>
-            ↑ Theo network
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#1A7F37", marginTop: 6 }}>↑ Theo network</div>
+        </div>
+
+        <div className="rounded-xl p-4 shadow-xs bg-card border border-border">
+          <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>Converted this month</div>
+          <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1.5px", color: "hsl(var(--theo-blue))" }}>
+            ${convertedThisMonth.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-mid))", marginTop: 6 }}>
+            {new Date().toLocaleString("en-US", { month: "long" })}
           </div>
         </div>
-        {/* White: converted */}
+
         <div className="rounded-xl p-4 shadow-xs bg-card border border-border">
-          <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>
-            Converted this month
-          </div>
-          <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1.5px", color: "hsl(var(--theo-blue))" }}>
-            ${totalConverted.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-          </div>
-          <div className="flex items-center gap-1 mt-1.5" style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-mid))" }}>
-            All time
-          </div>
+          <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>Transactions</div>
+          <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1.5px", color: "hsl(var(--theo-blue))" }}>{txCount}</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-mid))", marginTop: 6 }}>Last 30 days</div>
         </div>
-        {/* White: transactions */}
+
         <div className="rounded-xl p-4 shadow-xs bg-card border border-border">
-          <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>
-            Transactions
-          </div>
-          <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1.5px", color: "hsl(var(--theo-blue))" }}>
-            {orders.length}
-          </div>
-          <div className="flex items-center gap-1 mt-1.5" style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-mid))" }}>
-            Orders to date
-          </div>
-        </div>
-        {/* White: avg settlement */}
-        <div className="rounded-xl p-4 shadow-xs bg-card border border-border">
-          <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>
-            Avg. Settlement
-          </div>
-          <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1.5px", color: "hsl(var(--theo-blue))" }}>
-            1.4 min
-          </div>
-          <div className="flex items-center gap-1 mt-1.5" style={{ fontSize: 11, fontWeight: 600, color: "#1A7F37" }}>
-            Theo network
-          </div>
+          <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>Avg. Settlement</div>
+          <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1.5px", color: "hsl(var(--theo-blue))" }}>1.4 min</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#1A7F37", marginTop: 6 }}>Stellar network</div>
         </div>
       </div>
 
       {/* Chart + Quick Actions */}
       <div className="grid mb-4" style={{ gridTemplateColumns: "7fr 3fr", gap: 14 }}>
-        {/* Volume chart */}
         <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <div className="font-bold" style={{ fontSize: 14, color: "hsl(var(--theo-blue))" }}>
               Gross volume{" "}
-              <span style={{ fontSize: 11, fontWeight: 400, color: "hsl(var(--theo-mid))", marginLeft: 6 }}>
-                HTG → USDC
-              </span>
+              <span style={{ fontSize: 11, fontWeight: 400, color: "hsl(var(--theo-mid))", marginLeft: 6 }}>HTG → USDC</span>
             </div>
             <div className="flex gap-0.5">
               {["7D", "1M", "6M", "1Y"].map((p) => (
@@ -194,8 +254,8 @@ export default function Dashboard() {
                   onClick={() => setChartPeriod(p)}
                   className="font-bold transition-all"
                   style={{
-                    padding: "4px 9px", borderRadius: 6, fontSize: 11,
-                    border: "none", cursor: "pointer", fontFamily: "inherit",
+                    padding: "4px 9px", borderRadius: 6, fontSize: 11, border: "none",
+                    cursor: "pointer", fontFamily: "inherit",
                     background: chartPeriod === p ? "hsl(var(--theo-blue))" : "transparent",
                     color: chartPeriod === p ? "#fff" : "hsl(var(--theo-mid))",
                   }}
@@ -208,18 +268,10 @@ export default function Dashboard() {
           <BarChart period={chartPeriod} />
         </div>
 
-        {/* Quick actions */}
         <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
-          <div className="font-bold mb-3" style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>
-            Quick Actions
-          </div>
+          <div className="font-bold mb-3" style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>Quick Actions</div>
           <div className="flex flex-col gap-0.5">
-            {[
-              { label: "Start a conversion", to: "/convert" },
-              { label: "Send a payout", to: "/payout" },
-              { label: "View balances", to: "/balance" },
-              { label: "Complete KYB", to: "/kyb" },
-            ].map(({ label, to }) => (
+            {QUICK_ACTIONS.map(({ label, to, icon }) => (
               <Link
                 key={to}
                 to={to}
@@ -228,6 +280,7 @@ export default function Dashboard() {
                 onMouseEnter={e => (e.currentTarget.style.background = "hsl(var(--theo-blue-soft))")}
                 onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
               >
+                {icon}
                 {label}
               </Link>
             ))}
@@ -242,19 +295,15 @@ export default function Dashboard() {
           <Link
             to="/transactions"
             className="font-bold transition-colors"
-            style={{
-              fontSize: 12, color: "hsl(var(--theo-blue))",
-              border: "1.5px solid hsl(var(--theo-blue))",
-              borderRadius: 7, padding: "5px 12px", textDecoration: "none",
-            }}
+            style={{ fontSize: 12, color: "hsl(var(--theo-blue))", border: "1.5px solid hsl(var(--theo-blue))", borderRadius: 7, padding: "5px 12px", textDecoration: "none" }}
           >
             View all
           </Link>
         </div>
-        {orders.length === 0 ? (
+        {txs.length === 0 ? (
           <div className="py-14 flex flex-col items-center gap-3">
             <div className="text-sm text-muted-foreground">
-              No orders yet.{" "}
+              No transactions yet.{" "}
               <Link to="/convert" className="font-semibold" style={{ color: "hsl(var(--theo-cyan))" }}>
                 Start your first conversion.
               </Link>
@@ -264,25 +313,44 @@ export default function Dashboard() {
           <table className="w-full border-collapse">
             <thead>
               <tr style={{ background: "hsl(var(--theo-cream))" }}>
-                {["Date", "Type", "Amount", "HTG Sent", "Status", "Ref"].map((h) => (
-                  <th key={h} className="text-left px-5 py-2.5 border-b border-border" style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.10em", color: "hsl(var(--theo-mid))" }}>
+                {["Date", "Type", "Description", "Amount", "HTG Sent", "Rate", "Status", "Ref"].map((h) => (
+                  <th key={h} className="text-left px-5 py-2.5 border-b border-border"
+                    style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.10em", color: "hsl(var(--theo-mid))" }}>
                     {h}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {orders.map((o) => (
-                <tr key={o.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
+              {txs.map((t) => (
+                <tr key={t.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
                   <td className="px-5 py-3" style={{ fontSize: 13 }}>
-                    {new Date(o.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    {new Date(t.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                   </td>
-                  <td className="px-5 py-3" style={{ fontSize: 13 }}>Conversion</td>
-                  <td className="px-5 py-3" style={{ fontSize: 13, fontWeight: 700 }}>{fmtUSDC(Number(o.usdc_amount))}</td>
-                  <td className="px-5 py-3" style={{ fontSize: 13 }}>{fmtHTG(Number(o.htg_amount))}</td>
-                  <td className="px-5 py-3"><StatusBadge status={o.status} /></td>
+                  <td className="px-5 py-3">
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, borderRadius: 99, padding: "3px 8px",
+                      background: t.type === "conversion" ? "hsl(var(--theo-gold-soft))" : "hsl(var(--theo-blue-soft))",
+                      color: t.type === "conversion" ? "#7A5F00" : "hsl(var(--theo-blue))",
+                    }}>
+                      {t.type === "conversion" ? "Conversion" : "Payout"}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3" style={{ fontSize: 12, color: "hsl(var(--theo-mid))", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {t.description}
+                  </td>
+                  <td className="px-5 py-3" style={{ fontSize: 13, fontWeight: 700 }}>
+                    ${Number(t.usdc_amount).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </td>
+                  <td className="px-5 py-3" style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>
+                    {t.htg_amount ? `G ${Number(t.htg_amount).toLocaleString("en-US", { maximumFractionDigits: 0 })}` : "—"}
+                  </td>
+                  <td className="px-5 py-3" style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>
+                    {t.rate ? t.rate.toFixed(2) : "—"}
+                  </td>
+                  <td className="px-5 py-3"><StatusPill status={t.status} /></td>
                   <td className="px-5 py-3" style={{ fontFamily: "monospace", fontSize: 12, color: "hsl(var(--theo-mid))" }}>
-                    {o.reference_number}
+                    {t.reference}
                   </td>
                 </tr>
               ))}
