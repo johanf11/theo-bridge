@@ -60,7 +60,7 @@ export default function Transactions() {
           .order("created_at", { ascending: false }),
         supabase
           .from("payouts")
-          .select("id, recipient_name, amount_usdc, status, memo, stellar_tx_hash, created_at")
+          .select("id, recipient_name, amount_usdc, status, memo, stellar_tx_hash, created_at, source_wallet_id")
           .eq("customer_id", c.id)
           .gte("created_at", cutoff)
           .order("created_at", { ascending: false }),
@@ -72,10 +72,13 @@ export default function Transactions() {
           .order("deposited_at", { ascending: false }),
       ]);
 
-      // Look up wallet labels for yield rows (no FK so embed isn't reliable).
-      const yieldWalletIds = Array.from(new Set((yields ?? []).map((y) => y.wallet_id).filter(Boolean)));
-      const { data: wRows } = yieldWalletIds.length
-        ? await supabase.from("wallets").select("id, label").in("id", yieldWalletIds)
+      // Look up wallet labels for yield + transfer rows (no FK so embed isn't reliable).
+      const allWalletIds = Array.from(new Set([
+        ...(yields ?? []).map((y) => y.wallet_id),
+        ...(payouts ?? []).map((p) => p.source_wallet_id),
+      ].filter(Boolean) as string[]));
+      const { data: wRows } = allWalletIds.length
+        ? await supabase.from("wallets").select("id, label").in("id", allWalletIds)
         : { data: [] as { id: string; label: string | null }[] };
       const walletLabel = new Map((wRows ?? []).map((w) => [w.id, w.label ?? "Wallet"]));
 
@@ -90,16 +93,20 @@ export default function Transactions() {
           htg_amount: Number(o.htg_amount),
           reference_number: o.reference_number,
         })),
-        ...(payouts ?? []).map((p) => ({
-          id: p.id,
-          type: "payout" as TxType,
-          created_at: p.created_at,
-          usdc_amount: Number(p.amount_usdc),
-          status: PAYOUT_STATUS_MAP[p.status] ?? p.status,
-          stellar_tx_hash: p.stellar_tx_hash ?? null,
-          recipient_name: p.recipient_name,
-          memo: p.memo,
-        })),
+        ...(payouts ?? []).map((p) => {
+          const isTransfer = p.memo === "internal-transfer";
+          return {
+            id: p.id,
+            type: (isTransfer ? "transfer" : "payout") as TxType,
+            created_at: p.created_at,
+            usdc_amount: Number(p.amount_usdc),
+            status: PAYOUT_STATUS_MAP[p.status] ?? p.status,
+            stellar_tx_hash: p.stellar_tx_hash ?? null,
+            recipient_name: p.recipient_name,
+            memo: isTransfer ? null : p.memo,
+            wallet_label: isTransfer ? (walletLabel.get(p.source_wallet_id ?? "") ?? "Wallet") : undefined,
+          };
+        }),
         ...(yields ?? []).map((y) => ({
           id: y.id,
           type: "yield" as TxType,
