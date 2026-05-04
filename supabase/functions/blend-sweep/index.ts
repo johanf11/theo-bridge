@@ -107,7 +107,8 @@ Deno.serve(async (req) => {
     if (existing) {
       // Capitalize accrued yield so far into principal, then add the new deposit and reset clock.
       const elapsedSec = (now.getTime() - new Date(existing.deposited_at).getTime()) / 1000;
-      const accrued = Number(existing.deposited_usdc) * Number(existing.net_apy) * (elapsedSec / (365 * 24 * 3600));
+      const years = elapsedSec / (365 * 24 * 3600);
+      const accrued = Number(existing.deposited_usdc) * (Math.exp(Number(existing.net_apy) * years) - 1);
       const newPrincipal = Number(existing.deposited_usdc) + accrued + parsedAmount;
       await admin.from("blend_positions").update({
         deposited_usdc: newPrincipal,

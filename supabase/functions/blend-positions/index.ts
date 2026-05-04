@@ -51,7 +51,9 @@ Deno.serve(async (req) => {
       const principal = Number(p.deposited_usdc);
       const netApy = Number(p.net_apy);
       const elapsedSec = (now - new Date(p.deposited_at).getTime()) / 1000;
-      const accrued = principal * netApy * (elapsedSec / (365 * 24 * 3600));
+      const years = elapsedSec / (365 * 24 * 3600);
+      // Continuous compounding: accrued = P * (e^(r*t) - 1)
+      const accrued = principal * (Math.exp(netApy * years) - 1);
       const w = walletMap.get(p.wallet_id);
       return {
         id: p.id,

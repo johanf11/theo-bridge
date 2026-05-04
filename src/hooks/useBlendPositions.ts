@@ -48,10 +48,10 @@ export function useBlendPositions() {
   // without re-fetching. Server is still source of truth at withdraw time.
   const livePositions = positions.map((p) => {
     const elapsedSec = (Date.now() - new Date(p.depositedAt).getTime()) / 1000;
-    return {
-      ...p,
-      accrued: p.deposited * p.netApy * (elapsedSec / (365 * 24 * 3600)),
-    };
+    const years = elapsedSec / (365 * 24 * 3600);
+    // Continuous compounding: A = P * e^(r*t); accrued = A - P
+    const accrued = p.deposited * (Math.exp(p.netApy * years) - 1);
+    return { ...p, accrued };
   });
 
   // Backwards-compat: `apy` = net APY shown to customers.
