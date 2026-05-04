@@ -1,11 +1,14 @@
 // fetch-brh-rate
-// Scrapes the Bank of the Republic of Haiti daily rate page and stores
-// the USD/HTG mid-market rate in rate_snapshots.
+// Scrapes the Bank of the Republic of Haiti "taux du jour" page and stores
+// the official reference rate (TAUX DE RÉFÉRENCE) in rate_snapshots.
+//
+// BRH page structure (as of 2026):
+//   MARCHE INFORMEL  → buy 131.0000 / sell 136.0000
+//   MARCHE BANCAIRE  → buy 130.1105 / sell 131.0027
+//   TAUX DE REFERENCE → 130.4663   ← we use this
 //
 // GET/POST — no body required.
-// Returns: { rate, source, captured_at, fresh }
-//   fresh=true  → just scraped from BRH
-//   fresh=false → returned from today's cached snapshot
+// Returns: { rate, banking_sell, informal_sell, source, captured_at, fresh }
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -16,44 +19,61 @@ const corsHeaders = {
 };
 
 const BRH_URL = "https://www.brh.ht/taux-du-jour/";
-const RATE_MIN = 80;   // sanity bounds for HTG/USD
-const RATE_MAX = 300;
+const RATE_MIN = 100;
+const RATE_MAX = 250;
 
-/** Extract the USD mid-market rate from BRH's HTML. */
-function parseRate(html: string): number | null {
-  // BRH renders a WordPress table. Each row looks roughly like:
-  // <tr> ... Dollar américain ... 134.50 ... 135.50 ... </tr>
-  // We normalise the HTML and scan for the USD row, then grab
-  // the last numeric value in that row (typically the sell/mid rate).
-
-  const lower = html.toLowerCase();
-
-  // Find the block that contains "dollar" and "usd"
-  const dollarIdx = lower.indexOf("dollar am");
-  if (dollarIdx === -1) {
-    // Fallback: try generic "usd" marker
-    const usdIdx = lower.indexOf(">usd<");
-    if (usdIdx === -1) return null;
-    return extractRatesFromRegion(html, usdIdx);
-  }
-
-  return extractRatesFromRegion(html, dollarIdx);
-}
-
-function extractRatesFromRegion(html: string, startIdx: number): number | null {
-  // Take the next 600 chars and pull all decimal numbers
-  const region = html.slice(startIdx, startIdx + 600);
-  const matches = [...region.matchAll(/\b(\d{2,3}[.,]\d{2,4})\b/g)];
-
-  const candidates = matches
+/** Pull all HTG/USD-range decimal numbers from a text region. */
+function extractNumbers(text: string): number[] {
+  return [...text.matchAll(/\b(\d{2,3}[.,]\d{2,6})\b/g)]
     .map((m) => parseFloat(m[1].replace(",", ".")))
     .filter((n) => n >= RATE_MIN && n <= RATE_MAX);
+}
 
-  if (candidates.length === 0) return null;
+interface BrhRates {
+  reference: number | null;
+  bankingSell: number | null;
+  informalSell: number | null;
+}
 
-  // BRH tables: achat (buy), vente (sell), moyen (mid) — we take the last
-  // candidate which is typically the mid or sell rate.
-  return candidates[candidates.length - 1];
+function parseRates(html: string): BrhRates {
+  const lower = html.toLowerCase();
+  const result: BrhRates = { reference: null, bankingSell: null, informalSell: null };
+
+  // ── TAUX DE RÉFÉRENCE ──────────────────────────────────────────────────────
+  // Look for the reference rate — it's a single number after the label.
+  const refIdx = lower.search(/taux de r[eé]f[eé]rence/);
+  if (refIdx !== -1) {
+    const region = html.slice(refIdx, refIdx + 300);
+    const nums = extractNumbers(region);
+    if (nums.length > 0) result.reference = nums[0];
+  }
+
+  // ── MARCHÉ BANCAIRE ────────────────────────────────────────────────────────
+  // Row has: buy (achat) then sell (vente). Sell is the second number.
+  const bancIdx = lower.search(/march[eé] bancaire|marche bancaire/);
+  if (bancIdx !== -1) {
+    const region = html.slice(bancIdx, bancIdx + 500);
+    const nums = extractNumbers(region);
+    if (nums.length >= 2) result.bankingSell = nums[1]; // [0]=buy [1]=sell
+    else if (nums.length === 1) result.bankingSell = nums[0];
+  }
+
+  // ── MARCHÉ INFORMEL ────────────────────────────────────────────────────────
+  const infIdx = lower.search(/march[eé] informel|marche informel/);
+  if (infIdx !== -1) {
+    const region = html.slice(infIdx, infIdx + 500);
+    const nums = extractNumbers(region);
+    if (nums.length >= 2) result.informalSell = nums[1];
+    else if (nums.length === 1) result.informalSell = nums[0];
+  }
+
+  // ── Fallback: any reasonable number on the page ────────────────────────────
+  if (!result.reference && !result.bankingSell) {
+    const all = extractNumbers(html);
+    if (all.length > 0) result.reference = all[0];
+  }
+
+  return result;
 }
 
 Deno.serve(async (req) => {
@@ -66,7 +86,7 @@ Deno.serve(async (req) => {
   const admin = createClient(supabaseUrl, serviceKey);
 
   try {
-    // 1. Check if we already have a BRH rate captured today (avoid hammering BRH)
+    // 1. Return today's cached BRH rate if already fetched
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
@@ -81,12 +101,7 @@ Deno.serve(async (req) => {
 
     if (cached) {
       return new Response(
-        JSON.stringify({
-          rate: Number(cached.spot_rate),
-          source: "brh",
-          captured_at: cached.captured_at,
-          fresh: false,
-        }),
+        JSON.stringify({ rate: Number(cached.spot_rate), source: "brh", captured_at: cached.captured_at, fresh: false }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -95,20 +110,23 @@ Deno.serve(async (req) => {
     const res = await fetch(BRH_URL, {
       headers: {
         "User-Agent": "Mozilla/5.0 (compatible; TheoBridge/1.0; +https://theo.ht)",
-        "Accept": "text/html",
+        "Accept": "text/html,application/xhtml+xml",
       },
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(12_000),
     });
 
-    if (!res.ok) {
-      throw new Error(`BRH returned HTTP ${res.status}`);
-    }
+    if (!res.ok) throw new Error(`BRH returned HTTP ${res.status}`);
 
     const html = await res.text();
-    const rate = parseRate(html);
+    const rates = parseRates(html);
 
-    if (!rate) {
-      // BRH unavailable — fall back to latest snapshot from any source
+    console.log("BRH parsed rates:", JSON.stringify(rates));
+
+    // Use reference rate as spot; fall back to banking sell
+    const spot = rates.reference ?? rates.bankingSell;
+
+    if (!spot) {
+      // BRH parse failed — return latest cached rate
       const { data: fallback } = await admin
         .from("rate_snapshots")
         .select("spot_rate, captured_at, source")
@@ -116,14 +134,14 @@ Deno.serve(async (req) => {
         .limit(1)
         .maybeSingle();
 
-      console.warn("BRH parse failed — returning latest cached rate");
+      console.warn("BRH parse failed — using cached fallback");
       return new Response(
         JSON.stringify({
           rate: Number(fallback?.spot_rate ?? 130),
-          source: fallback?.source ?? "cache",
-          captured_at: fallback?.captured_at ?? new Date().toISOString(),
+          source: "cache",
+          captured_at: fallback?.captured_at,
           fresh: false,
-          warning: "BRH parse failed, using cached rate",
+          warning: "BRH parse failed — using cached rate",
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
@@ -132,15 +150,17 @@ Deno.serve(async (req) => {
     // 3. Store in rate_snapshots
     const { data: snap } = await admin
       .from("rate_snapshots")
-      .insert({ spot_rate: rate, source: "brh" })
+      .insert({ spot_rate: spot, source: "brh" })
       .select("captured_at")
       .single();
 
-    console.log(`BRH rate fetched: ${rate} HTG/USD`);
+    console.log(`BRH rate stored: ${spot} HTG/USD (banking_sell=${rates.bankingSell}, informal_sell=${rates.informalSell})`);
 
     return new Response(
       JSON.stringify({
-        rate,
+        rate: spot,
+        banking_sell: rates.bankingSell,
+        informal_sell: rates.informalSell,
         source: "brh",
         captured_at: snap?.captured_at ?? new Date().toISOString(),
         fresh: true,
@@ -149,7 +169,6 @@ Deno.serve(async (req) => {
     );
   } catch (err) {
     console.error("fetch-brh-rate error:", err);
-    // Last-resort fallback — return latest stored rate
     const { data: fallback } = await admin
       .from("rate_snapshots")
       .select("spot_rate, captured_at")

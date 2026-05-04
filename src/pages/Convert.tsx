@@ -58,11 +58,14 @@ export default function Convert() {
       }
     });
     // Fetch live BRH rate (scrapes brh.ht, caches in rate_snapshots)
+    // create-quote adds FORWARD_PREMIUM(2) + MARGIN(3) = +5 on top of spot.
+    // Display the same all-in rate so the UI matches the locked quote.
+    const QUOTE_MARKUP = 5;
     supabase.functions.invoke("fetch-brh-rate").then(({ data, error }) => {
       if (cancelled || error || !data?.rate) return;
-      const r = Number(data.rate);
-      setSpotRate(r);
-      setLiveRate(r);
+      const spot = Number(data.rate);
+      setSpotRate(spot);
+      setLiveRate(spot + QUOTE_MARKUP);
       setRateSource(data.source ?? "brh");
       setRateCapturedAt(data.captured_at ?? null);
     });
