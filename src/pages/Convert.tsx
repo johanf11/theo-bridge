@@ -20,6 +20,8 @@ export default function Convert() {
   const [profileLoading, setProfileLoading] = useState(true);
   const [spotRate, setSpotRate] = useState(135.0);
   const [liveRate, setLiveRate] = useState(135.0);
+  const [rateSource, setRateSource] = useState<"brh" | "cache" | "seed">("seed");
+  const [rateCapturedAt, setRateCapturedAt] = useState<string | null>(null);
   const [usdcRaw, setUsdcRaw] = useState(10000);
   const [usdcDisplay, setUsdcDisplay] = useState("10,000");
   const [lockSecs, setLockSecs] = useState(15 * 60);
@@ -55,10 +57,14 @@ export default function Convert() {
         else setSelectedWallet("");
       }
     });
-    supabase.from("rate_snapshots").select("spot_rate").order("captured_at", { ascending: false }).limit(1).maybeSingle().then(({ data }) => {
-      if (cancelled || !data?.spot_rate) return;
-      const r = Number(data.spot_rate) + 5;
-      setSpotRate(r); setLiveRate(r);
+    // Fetch live BRH rate (scrapes brh.ht, caches in rate_snapshots)
+    supabase.functions.invoke("fetch-brh-rate").then(({ data, error }) => {
+      if (cancelled || error || !data?.rate) return;
+      const r = Number(data.rate);
+      setSpotRate(r);
+      setLiveRate(r);
+      setRateSource(data.source ?? "brh");
+      setRateCapturedAt(data.captured_at ?? null);
     });
     return () => { cancelled = true; };
   }, [user]);
@@ -354,15 +360,34 @@ export default function Convert() {
           </div>
 
           <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
-            <div className="font-bold mb-2" style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>Live rate</div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="font-bold" style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>Live rate</div>
+              {rateSource === "brh" && (
+                <a
+                  href="https://www.brh.ht/taux-du-jour/"
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ fontSize: 10, fontWeight: 700, color: "hsl(var(--theo-cyan))", textDecoration: "none", letterSpacing: "0.08em", textTransform: "uppercase" }}
+                >
+                  BRH ↗
+                </a>
+              )}
+            </div>
             <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1px", color: "hsl(var(--theo-blue))" }}>
               {liveRate.toFixed(2)}
             </div>
             <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 2 }}>HTG per USDC</div>
             <div className="flex items-center gap-1.5 mt-1.5">
               <div className="rounded-full" style={{ width: 6, height: 6, background: "hsl(var(--theo-cyan))", animation: "pulse 2s infinite" }} />
-              <span style={{ fontSize: 11, color: "hsl(var(--theo-cyan))", fontWeight: 600 }}>Live · updates every 5s</span>
+              <span style={{ fontSize: 11, color: "hsl(var(--theo-cyan))", fontWeight: 600 }}>
+                {rateSource === "brh" ? "BRH · updates daily" : "Live · updates every 5s"}
+              </span>
             </div>
+            {rateCapturedAt && rateSource === "brh" && (
+              <div style={{ fontSize: 10, color: "hsl(var(--theo-mid))", marginTop: 4, opacity: 0.7 }}>
+                As of {new Date(rateCapturedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </div>
+            )}
           </div>
         </div>
       </div>
