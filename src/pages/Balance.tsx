@@ -25,7 +25,8 @@ type BlendPosition = {
   accrued: number;
 };
 
-const fmtPct = (n: number) => (n * 100).toFixed(1);
+// Default APY shown until the live value loads from the blend-positions edge function.
+const DEFAULT_APY = 0.092;
 
 const fmt = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
