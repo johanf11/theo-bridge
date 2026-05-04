@@ -323,11 +323,25 @@ export default function Convert() {
 
   const handleHtgSubmit = async () => {
     if (htgAmountRaw < 1) { toast.error("Enter an amount"); return; }
+    if (!selectedWallet) { toast.error("Select a destination account"); return; }
     setHtgBusy(true);
-    await new Promise((r) => setTimeout(r, 1400));
-    setHtgBusy(false);
-    const action = htgDir === "deposit" ? "minted" : "redeemed";
-    toast.success(`${htgAmount} HTG-C ${action} successfully`);
+    try {
+      const { data, error } = await supabase.functions.invoke("create-quote", {
+        body: {
+          order_kind: "htgc_mint",
+          htg_amount: htgAmountRaw,
+          destination_wallet_address: selectedWallet,
+        },
+      });
+      if (error || data?.error) {
+        toast.error(data?.error || error?.message || "Failed to create deposit reference");
+        return;
+      }
+      toast.success(`Deposit reference ${data.reference_number}`);
+      navigate(`/orders/${data.quote_id}`);
+    } finally {
+      setHtgBusy(false);
+    }
   };
 
   const handleSwapSubmit = async () => {
