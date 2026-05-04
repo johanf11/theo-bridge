@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
     // Look up the order to branch on kind
     const { data: existing, error: exErr } = await admin
       .from("orders")
-      .select("id, status, order_kind")
+      .select("id, status, order_kind, htg_amount, reference_number, customer_id, destination_wallet_address, destination_stellar_address")
       .eq("id", orderId)
       .maybeSingle();
     if (exErr) throw exErr;
@@ -68,15 +68,77 @@ Deno.serve(async (req) => {
     const isMint = (existing as { order_kind?: string }).order_kind === "htgc_mint";
 
     if (isMint) {
-      // HTG-C mint: 1:1, no Stellar release needed for the demo flow.
+      // HTG-C mint on Stellar testnet — distributor acts as HTG-C issuer.
+      const distributorSecret = Deno.env.get("STELLAR_DISTRIBUTOR_SECRET");
+      if (!distributorSecret) throw new Error("STELLAR_DISTRIBUTOR_SECRET not configured");
+
+      // Resolve destination address + secret (need secret to add trustline if missing)
+      let dest = (existing.destination_stellar_address ?? existing.destination_wallet_address) as string | null;
+      let destSecret: string | null = null;
+      if (dest) {
+        const { data: w } = await admin
+          .from("wallets")
+          .select("stellar_secret")
+          .eq("stellar_address", dest)
+          .maybeSingle();
+        destSecret = (w as { stellar_secret?: string } | null)?.stellar_secret ?? null;
+      } else {
+        const { data: w } = await admin
+          .from("wallets")
+          .select("stellar_address, stellar_secret")
+          .eq("customer_id", existing.customer_id)
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        dest = (w as { stellar_address?: string } | null)?.stellar_address ?? null;
+        destSecret = (w as { stellar_secret?: string } | null)?.stellar_secret ?? null;
+      }
+      if (!dest || !dest.startsWith("G")) throw new Error("No Stellar destination wallet for this mint");
+
+      const server = new Horizon.Server(HORIZON);
+      const distributor = Keypair.fromSecret(distributorSecret);
+      const htgc = new Asset("HTGC", distributor.publicKey());
+
+      // Open HTG-C trustline if missing (requires destination wallet secret)
+      const destAccount = await server.loadAccount(dest);
+      const hasTrust = (destAccount.balances as any[]).some(
+        (b) => b.asset_code === "HTGC" && b.asset_issuer === distributor.publicKey()
+      );
+      if (!hasTrust) {
+        if (!destSecret) throw new Error("Destination wallet missing HTG-C trustline and no signing key available");
+        const destKp = Keypair.fromSecret(destSecret);
+        const trustTx = new TransactionBuilder(destAccount, {
+          fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
+        })
+          .addOperation(Operation.changeTrust({ asset: htgc }))
+          .setTimeout(60)
+          .build();
+        trustTx.sign(destKp);
+        await server.submitTransaction(trustTx);
+      }
+
+      // Mint = payment from issuer (distributor) to destination
+      const issuerAccount = await server.loadAccount(distributor.publicKey());
+      const amount = Number(existing.htg_amount).toFixed(7);
+      const mintTx = new TransactionBuilder(issuerAccount, {
+        fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
+      })
+        .addOperation(Operation.payment({ destination: dest, asset: htgc, amount }))
+        .addMemo(Memo.text(String(existing.reference_number).slice(0, 28)))
+        .setTimeout(60)
+        .build();
+      mintTx.sign(distributor);
+      const mintResult = await server.submitTransaction(mintTx);
+      const hash = (mintResult as { hash: string }).hash;
+
       const now = new Date().toISOString();
       const { error: cErr } = await admin
         .from("orders")
-        .update({ status: "COMPLETED", funded_at: now, completed_at: now })
+        .update({ status: "COMPLETED", funded_at: now, completed_at: now, stellar_tx_hash: hash, released_at: now })
         .eq("id", orderId)
         .eq("status", "QUOTED");
       if (cErr) throw cErr;
-      return new Response(JSON.stringify({ ok: true, status: "COMPLETED" }), {
+      return new Response(JSON.stringify({ ok: true, status: "COMPLETED", hash }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
