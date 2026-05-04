@@ -325,6 +325,37 @@ export default function Convert() {
   const handleHtgSubmit = async () => {
     if (htgAmountRaw < 1) { toast.error("Enter an amount"); return; }
     if (!selectedWallet) { toast.error("Select a destination account"); return; }
+
+    if (htgReceiveMode === "usdc") {
+      if (!canQuote) { toast.error("KYB approval required to convert to USDC"); return; }
+      if (!liveRate) { toast.error("Rate unavailable, try again shortly"); return; }
+      const usdcEquiv = Math.floor(htgAmountRaw / liveRate);
+      if (usdcEquiv < 1000 || usdcEquiv > 50000) {
+        toast.error(`Enter an HTG amount worth between $1,000 and $50,000 USDC (≈ ${Math.ceil(1000 * liveRate).toLocaleString()}–${Math.floor(50000 * liveRate).toLocaleString()} HTG)`);
+        return;
+      }
+      setHtgBusy(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("create-quote", {
+          body: {
+            order_kind: "usdc_conversion",
+            usdc_amount: usdcEquiv,
+            destination_wallet_address: selectedWallet,
+          },
+        });
+        if (error || data?.error) {
+          toast.error(data?.error || error?.message || "Failed to create quote");
+          return;
+        }
+        toast.success(`Rate locked. Reference ${data.reference_number}`);
+        navigate(`/orders/${data.quote_id}`);
+      } finally {
+        setHtgBusy(false);
+      }
+      return;
+    }
+
+    // HTG-C 1:1 mint path
     setHtgBusy(true);
     try {
       const { data, error } = await supabase.functions.invoke("create-quote", {
