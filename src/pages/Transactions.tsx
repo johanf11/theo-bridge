@@ -6,7 +6,7 @@ import { fmtUSDC, fmtHTG } from "@/lib/format";
 import { Download } from "lucide-react";
 import { useSearch } from "@/contexts/SearchContext";
 
-type TxType = "conversion" | "payout" | "yield";
+type TxType = "conversion" | "payout" | "yield" | "transfer";
 
 type UnifiedTx = {
   id: string;
@@ -18,10 +18,10 @@ type UnifiedTx = {
   // conversion-only
   htg_amount?: number;
   reference_number?: string;
-  // payout-only
+  // payout / transfer
   recipient_name?: string;
   memo?: string | null;
-  // yield-only
+  // yield / transfer
   wallet_label?: string;
 };
 
