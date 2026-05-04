@@ -527,7 +527,19 @@ export default function Balance() {
                   {/* Status row */}
                   <div className="flex items-center gap-1.5 mt-3">
                     <div className="rounded-full" style={{ width: 6, height: 6, background: "hsl(var(--theo-cyan))" }} />
-                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.50)", fontWeight: 500 }}>Active · 1:1 verified</span>
+                    <a
+                      href={`https://stellar.expert/explorer/public/account/${w.stellar_address}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        fontSize: 11, color: "rgba(255,255,255,0.50)", fontWeight: 500,
+                        textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 3,
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.85)")}
+                      onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.50)")}
+                    >
+                      Active · 1:1 verified ↗
+                    </a>
                   </div>
 
                   {/* Action buttons pinned to the bottom */}
