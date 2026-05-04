@@ -146,7 +146,7 @@ export default function Transactions() {
       ["Date", "Type", "USDC Amount", "HTG Sent", "Recipient", "Status", "Reference / Note", "Receipt ID"],
       ...all.map((tx) => [
         new Date(tx.created_at).toLocaleDateString(),
-        tx.type === "conversion" ? "Conversion" : "Payout",
+        tx.type === "conversion" ? "Conversion" : tx.type === "payout" ? "Payout" : "Yield",
         tx.usdc_amount,
         tx.htg_amount ?? "",
         tx.recipient_name ?? "",
