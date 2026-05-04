@@ -1,4 +1,4 @@
-// List the current customer's Blend positions (DB-tracked, augmented with wallet labels).
+// List the current customer's yield positions with live-accrued interest.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -6,6 +6,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
+
+// Fallback yield config if no positions yet.
+const DEFAULT_GROSS_APY = 0.09;
+const DEFAULT_NET_APY = 0.07;
+const DEFAULT_FEE_BPS = 200;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -25,26 +30,51 @@ Deno.serve(async (req) => {
 
     const admin = createClient(url, service);
     const { data: customer } = await admin.from("customers").select("id").eq("user_id", user.id).maybeSingle();
-    if (!customer) return json({ positions: [], apy: 0.092 });
+    if (!customer) return json({
+      positions: [], grossApy: DEFAULT_GROSS_APY, netApy: DEFAULT_NET_APY, feeBps: DEFAULT_FEE_BPS,
+    });
 
     const { data: positions } = await admin
       .from("blend_positions")
-      .select("id, wallet_id, pool_address, deposited_usdc, last_tx_hash, last_synced_at, wallets(label, stellar_address)")
+      .select("id, wallet_id, pool_address, deposited_usdc, deposited_at, gross_apy, net_apy, fee_bps, last_tx_hash, last_synced_at, wallets(label, stellar_address)")
       .eq("customer_id", customer.id);
 
-    const out = (positions ?? []).map((p) => ({
-      id: p.id,
-      walletId: p.wallet_id,
-      walletLabel: (p.wallets as { label: string | null } | null)?.label ?? "Wallet",
-      walletAddress: (p.wallets as { stellar_address: string } | null)?.stellar_address ?? null,
-      deposited: Number(p.deposited_usdc),
-      lastTxHash: p.last_tx_hash,
-      lastSyncedAt: p.last_synced_at,
-      poolAddress: p.pool_address,
-    }));
+    const now = Date.now();
+    const out = (positions ?? []).map((p) => {
+      const principal = Number(p.deposited_usdc);
+      const netApy = Number(p.net_apy);
+      const elapsedSec = (now - new Date(p.deposited_at).getTime()) / 1000;
+      const accrued = principal * netApy * (elapsedSec / (365 * 24 * 3600));
+      return {
+        id: p.id,
+        walletId: p.wallet_id,
+        walletLabel: (p.wallets as { label: string | null } | null)?.label ?? "Wallet",
+        walletAddress: (p.wallets as { stellar_address: string } | null)?.stellar_address ?? null,
+        deposited: principal,
+        accrued,
+        grossApy: Number(p.gross_apy),
+        netApy,
+        feeBps: Number(p.fee_bps),
+        depositedAt: p.deposited_at,
+        lastTxHash: p.last_tx_hash,
+        lastSyncedAt: p.last_synced_at,
+        poolAddress: p.pool_address,
+      };
+    });
 
-    // APY is currently a constant; can be replaced with live pool oracle read later.
-    return json({ positions: out, apy: 0.092 });
+    // Surface a "current" config from the most-recent position, falling back to defaults.
+    const newest = (positions ?? []).slice().sort(
+      (a, b) => new Date(b.deposited_at).getTime() - new Date(a.deposited_at).getTime()
+    )[0];
+
+    return json({
+      positions: out,
+      grossApy: newest ? Number(newest.gross_apy) : DEFAULT_GROSS_APY,
+      netApy: newest ? Number(newest.net_apy) : DEFAULT_NET_APY,
+      feeBps: newest ? Number(newest.fee_bps) : DEFAULT_FEE_BPS,
+      // Backwards-compat field used by older client code.
+      apy: newest ? Number(newest.net_apy) : DEFAULT_NET_APY,
+    });
   } catch (e) {
     return json({ error: (e as Error).message }, 500);
   }
