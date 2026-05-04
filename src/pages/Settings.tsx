@@ -163,6 +163,12 @@ export default function Settings() {
   const [savingName, setSavingName] = useState(false);
   const [nameSaved, setNameSaved] = useState(false);
 
+  // Business profile form state
+  const [companyName, setCompanyName] = useState("");
+  const [registrationNo, setRegistrationNo] = useState("");
+  const [country, setCountry] = useState("Haiti");
+  const [savingBiz, setSavingBiz] = useState(false);
+
   // Initialise display name from user metadata once user loads
   useEffect(() => {
     if (!user) return;
@@ -179,10 +185,40 @@ export default function Settings() {
     setTimeout(() => setNameSaved(false), 2000);
   };
 
+  const handleSaveBusiness = async () => {
+    if (!customer) return;
+    const trimmed = companyName.trim();
+    if (!trimmed) { toast.error("Company name is required"); return; }
+    setSavingBiz(true);
+    const { error } = await supabase
+      .from("customers")
+      .update({
+        company_name: trimmed,
+        legal_name: trimmed,
+        registration_number: registrationNo.trim() || null,
+        country: country || null,
+      })
+      .eq("id", customer.id);
+    setSavingBiz(false);
+    if (error) { toast.error(error.message); return; }
+    setCustomer({ ...customer, company_name: trimmed, legal_name: trimmed, registration_number: registrationNo.trim() || null, country });
+    toast.success("Business profile saved");
+  };
+
   useEffect(() => {
-    supabase.from("customers").select("id, company_name, kyb_status").maybeSingle().then(({ data }) => {
-      setCustomer(data as Customer | null);
-    });
+    supabase
+      .from("customers")
+      .select("id, company_name, kyb_status, legal_name, registration_number, country")
+      .maybeSingle()
+      .then(({ data }) => {
+        const c = data as Customer | null;
+        setCustomer(c);
+        if (c) {
+          setCompanyName(c.legal_name ?? c.company_name ?? "");
+          setRegistrationNo(c.registration_number ?? "");
+          setCountry(c.country ?? "Haiti");
+        }
+      });
   }, []);
 
   useEffect(() => {
