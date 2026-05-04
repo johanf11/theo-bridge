@@ -6,7 +6,7 @@ import { fmtUSDC, fmtHTG } from "@/lib/format";
 import { Download } from "lucide-react";
 import { useSearch } from "@/contexts/SearchContext";
 
-type TxType = "conversion" | "payout";
+type TxType = "conversion" | "payout" | "yield";
 
 type UnifiedTx = {
   id: string;
@@ -21,6 +21,8 @@ type UnifiedTx = {
   // payout-only
   recipient_name?: string;
   memo?: string | null;
+  // yield-only
+  wallet_label?: string;
 };
 
 // Map payout statuses → the same style system StatusBadge uses
@@ -49,7 +51,7 @@ export default function Transactions() {
 
       const cutoff = dateCutoff(dateFilter);
 
-      const [{ data: orders }, { data: payouts }] = await Promise.all([
+      const [{ data: orders }, { data: payouts }, { data: yields }] = await Promise.all([
         supabase
           .from("orders")
           .select("id, status, usdc_amount, htg_amount, reference_number, created_at, stellar_tx_hash")
@@ -62,7 +64,20 @@ export default function Transactions() {
           .eq("customer_id", c.id)
           .gte("created_at", cutoff)
           .order("created_at", { ascending: false }),
+        supabase
+          .from("blend_positions")
+          .select("id, deposited_usdc, deposited_at, last_tx_hash, wallet_id")
+          .eq("customer_id", c.id)
+          .gte("deposited_at", cutoff)
+          .order("deposited_at", { ascending: false }),
       ]);
+
+      // Look up wallet labels for yield rows (no FK so embed isn't reliable).
+      const yieldWalletIds = Array.from(new Set((yields ?? []).map((y) => y.wallet_id).filter(Boolean)));
+      const { data: wRows } = yieldWalletIds.length
+        ? await supabase.from("wallets").select("id, label").in("id", yieldWalletIds)
+        : { data: [] as { id: string; label: string | null }[] };
+      const walletLabel = new Map((wRows ?? []).map((w) => [w.id, w.label ?? "Wallet"]));
 
       const merged: UnifiedTx[] = [
         ...(orders ?? []).map((o) => ({
@@ -85,6 +100,15 @@ export default function Transactions() {
           recipient_name: p.recipient_name,
           memo: p.memo,
         })),
+        ...(yields ?? []).map((y) => ({
+          id: y.id,
+          type: "yield" as TxType,
+          created_at: y.deposited_at,
+          usdc_amount: Number(y.deposited_usdc),
+          status: "EARNING",
+          stellar_tx_hash: y.last_tx_hash ?? null,
+          wallet_label: walletLabel.get(y.wallet_id) ?? "Wallet",
+        })),
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       setAll(merged);
@@ -98,6 +122,7 @@ export default function Transactions() {
 
     if (typeFilter === "Conversion" && tx.type !== "conversion") return false;
     if (typeFilter === "Payout" && tx.type !== "payout") return false;
+    if (typeFilter === "Yield" && tx.type !== "yield") return false;
 
     const statusLabel = tx.status.toLowerCase();
     if (statusFilter === "Settled" && !statusLabel.includes("complet")) return false;
@@ -121,7 +146,7 @@ export default function Transactions() {
       ["Date", "Type", "USDC Amount", "HTG Sent", "Recipient", "Status", "Reference / Note", "Receipt ID"],
       ...all.map((tx) => [
         new Date(tx.created_at).toLocaleDateString(),
-        tx.type === "conversion" ? "Conversion" : "Payout",
+        tx.type === "conversion" ? "Conversion" : tx.type === "payout" ? "Payout" : "Yield",
         tx.usdc_amount,
         tx.htg_amount ?? "",
         tx.recipient_name ?? "",
@@ -178,7 +203,7 @@ export default function Transactions() {
       {/* Filters */}
       <div className="flex gap-2 mb-4 items-center">
         <select style={selectStyle} value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
-          {["All types", "Conversion", "Payout"].map(o => <option key={o}>{o}</option>)}
+          {["All types", "Conversion", "Payout", "Yield"].map(o => <option key={o}>{o}</option>)}
         </select>
         <select style={selectStyle} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
           {["All statuses", "Settled", "Pending", "Failed"].map(o => <option key={o}>{o}</option>)}
@@ -233,16 +258,18 @@ export default function Transactions() {
 
                     {/* Type badge */}
                     <td className="px-5 py-3">
-                      <span
-                        className="rounded-full font-bold"
-                        style={{
-                          fontSize: 11, padding: "3px 8px",
-                          background: tx.type === "payout" ? "hsl(var(--theo-blue-soft))" : "hsl(var(--theo-gold-soft))",
-                          color: tx.type === "payout" ? "hsl(var(--theo-blue))" : "#7A5F00",
-                        }}
-                      >
-                        {tx.type === "payout" ? "Payout" : "Conversion"}
-                      </span>
+                      {(() => {
+                        const isPayout = tx.type === "payout";
+                        const isYield = tx.type === "yield";
+                        const bg = isYield ? "hsl(140 60% 92%)" : isPayout ? "hsl(var(--theo-blue-soft))" : "hsl(var(--theo-gold-soft))";
+                        const fg = isYield ? "hsl(150 70% 25%)" : isPayout ? "hsl(var(--theo-blue))" : "#7A5F00";
+                        const label = isYield ? "Yield Sweep" : isPayout ? "Payout" : "Conversion";
+                        return (
+                          <span className="rounded-full font-bold" style={{ fontSize: 11, padding: "3px 8px", background: bg, color: fg }}>
+                            {label}
+                          </span>
+                        );
+                      })()}
                     </td>
 
                     {/* Amount */}
@@ -250,12 +277,15 @@ export default function Transactions() {
                       {fmtUSDC(tx.usdc_amount)}
                     </td>
 
-                    {/* Details: HTG for conversions, recipient for payouts */}
+                    {/* Details: HTG for conversions, recipient for payouts, wallet for yield */}
                     <td className="px-5 py-3" style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>
-                      {tx.type === "conversion"
-                        ? fmtHTG(tx.htg_amount ?? 0)
-                        : <span style={{ color: "hsl(var(--theo-ink))" }}>{tx.recipient_name}{tx.memo ? <span style={{ color: "hsl(var(--theo-mid))" }}> · {tx.memo}</span> : ""}</span>
-                      }
+                      {tx.type === "conversion" ? (
+                        fmtHTG(tx.htg_amount ?? 0)
+                      ) : tx.type === "yield" ? (
+                        <span style={{ color: "hsl(var(--theo-ink))" }}>From {tx.wallet_label} → Yield treasury</span>
+                      ) : (
+                        <span style={{ color: "hsl(var(--theo-ink))" }}>{tx.recipient_name}{tx.memo ? <span style={{ color: "hsl(var(--theo-mid))" }}> · {tx.memo}</span> : ""}</span>
+                      )}
                     </td>
 
                     {/* Network */}
