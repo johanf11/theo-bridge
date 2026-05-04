@@ -434,8 +434,8 @@ export default function Payout() {
                     <span style={{
                       display: "inline-flex", alignItems: "center", gap: 4,
                       fontSize: 10, fontWeight: 700, letterSpacing: "0.06em",
-                      background: "hsl(var(--theo-blue-soft))", color: "hsl(var(--theo-blue))",
-                      borderRadius: 99, padding: "2px 7px", border: "1px solid hsl(var(--theo-blue-chip))",
+                      background: "hsl(var(--theo-gold))", color: "hsl(var(--theo-blue))",
+                      borderRadius: 99, padding: "2px 7px", border: "none",
                     }}>
                       <svg width="8" height="8" viewBox="0 0 24 24" fill="hsl(var(--theo-blue))"><circle cx="12" cy="12" r="10"/></svg>
                       Stellar only
