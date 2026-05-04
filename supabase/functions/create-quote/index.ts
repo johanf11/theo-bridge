@@ -10,8 +10,9 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const FORWARD_PREMIUM = 2;
-const MARGIN = 3;
+// Margin is now captured via customer fee_bps, not rate inflation.
+const FORWARD_PREMIUM = 0;
+const MARGIN = 0;
 const MIN_USDC = 1000;
 const MAX_USDC = 50000;
 const QUOTE_TTL_MIN = 15;
