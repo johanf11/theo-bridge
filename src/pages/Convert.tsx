@@ -30,7 +30,8 @@ export default function Convert() {
   const { isAdmin } = useRoles();
 
   const [tab, setTab] = useState<Tab>("htg");
-  // Tab 1: Deposit HTG → mint HTG-C
+  // Tab 1: Deposit HTG → mint HTG-C (1:1) OR auto-convert to USDC
+  const [htgReceiveMode, setHtgReceiveMode] = useState<"htgc" | "usdc">("htgc");
   const [htgAmount, setHtgAmount] = useState("50,000");
   const [htgAmountRaw, setHtgAmountRaw] = useState(50000);
   const [htgBusy, setHtgBusy] = useState(false);
