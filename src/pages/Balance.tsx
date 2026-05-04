@@ -25,10 +25,13 @@ type BlendPosition = {
   accrued: number;
 };
 
-// Default APY shown until the live value loads from the blend-positions edge function.
-const DEFAULT_APY = 0.092;
+// Default APY shown until live values load from the blend-positions edge function.
+const DEFAULT_NET_APY = 0.07;
+const DEFAULT_GROSS_APY = 0.09;
+const DEFAULT_FEE_BPS = 200;
 
 const fmt = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt4 = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 
 const labelSchema = z.string().trim().min(1, "Nickname is required").max(60);
 const shortAddr = (a: string) => `${a.slice(0, 6)}...${a.slice(-4)}`;
