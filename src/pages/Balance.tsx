@@ -1023,10 +1023,15 @@ function LedgerRow({
         <div style={{ fontSize: 13, fontWeight: 700 }}>
           ${balance.toLocaleString("en-US", { minimumFractionDigits: 2 })} USDC
         </div>
-        {htgcBalance > 0 && (
-          <div style={{ fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-gold))", marginTop: 2 }}>
-            {Math.round(htgcBalance).toLocaleString("en-US")} HTG-C
+      </td>
+      <td className="px-5 py-3">
+        {htgcBalance > 0 ? (
+          <div style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
+            {Math.round(htgcBalance).toLocaleString("en-US")}{" "}
+            <span style={{ fontSize: 11, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>HTG-C</span>
           </div>
+        ) : (
+          <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>—</span>
         )}
       </td>
       <td className="px-5 py-3">
