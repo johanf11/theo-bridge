@@ -705,7 +705,7 @@ export default function Convert() {
                   fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center",
                 }}
               >
-                {swapBusy ? "Converting…" : swapDir === "htgc_to_usdc" ? "Convert HTG-C → USDC →" : "Convert USDC → HTG-C →"}
+                {swapBusy ? "Swapping…" : swapDir === "htgc_to_usdc" ? "Swap HTG-C → USDC →" : "Swap USDC → HTG-C →"}
               </button>
             </>
           )}
