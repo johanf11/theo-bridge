@@ -522,41 +522,41 @@ export default function Balance() {
                     </div>
                   )}
 
-                  {/* Footer row */}
-                  <div className="flex items-center justify-between mt-3">
-                    <div className="flex items-center gap-1.5">
-                      <div className="rounded-full" style={{ width: 6, height: 6, background: "hsl(var(--theo-cyan))" }} />
-                      <span style={{ fontSize: 11, color: "rgba(255,255,255,0.50)", fontWeight: 500 }}>Active · 1:1 verified</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {can("payout_send") && wallets.length >= 2 && (
-                        <button
-                          onClick={() => openMoveModal(w.id)}
-                          title="Move funds to another account"
-                          style={{
-                            display: "flex", alignItems: "center", gap: 4,
-                            background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)",
-                            color: "#fff", borderRadius: 6, padding: "4px 9px",
-                            fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                          }}
-                        >
-                          <ArrowLeftRight size={10} />
-                          Move
-                        </button>
-                      )}
+                  {/* Status row */}
+                  <div className="flex items-center gap-1.5 mt-3">
+                    <div className="rounded-full" style={{ width: 6, height: 6, background: "hsl(var(--theo-cyan))" }} />
+                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.50)", fontWeight: 500 }}>Active · 1:1 verified</span>
+                  </div>
+
+                  {/* Action buttons pinned to the bottom */}
+                  <div className="flex items-center gap-1.5 mt-3 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.10)" }}>
+                    {can("payout_send") && wallets.length >= 2 && (
                       <button
-                        onClick={() => setSweepWallet(w)}
+                        onClick={() => openMoveModal(w.id)}
+                        title="Move funds to another account"
                         style={{
-                          display: "flex", alignItems: "center", gap: 4,
+                          flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
                           background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)",
-                          color: "#fff", borderRadius: 6, padding: "4px 9px",
+                          color: "#fff", borderRadius: 6, padding: "5px 9px",
                           fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
                         }}
                       >
-                        <ArrowDownToLine size={10} />
-                        {pos ? "Add more" : "Earn"}
+                        <ArrowLeftRight size={10} />
+                        Move
                       </button>
-                    </div>
+                    )}
+                    <button
+                      onClick={() => setSweepWallet(w)}
+                      style={{
+                        flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+                        background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)",
+                        color: "#fff", borderRadius: 6, padding: "5px 9px",
+                        fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                      }}
+                    >
+                      <ArrowDownToLine size={10} />
+                      {pos ? "Add" : "Earn"}
+                    </button>
                   </div>
                 </div>
               );
