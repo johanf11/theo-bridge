@@ -729,7 +729,7 @@ function LedgerRow({
               ${fmt(blendPosition.deposited + blendPosition.accrued)} USDC
             </div>
             <div style={{ fontSize: 11, color: "#15803D", opacity: 0.8 }}>
-              +${fmt(dailyYield(blendPosition.deposited))}/day
+              +${fmt(blendPosition.deposited * DEFAULT_APY / 365)}/day
             </div>
           </div>
         ) : (
