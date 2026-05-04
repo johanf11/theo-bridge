@@ -274,10 +274,12 @@ export default function OrderStatus() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-[11px] font-bold uppercase tracking-[0.18em] mb-1" style={{ color: "hsl(var(--theo-gold))" }}>
-                Conversion complete
+                {order.order_kind === "htgc_mint" ? "Deposit complete" : "Conversion complete"}
               </div>
               <div className="font-extrabold text-2xl md:text-3xl tracking-tight" style={{ color: "#fff", letterSpacing: "-0.02em" }}>
-                {fmtUSDC(Number(order.usdc_amount))} delivered
+                {order.order_kind === "htgc_mint"
+                  ? `${fmtHTG(Number(order.htg_amount))} HTG-C delivered`
+                  : `${fmtUSDC(Number(order.usdc_amount))} delivered`}
               </div>
               <div className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.6)" }}>
                 Settled to your Primary — Operations wallet · Stellar network
