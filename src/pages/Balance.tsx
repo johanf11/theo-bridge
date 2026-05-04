@@ -606,7 +606,7 @@ export default function Balance() {
           <table className="w-full border-collapse">
             <thead>
               <tr style={{ background: "hsl(var(--theo-cream))" }}>
-                {["Account", "Account ID", "Available", "Yield Balance", "Status"].map((h) => (
+                {["Account", "Account ID", "Available", "HTG-C", "Yield Balance", "Status"].map((h) => (
                   <th key={h} className="text-left px-5 py-2.5 border-b border-border" style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.10em", color: "hsl(var(--theo-mid))" }}>
                     {h}
                   </th>
@@ -1023,10 +1023,15 @@ function LedgerRow({
         <div style={{ fontSize: 13, fontWeight: 700 }}>
           ${balance.toLocaleString("en-US", { minimumFractionDigits: 2 })} USDC
         </div>
-        {htgcBalance > 0 && (
-          <div style={{ fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-gold))", marginTop: 2 }}>
-            {Math.round(htgcBalance).toLocaleString("en-US")} HTG-C
+      </td>
+      <td className="px-5 py-3">
+        {htgcBalance > 0 ? (
+          <div style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
+            {Math.round(htgcBalance).toLocaleString("en-US")}{" "}
+            <span style={{ fontSize: 11, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>HTG-C</span>
           </div>
+        ) : (
+          <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>—</span>
         )}
       </td>
       <td className="px-5 py-3">
