@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AppLayout } from "@/components/theo/Layout";
-import { Upload, Loader2, Star, X, ChevronDown, ChevronUp } from "lucide-react";
+import { Upload, Loader2, Star, X, ChevronDown, ChevronUp, CheckCircle2, AlertTriangle, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
@@ -71,6 +71,16 @@ export default function Payout() {
   const isAlreadySaved = savedRecipients.some(
     (r) => r.stellar_address === recipientAddress.trim()
   );
+
+  // Stellar address validation
+  const addrTrimmed = recipientAddress.trim();
+  type AddrState = "empty" | "valid" | "incomplete" | "wrong_chain";
+  const addrState: AddrState = (() => {
+    if (!addrTrimmed) return "empty";
+    if (addrTrimmed.startsWith("G") && addrTrimmed.length === 56) return "valid";
+    if (addrTrimmed.startsWith("G") && addrTrimmed.length < 56) return "incomplete";
+    return "wrong_chain";
+  })();
 
   // Filter recent payouts by search query
   const filteredPayouts = query.trim()
@@ -184,8 +194,12 @@ export default function Payout() {
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!sourceWalletId) { toast.error("Select a source account"); return; }
-    if (!recipientAddress.startsWith("G") || recipientAddress.length < 50) {
-      toast.error("Enter a valid Stellar account ID (G…)");
+    if (addrState === "wrong_chain") {
+      toast.error("Cross-chain payouts are not yet supported. Please use a Stellar address (starts with G).");
+      return;
+    }
+    if (addrState !== "valid") {
+      toast.error("Enter a valid Stellar account ID — starts with G, 56 characters");
       return;
     }
     const parsedAmount = parseFloat(amount);
@@ -415,15 +429,64 @@ export default function Payout() {
                   />
                 </div>
                 <div>
-                  <label style={labelStyle}>Recipient account ID</label>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                    <label style={{ ...labelStyle, marginBottom: 0 }}>Recipient account ID</label>
+                    <span style={{
+                      display: "inline-flex", alignItems: "center", gap: 4,
+                      fontSize: 10, fontWeight: 700, letterSpacing: "0.06em",
+                      background: "hsl(var(--theo-blue-soft))", color: "hsl(var(--theo-blue))",
+                      borderRadius: 99, padding: "2px 7px", border: "1px solid hsl(var(--theo-blue-chip))",
+                    }}>
+                      <svg width="8" height="8" viewBox="0 0 24 24" fill="hsl(var(--theo-blue))"><circle cx="12" cy="12" r="10"/></svg>
+                      Stellar only
+                    </span>
+                  </div>
                   <input
-                    style={{ ...inputStyle, marginBottom: 0 }}
+                    style={{
+                      ...inputStyle, marginBottom: 0,
+                      borderColor: addrState === "valid" ? "#22C55E"
+                        : addrState === "wrong_chain" ? "#F59E0B"
+                        : addrState === "incomplete" ? "#F59E0B"
+                        : "hsl(var(--theo-light))",
+                    }}
                     type="text"
-                    placeholder="G…"
+                    placeholder="G… (56 characters)"
                     value={recipientAddress}
                     onChange={(e) => setRecipientAddress(e.target.value)}
                     required
                   />
+                  {/* Inline feedback */}
+                  {addrState === "valid" && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 5, fontSize: 11, color: "#16A34A", fontWeight: 600 }}>
+                      <CheckCircle2 size={12} />
+                      Valid Stellar address
+                    </div>
+                  )}
+                  {addrState === "incomplete" && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 5, fontSize: 11, color: "#D97706", fontWeight: 600 }}>
+                      <Info size={12} />
+                      Address looks incomplete — Stellar IDs are 56 characters
+                    </div>
+                  )}
+                  {addrState === "wrong_chain" && (
+                    <div style={{ marginTop: 6, padding: "8px 10px", borderRadius: 7, background: "#FFFBEB", border: "1px solid #FDE68A", display: "flex", alignItems: "flex-start", gap: 7 }}>
+                      <AlertTriangle size={13} style={{ color: "#D97706", flexShrink: 0, marginTop: 1 }} />
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#92400E" }}>
+                          Non-Stellar address detected
+                        </div>
+                        <div style={{ fontSize: 11, color: "#92400E", marginTop: 2, lineHeight: 1.5 }}>
+                          Payouts run on the Stellar network. Cross-chain payouts (Solana, Ethereum, etc.) are coming soon. Ask your recipient for their Stellar address or use a Stellar-compatible wallet.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {addrState === "empty" && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 5, fontSize: 11, color: "hsl(var(--theo-mid))" }}>
+                      <Info size={11} />
+                      Stellar addresses start with G and are 56 characters long
+                    </div>
+                  )}
                 </div>
               </div>
 
