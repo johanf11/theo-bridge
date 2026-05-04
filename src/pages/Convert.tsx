@@ -383,7 +383,7 @@ export default function Convert() {
     setSwapBusy(false);
     const fromLabel = swapDir === "htgc_to_usdc" ? `${swapAmount} HTG-C` : `$${swapAmount} USDC`;
     const toLabel = swapDir === "htgc_to_usdc" ? `$${swapAmountRaw && liveRate ? (swapAmountRaw / liveRate).toFixed(2) : "—"} USDC` : `${swapAmountRaw && liveRate ? Math.round(swapAmountRaw * liveRate).toLocaleString() : "—"} HTG-C`;
-    toast.success(`Converted ${fromLabel} → ${toLabel}`);
+    toast.success(`Swapped ${fromLabel} → ${toLabel}`);
   };
 
   const dirToggle = (active: boolean, onClick: () => void, label: string) => (
