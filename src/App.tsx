@@ -16,6 +16,7 @@ import Settings from "./pages/Settings";
 import OrderStatus from "./pages/OrderStatus";
 import Kyb from "./pages/Kyb";
 import AdminKyb from "./pages/AdminKyb";
+import AdminConversions from "./pages/AdminConversions";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "@/components/theo/ProtectedRoute";
 
@@ -41,6 +42,7 @@ const App = () => (
           <Route path="/kyb" element={<ProtectedRoute><Kyb /></ProtectedRoute>} />
           <Route path="/orders/:id" element={<ProtectedRoute><OrderStatus /></ProtectedRoute>} />
           <Route path="/admin/kyb" element={<ProtectedRoute adminOnly><AdminKyb /></ProtectedRoute>} />
+          <Route path="/admin/conversions" element={<ProtectedRoute adminOnly><AdminConversions /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
