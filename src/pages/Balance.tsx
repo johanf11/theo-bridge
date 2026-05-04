@@ -51,8 +51,26 @@ export default function Balance() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
 
-  // Blend yield state
-  const [blendPositions, setBlendPositions] = useState<Record<string, BlendPosition>>({});
+  // Blend yield — live from edge function
+  const { positions: livePositions, apy: liveApy, refresh: refreshBlend } = useBlendPositions();
+  const BLEND_APY = liveApy || DEFAULT_APY;
+  const dailyYield = (principal: number) => principal * BLEND_APY / 365;
+  const monthlyYield = (principal: number) => principal * BLEND_APY / 12;
+  const annualYield = (principal: number) => principal * BLEND_APY;
+
+  const blendPositions: Record<string, BlendPosition> = useMemo(() => {
+    const map: Record<string, BlendPosition> = {};
+    for (const p of livePositions) {
+      map[p.walletId] = {
+        walletId: p.walletId,
+        walletLabel: p.walletLabel,
+        deposited: p.deposited,
+        accrued: 0, // live accrual reads not yet wired; show principal only
+      };
+    }
+    return map;
+  }, [livePositions]);
+
   const [sweepWallet, setSweepWallet] = useState<Wallet | null>(null);
   const [sweepAmount, setSweepAmount] = useState("");
   const [sweeping, setSweeping] = useState(false);
@@ -61,10 +79,8 @@ export default function Balance() {
 
   const totalEarning = useMemo(() =>
     Object.values(blendPositions).reduce((s, p) => s + p.deposited + p.accrued, 0), [blendPositions]);
-  const totalAccruedToday = useMemo(() =>
-    Object.values(blendPositions).reduce((s, p) => s + dailyYield(p.deposited), 0), [blendPositions]);
-  const totalAccruedMonth = useMemo(() =>
-    Object.values(blendPositions).reduce((s, p) => s + monthlyYield(p.deposited), 0), [blendPositions]);
+  const totalAccruedToday = Object.values(blendPositions).reduce((s, p) => s + dailyYield(p.deposited), 0);
+  const totalAccruedMonth = Object.values(blendPositions).reduce((s, p) => s + monthlyYield(p.deposited), 0);
   const hasPositions = Object.keys(blendPositions).length > 0;
 
   const sweepAmountNum = parseFloat(sweepAmount) || 0;
