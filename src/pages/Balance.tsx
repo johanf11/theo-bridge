@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { fetchHorizonUsdcBalance } from "@/lib/balance";
+import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 
 type Wallet = {
   id: string;
@@ -21,7 +22,7 @@ export default function Balance() {
   const navigate = useNavigate();
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [balances, setBalances] = useState<Record<string, number>>({});
-  const [total, setTotal] = useState(0);
+  const { total, refresh: refreshTotal } = useCustomerBalance();
   const [loading, setLoading] = useState(true);
 
   const [open, setOpen] = useState(false);
@@ -92,7 +93,7 @@ export default function Balance() {
     );
     const balanceMap = Object.fromEntries(entries);
     setBalances(balanceMap);
-    setTotal(Object.values(balanceMap).reduce((s, v) => s + v, 0));
+    refreshTotal();
     setLoading(false);
   };
 
