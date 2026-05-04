@@ -151,39 +151,38 @@ export default function Balance() {
   const handleSweep = async () => {
     if (!sweepWallet || !sweepValid) return;
     setSweeping(true);
-    // Stub: will call `sweep-to-blend` edge function once contract integration is wired
-    await new Promise((r) => setTimeout(r, 1400));
-    setBlendPositions((prev) => {
-      const existing = prev[sweepWallet.id];
-      return {
-        ...prev,
-        [sweepWallet.id]: {
-          walletId: sweepWallet.id,
-          walletLabel: sweepWallet.label ?? "Wallet",
-          deposited: (existing?.deposited ?? 0) + sweepAmountNum,
-          accrued: existing?.accrued ?? 0,
-          depositedAt: existing?.depositedAt ?? new Date(),
-        },
-      };
+    const { data, error } = await supabase.functions.invoke("blend-sweep", {
+      body: { sourceWalletId: sweepWallet.id, amount: sweepAmountNum },
     });
-    // Simulate balance reduction
-    setBalances((prev) => ({ ...prev, [sweepWallet.id]: (prev[sweepWallet.id] ?? 0) - sweepAmountNum }));
     setSweeping(false);
+    if (error || (data as { error?: string })?.error) {
+      const msg = (data as { error?: string })?.error ?? error?.message ?? "Sweep failed";
+      toast.error(msg);
+      return;
+    }
+    const hash = (data as { hash?: string })?.hash ?? "";
+    toast.success(`Swept ${fmt(sweepAmountNum)} USDC to Blend · ${hash.slice(0, 8)}…`);
     setSweepWallet(null);
     setSweepAmount("");
-    toast.success(`${fmt(sweepAmountNum)} USDC swept to Blend — earning at ${(BLEND_APY * 100).toFixed(1)}% APY`);
+    await Promise.all([loadWallets(), refreshBlend(), refreshTotal()]);
   };
 
   const handleWithdraw = async (walletId: string) => {
     const pos = blendPositions[walletId];
     if (!pos) return;
     setWithdrawingId(walletId);
-    await new Promise((r) => setTimeout(r, 1200));
-    const returned = pos.deposited + pos.accrued;
-    setBalances((prev) => ({ ...prev, [walletId]: (prev[walletId] ?? 0) + returned }));
-    setBlendPositions((prev) => { const n = { ...prev }; delete n[walletId]; return n; });
+    const { data, error } = await supabase.functions.invoke("blend-withdraw", {
+      body: { walletId, amount: "max" },
+    });
     setWithdrawingId(null);
-    toast.success(`${fmt(returned)} USDC returned from Blend (incl. ${fmt(pos.accrued)} yield)`);
+    if (error || (data as { error?: string })?.error) {
+      const msg = (data as { error?: string })?.error ?? error?.message ?? "Withdraw failed";
+      toast.error(msg);
+      return;
+    }
+    const hash = (data as { hash?: string })?.hash ?? "";
+    toast.success(`Withdrawn from Blend · ${hash.slice(0, 8)}…`);
+    await Promise.all([loadWallets(), refreshBlend(), refreshTotal()]);
   };
 
   const walletColors = ["hsl(var(--theo-blue))", "#1A2966", "#0F1D54"];
