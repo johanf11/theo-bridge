@@ -183,15 +183,16 @@ export type Database = {
           htg_amount: number
           id: string
           margin: number
+          order_kind: Database["public"]["Enums"]["order_kind"]
           quote_expires_at: string
-          rate: number
+          rate: number | null
           reference_number: string
           released_at: string | null
-          spot_rate: number
+          spot_rate: number | null
           status: Database["public"]["Enums"]["order_status"]
           stellar_tx_hash: string | null
           updated_at: string
-          usdc_amount: number
+          usdc_amount: number | null
         }
         Insert: {
           completed_at?: string | null
@@ -205,15 +206,16 @@ export type Database = {
           htg_amount: number
           id?: string
           margin?: number
+          order_kind?: Database["public"]["Enums"]["order_kind"]
           quote_expires_at: string
-          rate: number
+          rate?: number | null
           reference_number: string
           released_at?: string | null
-          spot_rate: number
+          spot_rate?: number | null
           status?: Database["public"]["Enums"]["order_status"]
           stellar_tx_hash?: string | null
           updated_at?: string
-          usdc_amount: number
+          usdc_amount?: number | null
         }
         Update: {
           completed_at?: string | null
@@ -227,15 +229,16 @@ export type Database = {
           htg_amount?: number
           id?: string
           margin?: number
+          order_kind?: Database["public"]["Enums"]["order_kind"]
           quote_expires_at?: string
-          rate?: number
+          rate?: number | null
           reference_number?: string
           released_at?: string | null
-          spot_rate?: number
+          spot_rate?: number | null
           status?: Database["public"]["Enums"]["order_status"]
           stellar_tx_hash?: string | null
           updated_at?: string
-          usdc_amount?: number
+          usdc_amount?: number | null
         }
         Relationships: [
           {
@@ -601,6 +604,7 @@ export type Database = {
       job_status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED"
       job_type: "SPIH_RECONCILE" | "USDC_RELEASE" | "STELLAR_CONFIRM"
       kyb_status: "PENDING" | "APPROVED" | "REJECTED" | "UNDER_REVIEW"
+      order_kind: "usdc_conversion" | "htgc_mint"
       order_status:
         | "CREATED"
         | "QUOTED"
@@ -749,6 +753,7 @@ export const Constants = {
       job_status: ["PENDING", "RUNNING", "COMPLETED", "FAILED"],
       job_type: ["SPIH_RECONCILE", "USDC_RELEASE", "STELLAR_CONFIRM"],
       kyb_status: ["PENDING", "APPROVED", "REJECTED", "UNDER_REVIEW"],
+      order_kind: ["usdc_conversion", "htgc_mint"],
       order_status: [
         "CREATED",
         "QUOTED",
