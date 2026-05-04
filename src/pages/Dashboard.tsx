@@ -4,6 +4,7 @@ import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtUSDC, fmtHTG } from "@/lib/format";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
+import { useAuth } from "@/lib/auth";
 import { Plus } from "lucide-react";
 
 type Customer = {
@@ -111,6 +112,7 @@ const QUICK_ACTIONS = [
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [txs, setTxs] = useState<UnifiedTx[]>([]);
   const { total: balance } = useCustomerBalance();
@@ -173,7 +175,11 @@ export default function Dashboard() {
     })();
   }, []);
 
-  const displayName = customer?.contact_name ?? customer?.company_name ?? "there";
+  const displayName =
+    user?.user_metadata?.display_name ||
+    customer?.contact_name ||
+    customer?.company_name ||
+    "there";
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const convertedThisMonth = txs
