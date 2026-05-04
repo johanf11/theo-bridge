@@ -6,55 +6,128 @@ import { fmtUSDC, fmtHTG } from "@/lib/format";
 import { Download } from "lucide-react";
 import { useSearch } from "@/contexts/SearchContext";
 
-type Order = {
-  id: string; status: string; usdc_amount: number; htg_amount: number;
-  reference_number: string; created_at: string; stellar_tx_hash: string | null;
+type TxType = "conversion" | "payout";
+
+type UnifiedTx = {
+  id: string;
+  type: TxType;
+  created_at: string;
+  usdc_amount: number;
+  status: string;
+  stellar_tx_hash: string | null;
+  // conversion-only
+  htg_amount?: number;
+  reference_number?: string;
+  // payout-only
+  recipient_name?: string;
+  memo?: string | null;
+};
+
+// Map payout statuses → the same style system StatusBadge uses
+const PAYOUT_STATUS_MAP: Record<string, string> = {
+  COMPLETED: "COMPLETED",
+  PENDING: "PENDING",
+  FAILED: "FAILED",
 };
 
 export default function Transactions() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [customerId, setCustomerId] = useState<string | null>(null);
+  const [all, setAll] = useState<UnifiedTx[]>([]);
+  const [loading, setLoading] = useState(true);
   const { query } = useSearch();
   const highlightRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
 
-  // Client-side filter: match reference, amount, date, or type
-  const filtered = query.trim()
-    ? orders.filter((o) => {
-        const q = query.toLowerCase();
-        return (
-          (o.reference_number ?? "").toLowerCase().includes(q) ||
-          String(o.usdc_amount).includes(q) ||
-          String(o.htg_amount).includes(q) ||
-          new Date(o.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }).toLowerCase().includes(q) ||
-          "conversion".includes(q)
-        );
-      })
-    : orders;
+  // Dropdown filter state
+  const [typeFilter, setTypeFilter] = useState("All types");
+  const [statusFilter, setStatusFilter] = useState("All statuses");
+  const [dateFilter, setDateFilter] = useState("Last 30 days");
 
   useEffect(() => {
     (async () => {
+      setLoading(true);
       const { data: c } = await supabase.from("customers").select("id").maybeSingle();
-      if (!c) return;
-      setCustomerId(c.id);
-      const { data: o } = await supabase
-        .from("orders")
-        .select("id, status, usdc_amount, htg_amount, reference_number, created_at, stellar_tx_hash")
-        .eq("customer_id", c.id)
-        .order("created_at", { ascending: false });
-      setOrders((o ?? []) as Order[]);
+      if (!c) { setLoading(false); return; }
+
+      const cutoff = dateCutoff(dateFilter);
+
+      const [{ data: orders }, { data: payouts }] = await Promise.all([
+        supabase
+          .from("orders")
+          .select("id, status, usdc_amount, htg_amount, reference_number, created_at, stellar_tx_hash")
+          .eq("customer_id", c.id)
+          .gte("created_at", cutoff)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("payouts")
+          .select("id, recipient_name, amount_usdc, status, memo, stellar_tx_hash, created_at")
+          .eq("customer_id", c.id)
+          .gte("created_at", cutoff)
+          .order("created_at", { ascending: false }),
+      ]);
+
+      const merged: UnifiedTx[] = [
+        ...(orders ?? []).map((o) => ({
+          id: o.id,
+          type: "conversion" as TxType,
+          created_at: o.created_at,
+          usdc_amount: Number(o.usdc_amount),
+          status: o.status,
+          stellar_tx_hash: o.stellar_tx_hash,
+          htg_amount: Number(o.htg_amount),
+          reference_number: o.reference_number,
+        })),
+        ...(payouts ?? []).map((p) => ({
+          id: p.id,
+          type: "payout" as TxType,
+          created_at: p.created_at,
+          usdc_amount: Number(p.amount_usdc),
+          status: PAYOUT_STATUS_MAP[p.status] ?? p.status,
+          stellar_tx_hash: p.stellar_tx_hash ?? null,
+          recipient_name: p.recipient_name,
+          memo: p.memo,
+        })),
+      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      setAll(merged);
+      setLoading(false);
     })();
-  }, []);
+  }, [dateFilter]);
+
+  // Client-side filters
+  const filtered = all.filter((tx) => {
+    const q = query.trim().toLowerCase();
+
+    if (typeFilter === "Conversion" && tx.type !== "conversion") return false;
+    if (typeFilter === "Payout" && tx.type !== "payout") return false;
+
+    const statusLabel = tx.status.toLowerCase();
+    if (statusFilter === "Settled" && !statusLabel.includes("complet")) return false;
+    if (statusFilter === "Pending" && !statusLabel.includes("pending")) return false;
+    if (statusFilter === "Failed" && !statusLabel.includes("failed")) return false;
+
+    if (!q) return true;
+    return (
+      (tx.reference_number ?? "").toLowerCase().includes(q) ||
+      (tx.recipient_name ?? "").toLowerCase().includes(q) ||
+      (tx.memo ?? "").toLowerCase().includes(q) ||
+      String(tx.usdc_amount).includes(q) ||
+      String(tx.htg_amount ?? "").includes(q) ||
+      new Date(tx.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }).toLowerCase().includes(q) ||
+      tx.type.includes(q)
+    );
+  });
 
   const exportCsv = () => {
     const rows = [
-      ["Date", "Type", "USDC Amount", "HTG Sent", "Status", "Reference"],
-      ...orders.map((o) => [
-        new Date(o.created_at).toLocaleDateString(),
-        "Conversion",
-        o.usdc_amount,
-        o.htg_amount,
-        o.status,
-        o.reference_number,
+      ["Date", "Type", "USDC Amount", "HTG Sent", "Recipient", "Status", "Reference / Note", "Receipt ID"],
+      ...all.map((tx) => [
+        new Date(tx.created_at).toLocaleDateString(),
+        tx.type === "conversion" ? "Conversion" : "Payout",
+        tx.usdc_amount,
+        tx.htg_amount ?? "",
+        tx.recipient_name ?? "",
+        tx.status,
+        tx.reference_number ?? tx.memo ?? "",
+        tx.stellar_tx_hash ?? "",
       ]),
     ];
     const csv = rows.map((r) => r.join(",")).join("\n");
@@ -65,6 +138,15 @@ export default function Transactions() {
     a.download = "theo-transactions.csv";
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const selectStyle: React.CSSProperties = {
+    padding: "7px 28px 7px 10px", fontFamily: "inherit",
+    color: "hsl(var(--theo-ink))", background: "white",
+    fontSize: 13, borderRadius: 8, border: "1px solid hsl(var(--theo-light))",
+    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6B8A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
+    backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center",
+    appearance: "none", outline: "none", cursor: "pointer",
   };
 
   return (
@@ -78,58 +160,44 @@ export default function Transactions() {
             Full history of conversions and payouts.
           </div>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={exportCsv}
-            className="flex items-center gap-1.5 font-bold transition-colors"
-            style={{
-              background: "transparent", border: "1.5px solid hsl(var(--theo-blue))",
-              color: "hsl(var(--theo-blue))", borderRadius: 7, padding: "6px 12px",
-              fontSize: 12, cursor: "pointer", fontFamily: "inherit",
-            }}
-          >
-            <Download className="h-3 w-3" style={{ strokeWidth: 2 }} />
-            Export CSV
-          </button>
-        </div>
+        <button
+          onClick={exportCsv}
+          className="flex items-center gap-1.5 font-bold transition-colors"
+          style={{
+            background: "transparent", border: "1.5px solid hsl(var(--theo-blue))",
+            color: "hsl(var(--theo-blue))", borderRadius: 7, padding: "6px 12px",
+            fontSize: 12, cursor: "pointer", fontFamily: "inherit",
+          }}
+        >
+          <Download className="h-3 w-3" style={{ strokeWidth: 2 }} />
+          Export CSV
+        </button>
       </div>
       <div className="mb-5" style={{ width: 28, height: 3, background: "hsl(var(--theo-gold))", borderRadius: 2, marginTop: 8 }} />
 
       {/* Filters */}
       <div className="flex gap-2 mb-4 items-center">
-        {[
-          { opts: ["All types", "Conversion", "Payout"] },
-          { opts: ["All statuses", "Settled", "Pending", "Failed"] },
-          { opts: ["Last 30 days", "Last 90 days", "This year", "All time"] },
-        ].map(({ opts }, i) => (
-          <select
-            key={i}
-            className="border border-border rounded-lg outline-none text-sm font-medium cursor-pointer"
-            style={{
-              padding: "7px 28px 7px 10px", fontFamily: "inherit",
-              color: "hsl(var(--theo-ink))", background: "white",
-              fontSize: 13,
-              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6B8A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
-              backgroundRepeat: "no-repeat",
-              backgroundPosition: "right 10px center",
-              appearance: "none",
-            }}
-          >
-            {opts.map((o) => <option key={o}>{o}</option>)}
-          </select>
-        ))}
+        <select style={selectStyle} value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
+          {["All types", "Conversion", "Payout"].map(o => <option key={o}>{o}</option>)}
+        </select>
+        <select style={selectStyle} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+          {["All statuses", "Settled", "Pending", "Failed"].map(o => <option key={o}>{o}</option>)}
+        </select>
+        <select style={selectStyle} value={dateFilter} onChange={e => setDateFilter(e.target.value)}>
+          {["Last 30 days", "Last 90 days", "This year", "All time"].map(o => <option key={o}>{o}</option>)}
+        </select>
+
+        {(query.trim() || typeFilter !== "All types" || statusFilter !== "All statuses") && (
+          <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))", marginLeft: 4 }}>
+            {filtered.length} result{filtered.length !== 1 ? "s" : ""}
+          </span>
+        )}
       </div>
 
-      {query.trim() && (
-        <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))", marginBottom: 8 }}>
-          {filtered.length === 0
-            ? `No results for "${query}"`
-            : `${filtered.length} result${filtered.length !== 1 ? "s" : ""} for "${query}"`}
-        </div>
-      )}
-
       <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
-        {orders.length === 0 ? (
+        {loading ? (
+          <div className="py-14 text-center text-sm text-muted-foreground">Loading…</div>
+        ) : all.length === 0 ? (
           <div className="py-14 text-center text-sm text-muted-foreground">No transactions yet.</div>
         ) : filtered.length === 0 ? (
           <div className="py-14 text-center text-sm text-muted-foreground">No matching transactions.</div>
@@ -137,7 +205,7 @@ export default function Transactions() {
           <table className="w-full border-collapse">
             <thead>
               <tr style={{ background: "hsl(var(--theo-cream))" }}>
-                {["Date", "Type", "Amount (USDC)", "HTG Sent", "Network", "Status", "Reference", "Receipt ID"].map((h) => (
+                {["Date", "Type", "Amount (USDC)", "Details", "Network", "Status", "Reference / Recipient", "Receipt ID"].map((h) => (
                   <th key={h} className="text-left px-5 py-2.5 border-b border-border" style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.10em", color: "hsl(var(--theo-mid))" }}>
                     {h}
                   </th>
@@ -145,41 +213,82 @@ export default function Transactions() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((o) => {
-                const isHighlighted = query.trim() &&
-                  (o.reference_number ?? "").toLowerCase().includes(query.toLowerCase());
+              {filtered.map((tx) => {
+                const q = query.trim().toLowerCase();
+                const isHighlighted = q && (
+                  (tx.reference_number ?? "").toLowerCase().includes(q) ||
+                  (tx.recipient_name ?? "").toLowerCase().includes(q)
+                );
                 return (
                   <tr
-                    key={o.id}
-                    ref={(el) => { highlightRefs.current[o.id] = el; }}
+                    key={tx.id}
+                    ref={(el) => { highlightRefs.current[tx.id] = el; }}
                     className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors"
                     style={isHighlighted ? { background: "hsl(var(--theo-blue-soft))" } : undefined}
                   >
+                    {/* Date */}
                     <td className="px-5 py-3" style={{ fontSize: 13 }}>
-                      {new Date(o.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      {new Date(tx.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                     </td>
-                    <td className="px-5 py-3" style={{ fontSize: 13 }}>Conversion</td>
-                    <td className="px-5 py-3" style={{ fontSize: 13, fontWeight: 700 }}>{fmtUSDC(Number(o.usdc_amount))}</td>
-                    <td className="px-5 py-3" style={{ fontSize: 13 }}>{fmtHTG(Number(o.htg_amount))}</td>
+
+                    {/* Type badge */}
+                    <td className="px-5 py-3">
+                      <span
+                        className="rounded-full font-bold"
+                        style={{
+                          fontSize: 11, padding: "3px 8px",
+                          background: tx.type === "payout" ? "hsl(var(--theo-blue-soft))" : "hsl(var(--theo-gold-soft))",
+                          color: tx.type === "payout" ? "hsl(var(--theo-blue))" : "#7A5F00",
+                        }}
+                      >
+                        {tx.type === "payout" ? "Payout" : "Conversion"}
+                      </span>
+                    </td>
+
+                    {/* Amount */}
+                    <td className="px-5 py-3" style={{ fontSize: 13, fontWeight: 700 }}>
+                      {fmtUSDC(tx.usdc_amount)}
+                    </td>
+
+                    {/* Details: HTG for conversions, recipient for payouts */}
+                    <td className="px-5 py-3" style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>
+                      {tx.type === "conversion"
+                        ? fmtHTG(tx.htg_amount ?? 0)
+                        : <span style={{ color: "hsl(var(--theo-ink))" }}>{tx.recipient_name}{tx.memo ? <span style={{ color: "hsl(var(--theo-mid))" }}> · {tx.memo}</span> : ""}</span>
+                      }
+                    </td>
+
+                    {/* Network */}
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-1.5">
                         <div className="rounded-full" style={{ width: 8, height: 8, background: "hsl(var(--theo-cyan))", flexShrink: 0 }} />
                         <span style={{ fontSize: 13 }}>Theo</span>
                       </div>
                     </td>
-                    <td className="px-5 py-3"><StatusBadge status={o.status} /></td>
-                    <td className="px-5 py-3" style={{ fontFamily: "monospace", fontSize: 12, color: "hsl(var(--theo-mid))" }}>
-                      {o.reference_number}
+
+                    {/* Status */}
+                    <td className="px-5 py-3">
+                      <StatusBadge status={tx.status} />
                     </td>
+
+                    {/* Reference / Recipient */}
+                    <td className="px-5 py-3" style={{ fontFamily: "monospace", fontSize: 12, color: "hsl(var(--theo-mid))" }}>
+                      {tx.type === "conversion"
+                        ? tx.reference_number
+                        : <span style={{ fontFamily: "inherit", fontWeight: 600, color: "hsl(var(--theo-ink))" }}>{tx.recipient_name}</span>
+                      }
+                    </td>
+
+                    {/* Receipt / TX hash */}
                     <td className="px-5 py-3" style={{ fontFamily: "monospace", fontSize: 12 }}>
-                      {o.stellar_tx_hash ? (
+                      {tx.stellar_tx_hash ? (
                         <a
-                          href={`https://stellar.expert/explorer/testnet/tx/${o.stellar_tx_hash}`}
+                          href={`https://stellar.expert/explorer/testnet/tx/${tx.stellar_tx_hash}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{ color: "hsl(var(--theo-cyan))", fontWeight: 600 }}
                         >
-                          {o.stellar_tx_hash.slice(0, 8)}...{o.stellar_tx_hash.slice(-4)}
+                          {tx.stellar_tx_hash.slice(0, 8)}…{tx.stellar_tx_hash.slice(-4)}
                         </a>
                       ) : (
                         <span style={{ color: "hsl(var(--theo-mid))" }}>—</span>
@@ -194,4 +303,12 @@ export default function Transactions() {
       </div>
     </AppLayout>
   );
+}
+
+function dateCutoff(filter: string): string {
+  const now = new Date();
+  if (filter === "Last 30 days") { now.setDate(now.getDate() - 30); return now.toISOString(); }
+  if (filter === "Last 90 days") { now.setDate(now.getDate() - 90); return now.toISOString(); }
+  if (filter === "This year") { now.setMonth(0, 1); now.setHours(0, 0, 0, 0); return now.toISOString(); }
+  return "2000-01-01T00:00:00Z"; // All time
 }
