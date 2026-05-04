@@ -271,9 +271,14 @@ export default function Balance() {
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="font-bold rounded-full" style={{ fontSize: 12, background: "#1A7F37", color: "#fff", padding: "3px 10px" }}>
-                {(BLEND_APY * 100).toFixed(1)}% APY
-              </span>
+              <div className="flex flex-col items-end" style={{ lineHeight: 1.1 }}>
+                <span className="font-bold rounded-full" style={{ fontSize: 12, background: "#1A7F37", color: "#fff", padding: "3px 10px" }}>
+                  {(NET_APY * 100).toFixed(2)}% net APY
+                </span>
+                <span style={{ fontSize: 10, color: "#15803D", opacity: 0.7, marginTop: 3, fontWeight: 600 }}>
+                  {(GROSS_APY * 100).toFixed(2)}% gross · {(FEE_BPS / 100).toFixed(2)}% platform fee
+                </span>
+              </div>
               <a
                 href="https://blend.capital"
                 target="_blank"
