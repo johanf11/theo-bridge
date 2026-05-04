@@ -528,18 +528,35 @@ export default function Balance() {
                       <div className="rounded-full" style={{ width: 6, height: 6, background: "hsl(var(--theo-cyan))" }} />
                       <span style={{ fontSize: 11, color: "rgba(255,255,255,0.50)", fontWeight: 500 }}>Active · 1:1 verified</span>
                     </div>
-                    <button
-                      onClick={() => setSweepWallet(w)}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 4,
-                        background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)",
-                        color: "#fff", borderRadius: 6, padding: "4px 9px",
-                        fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                      }}
-                    >
-                      <ArrowDownToLine size={10} />
-                      {pos ? "Add more" : "Earn"}
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      {can("payout_send") && wallets.length >= 2 && (
+                        <button
+                          onClick={() => openMoveModal(w.id)}
+                          title="Move funds to another account"
+                          style={{
+                            display: "flex", alignItems: "center", gap: 4,
+                            background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)",
+                            color: "#fff", borderRadius: 6, padding: "4px 9px",
+                            fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                          }}
+                        >
+                          <ArrowLeftRight size={10} />
+                          Move
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setSweepWallet(w)}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 4,
+                          background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)",
+                          color: "#fff", borderRadius: 6, padding: "4px 9px",
+                          fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                        }}
+                      >
+                        <ArrowDownToLine size={10} />
+                        {pos ? "Add more" : "Earn"}
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
