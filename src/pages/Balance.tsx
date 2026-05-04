@@ -588,11 +588,16 @@ export default function Balance() {
 
             {/* APY preview */}
             <div className="rounded-xl mb-5" style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", padding: "14px 16px" }}>
-              <div className="flex items-center gap-1.5 mb-3">
-                <span className="font-bold rounded-full" style={{ fontSize: 12, background: "#1A7F37", color: "#fff", padding: "2px 8px" }}>
-                  {(BLEND_APY * 100).toFixed(1)}% APY
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold rounded-full" style={{ fontSize: 12, background: "#1A7F37", color: "#fff", padding: "2px 8px" }}>
+                    {(NET_APY * 100).toFixed(2)}% net APY
+                  </span>
+                  <span style={{ fontSize: 11, color: "#15803D" }}>paid to you</span>
+                </div>
+                <span style={{ fontSize: 10, color: "#15803D", opacity: 0.7, fontWeight: 600 }}>
+                  Gross {(GROSS_APY * 100).toFixed(2)}% · Fee {(FEE_BPS / 100).toFixed(2)}%
                 </span>
-                <span style={{ fontSize: 11, color: "#15803D" }}>via Blend USDC pool on Stellar</span>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 {[
