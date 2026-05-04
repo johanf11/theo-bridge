@@ -34,10 +34,17 @@ Deno.serve(async (req) => {
       positions: [], grossApy: DEFAULT_GROSS_APY, netApy: DEFAULT_NET_APY, feeBps: DEFAULT_FEE_BPS,
     });
 
-    const { data: positions } = await admin
+    const { data: positions, error: posErr } = await admin
       .from("blend_positions")
-      .select("id, wallet_id, pool_address, deposited_usdc, deposited_at, gross_apy, net_apy, fee_bps, last_tx_hash, last_synced_at, wallets(label, stellar_address)")
+      .select("id, wallet_id, pool_address, deposited_usdc, deposited_at, gross_apy, net_apy, fee_bps, last_tx_hash, last_synced_at")
       .eq("customer_id", customer.id);
+    if (posErr) console.error("blend-positions query error", posErr);
+
+    const walletIds = Array.from(new Set((positions ?? []).map((p) => p.wallet_id)));
+    const { data: walletsData } = walletIds.length
+      ? await admin.from("wallets").select("id, label, stellar_address").in("id", walletIds)
+      : { data: [] as { id: string; label: string | null; stellar_address: string }[] };
+    const walletMap = new Map((walletsData ?? []).map((w) => [w.id, w]));
 
     const now = Date.now();
     const out = (positions ?? []).map((p) => {
@@ -45,11 +52,12 @@ Deno.serve(async (req) => {
       const netApy = Number(p.net_apy);
       const elapsedSec = (now - new Date(p.deposited_at).getTime()) / 1000;
       const accrued = principal * netApy * (elapsedSec / (365 * 24 * 3600));
+      const w = walletMap.get(p.wallet_id);
       return {
         id: p.id,
         walletId: p.wallet_id,
-        walletLabel: (p.wallets as { label: string | null } | null)?.label ?? "Wallet",
-        walletAddress: (p.wallets as { stellar_address: string } | null)?.stellar_address ?? null,
+        walletLabel: w?.label ?? "Wallet",
+        walletAddress: w?.stellar_address ?? null,
         deposited: principal,
         accrued,
         grossApy: Number(p.gross_apy),
