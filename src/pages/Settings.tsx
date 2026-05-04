@@ -6,9 +6,17 @@ import { useAuth } from "@/lib/auth";
 import { Shield, Home, Bell, Lock, Users, ChevronDown, ChevronUp, User, Check, Loader2 } from "lucide-react";
 import { WalletKeys } from "@/components/theo/WalletKeys";
 import { usePermissions, type Permission } from "@/hooks/usePermissions";
+import { toast } from "sonner";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-type Customer = { id: string; company_name: string; kyb_status: string };
+type Customer = {
+  id: string;
+  company_name: string;
+  kyb_status: string;
+  legal_name: string | null;
+  registration_number: string | null;
+  country: string | null;
+};
 
 type OrgRole = {
   id: string;
@@ -155,6 +163,12 @@ export default function Settings() {
   const [savingName, setSavingName] = useState(false);
   const [nameSaved, setNameSaved] = useState(false);
 
+  // Business profile form state
+  const [companyName, setCompanyName] = useState("");
+  const [registrationNo, setRegistrationNo] = useState("");
+  const [country, setCountry] = useState("Haiti");
+  const [savingBiz, setSavingBiz] = useState(false);
+
   // Initialise display name from user metadata once user loads
   useEffect(() => {
     if (!user) return;
@@ -171,10 +185,40 @@ export default function Settings() {
     setTimeout(() => setNameSaved(false), 2000);
   };
 
+  const handleSaveBusiness = async () => {
+    if (!customer) return;
+    const trimmed = companyName.trim();
+    if (!trimmed) { toast.error("Company name is required"); return; }
+    setSavingBiz(true);
+    const { error } = await supabase
+      .from("customers")
+      .update({
+        company_name: trimmed,
+        legal_name: trimmed,
+        registration_number: registrationNo.trim() || null,
+        country: country || null,
+      })
+      .eq("id", customer.id);
+    setSavingBiz(false);
+    if (error) { toast.error(error.message); return; }
+    setCustomer({ ...customer, company_name: trimmed, legal_name: trimmed, registration_number: registrationNo.trim() || null, country });
+    toast.success("Business profile saved");
+  };
+
   useEffect(() => {
-    supabase.from("customers").select("id, company_name, kyb_status").maybeSingle().then(({ data }) => {
-      setCustomer(data as Customer | null);
-    });
+    supabase
+      .from("customers")
+      .select("id, company_name, kyb_status, legal_name, registration_number, country")
+      .maybeSingle()
+      .then(({ data }) => {
+        const c = data as Customer | null;
+        setCustomer(c);
+        if (c) {
+          setCompanyName(c.legal_name ?? c.company_name ?? "");
+          setRegistrationNo(c.registration_number ?? "");
+          setCountry(c.country ?? "Haiti");
+        }
+      });
   }, []);
 
   useEffect(() => {
@@ -360,21 +404,44 @@ export default function Settings() {
               <div className="grid gap-3 mb-3.5" style={{ gridTemplateColumns: "1fr 1fr" }}>
                 <div>
                   <label className="block font-bold uppercase mb-1.5" style={{ fontSize: 10, letterSpacing: "0.10em", color: "hsl(var(--theo-mid))" }}>Legal company name</label>
-                  <input className="w-full rounded-[9px] border border-border outline-none" style={{ fontFamily: "inherit", fontSize: 14, padding: "10px 12px", color: "hsl(var(--theo-ink))" }} defaultValue={customer?.company_name ?? ""} placeholder="Your company" />
+                  <input
+                    className="w-full rounded-[9px] border border-border outline-none"
+                    style={{ fontFamily: "inherit", fontSize: 14, padding: "10px 12px", color: "hsl(var(--theo-ink))" }}
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    placeholder="Your company"
+                  />
                 </div>
                 <div>
                   <label className="block font-bold uppercase mb-1.5" style={{ fontSize: 10, letterSpacing: "0.10em", color: "hsl(var(--theo-mid))" }}>Registration no.</label>
-                  <input className="w-full rounded-[9px] border border-border outline-none" style={{ fontFamily: "inherit", fontSize: 14, padding: "10px 12px", color: "hsl(var(--theo-ink))" }} placeholder="RNFE-XXXXX" />
+                  <input
+                    className="w-full rounded-[9px] border border-border outline-none"
+                    style={{ fontFamily: "inherit", fontSize: 14, padding: "10px 12px", color: "hsl(var(--theo-ink))" }}
+                    value={registrationNo}
+                    onChange={(e) => setRegistrationNo(e.target.value)}
+                    placeholder="RNFE-XXXXX"
+                  />
                 </div>
               </div>
               <div className="mb-3.5">
                 <label className="block font-bold uppercase mb-1.5" style={{ fontSize: 10, letterSpacing: "0.10em", color: "hsl(var(--theo-mid))" }}>Country</label>
-                <select className="w-full rounded-[9px] border border-border outline-none" style={{ fontFamily: "inherit", fontSize: 14, padding: "10px 12px", color: "hsl(var(--theo-ink))", appearance: "none" }}>
+                <select
+                  className="w-full rounded-[9px] border border-border outline-none"
+                  style={{ fontFamily: "inherit", fontSize: 14, padding: "10px 12px", color: "hsl(var(--theo-ink))", appearance: "none" }}
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                >
                   <option>Haiti</option>
                   <option>Dominican Republic</option>
                 </select>
               </div>
-              <button className="font-bold text-white" style={{ background: "hsl(var(--theo-blue))", borderRadius: 7, padding: "6px 12px", fontSize: 12, border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+              <button
+                onClick={handleSaveBusiness}
+                disabled={savingBiz}
+                className="font-bold text-white inline-flex items-center gap-1.5"
+                style={{ background: "hsl(var(--theo-blue))", borderRadius: 7, padding: "6px 12px", fontSize: 12, border: "none", cursor: savingBiz ? "wait" : "pointer", fontFamily: "inherit", opacity: savingBiz ? 0.7 : 1 }}
+              >
+                {savingBiz && <Loader2 className="animate-spin" style={{ width: 12, height: 12 }} />}
                 Save changes
               </button>
             </div>
