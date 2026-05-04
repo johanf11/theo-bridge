@@ -25,10 +25,13 @@ type BlendPosition = {
   accrued: number;
 };
 
-// Default APY shown until the live value loads from the blend-positions edge function.
-const DEFAULT_APY = 0.092;
+// Default APY shown until live values load from the blend-positions edge function.
+const DEFAULT_NET_APY = 0.07;
+const DEFAULT_GROSS_APY = 0.09;
+const DEFAULT_FEE_BPS = 200;
 
 const fmt = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt4 = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 
 const labelSchema = z.string().trim().min(1, "Nickname is required").max(60);
 const shortAddr = (a: string) => `${a.slice(0, 6)}...${a.slice(-4)}`;
@@ -51,12 +54,20 @@ export default function Balance() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
 
-  // Blend yield — live from edge function
-  const { positions: livePositions, apy: liveApy, refresh: refreshBlend } = useBlendPositions();
-  const BLEND_APY = liveApy || DEFAULT_APY;
-  const dailyYield = (principal: number) => principal * BLEND_APY / 365;
-  const monthlyYield = (principal: number) => principal * BLEND_APY / 12;
-  const annualYield = (principal: number) => principal * BLEND_APY;
+  // Blend yield — live from edge function (now synthetic gross/net/fee split)
+  const {
+    positions: livePositions,
+    grossApy: liveGrossApy,
+    netApy: liveNetApy,
+    feeBps: liveFeeBps,
+    refresh: refreshBlend,
+  } = useBlendPositions();
+  const NET_APY = liveNetApy || DEFAULT_NET_APY;
+  const GROSS_APY = liveGrossApy || DEFAULT_GROSS_APY;
+  const FEE_BPS = liveFeeBps || DEFAULT_FEE_BPS;
+  const dailyYield = (principal: number) => principal * NET_APY / 365;
+  const monthlyYield = (principal: number) => principal * NET_APY / 12;
+  const annualYield = (principal: number) => principal * NET_APY;
 
   const blendPositions: Record<string, BlendPosition> = useMemo(() => {
     const map: Record<string, BlendPosition> = {};
@@ -65,7 +76,7 @@ export default function Balance() {
         walletId: p.walletId,
         walletLabel: p.walletLabel,
         deposited: p.deposited,
-        accrued: 0, // live accrual reads not yet wired; show principal only
+        accrued: p.accrued,
       };
     }
     return map;
@@ -260,9 +271,14 @@ export default function Balance() {
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="font-bold rounded-full" style={{ fontSize: 12, background: "#1A7F37", color: "#fff", padding: "3px 10px" }}>
-                {(BLEND_APY * 100).toFixed(1)}% APY
-              </span>
+              <div className="flex flex-col items-end" style={{ lineHeight: 1.1 }}>
+                <span className="font-bold rounded-full" style={{ fontSize: 12, background: "#1A7F37", color: "#fff", padding: "3px 10px" }}>
+                  {(NET_APY * 100).toFixed(2)}% net APY
+                </span>
+                <span style={{ fontSize: 10, color: "#15803D", opacity: 0.7, marginTop: 3, fontWeight: 600 }}>
+                  {(GROSS_APY * 100).toFixed(2)}% gross · {(FEE_BPS / 100).toFixed(2)}% platform fee
+                </span>
+              </div>
               <a
                 href="https://blend.capital"
                 target="_blank"
@@ -334,7 +350,7 @@ export default function Balance() {
             </div>
             <div>
               <div className="font-bold flex items-center gap-1.5" style={{ fontSize: 14, color: "#14532D" }}>
-                Earn {(BLEND_APY * 100).toFixed(1)}% APY on idle USDC
+                Earn {(NET_APY * 100).toFixed(2)}% APY on idle USDC
                 <span
                   style={{ position: "relative", display: "inline-flex", alignItems: "center" }}
                   onMouseEnter={() => setShowBlendTooltip(true)}
@@ -572,11 +588,16 @@ export default function Balance() {
 
             {/* APY preview */}
             <div className="rounded-xl mb-5" style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", padding: "14px 16px" }}>
-              <div className="flex items-center gap-1.5 mb-3">
-                <span className="font-bold rounded-full" style={{ fontSize: 12, background: "#1A7F37", color: "#fff", padding: "2px 8px" }}>
-                  {(BLEND_APY * 100).toFixed(1)}% APY
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold rounded-full" style={{ fontSize: 12, background: "#1A7F37", color: "#fff", padding: "2px 8px" }}>
+                    {(NET_APY * 100).toFixed(2)}% net APY
+                  </span>
+                  <span style={{ fontSize: 11, color: "#15803D" }}>paid to you</span>
+                </div>
+                <span style={{ fontSize: 10, color: "#15803D", opacity: 0.7, fontWeight: 600 }}>
+                  Gross {(GROSS_APY * 100).toFixed(2)}% · Fee {(FEE_BPS / 100).toFixed(2)}%
                 </span>
-                <span style={{ fontSize: 11, color: "#15803D" }}>via Blend USDC pool on Stellar</span>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 {[
@@ -729,7 +750,7 @@ function LedgerRow({
               ${fmt(blendPosition.deposited + blendPosition.accrued)} USDC
             </div>
             <div style={{ fontSize: 11, color: "#15803D", opacity: 0.8 }}>
-              +${fmt(blendPosition.deposited * DEFAULT_APY / 365)}/day
+              +${fmt(blendPosition.deposited * DEFAULT_NET_APY / 365)}/day
             </div>
           </div>
         ) : (
