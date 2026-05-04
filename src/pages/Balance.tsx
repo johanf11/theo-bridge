@@ -1048,11 +1048,6 @@ function LedgerRow({
           <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>—</span>
         )}
       </td>
-      <td className="px-5 py-3">
-        <span className="rounded-full font-bold" style={{ background: "#EFFBF3", color: "#1A7F37", fontSize: 11, padding: "3px 8px" }}>
-          Active
-        </span>
-      </td>
     </tr>
   );
 }
