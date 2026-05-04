@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { fetchHorizonUsdcBalance } from "@/lib/balance";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
+import { useBlendPositions } from "@/hooks/useBlendPositions";
 import { usePermissions } from "@/hooks/usePermissions";
 import { TrendingUp, Zap, X, Loader2, ArrowDownToLine, ArrowUpFromLine, Info } from "lucide-react";
 
