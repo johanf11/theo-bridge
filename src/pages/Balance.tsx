@@ -8,7 +8,7 @@ import { fetchHorizonUsdcBalance } from "@/lib/balance";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useBlendPositions } from "@/hooks/useBlendPositions";
 import { usePermissions } from "@/hooks/usePermissions";
-import { TrendingUp, Zap, X, Loader2, ArrowDownToLine, ArrowUpFromLine, Info } from "lucide-react";
+import { TrendingUp, Zap, X, Loader2, ArrowDownToLine, ArrowUpFromLine, Info, ArrowLeftRight } from "lucide-react";
 
 type Wallet = {
   id: string;
