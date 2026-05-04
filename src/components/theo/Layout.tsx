@@ -410,8 +410,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     navigate("/");
   };
 
-  const initials = user?.email?.slice(0, 2).toUpperCase() ?? "TB";
-  const displayName = user?.email?.split("@")[0] ?? "User";
+  const displayName =
+    user?.user_metadata?.display_name ||
+    user?.email?.split("@")[0] ||
+    "User";
+  const initials = displayName.slice(0, 2).toUpperCase();
 
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "hsl(var(--theo-cream))" }}>

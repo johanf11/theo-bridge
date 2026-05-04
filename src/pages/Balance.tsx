@@ -59,6 +59,7 @@ export default function Balance() {
   const [sweepAmount, setSweepAmount] = useState("");
   const [sweeping, setSweeping] = useState(false);
   const [withdrawingId, setWithdrawingId] = useState<string | null>(null);
+  const [showBlendTooltip, setShowBlendTooltip] = useState(false);
 
   const totalEarning = useMemo(() =>
     Object.values(blendPositions).reduce((s, p) => s + p.deposited + p.accrued, 0), [blendPositions]);
@@ -319,8 +320,41 @@ export default function Balance() {
               <Zap size={18} color="#fff" />
             </div>
             <div>
-              <div className="font-bold" style={{ fontSize: 14, color: "#14532D" }}>
+              <div className="font-bold flex items-center gap-1.5" style={{ fontSize: 14, color: "#14532D" }}>
                 Earn {(BLEND_APY * 100).toFixed(1)}% APY on idle USDC
+                <span
+                  style={{ position: "relative", display: "inline-flex", alignItems: "center" }}
+                  onMouseEnter={() => setShowBlendTooltip(true)}
+                  onMouseLeave={() => setShowBlendTooltip(false)}
+                >
+                  <Info size={13} color="#166534" style={{ cursor: "pointer", opacity: 0.7 }} />
+                  {showBlendTooltip && (
+                    <div style={{
+                      position: "absolute", bottom: "calc(100% + 6px)", left: "50%",
+                      transform: "translateX(-50%)", background: "#14532D", color: "#fff",
+                      borderRadius: 7, padding: "7px 10px", fontSize: 11, whiteSpace: "nowrap",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.18)", zIndex: 50, lineHeight: 1.5,
+                    }}>
+                      Powered by Blend Protocol on Stellar.
+                      <br />
+                      <a
+                        href="https://blend.capital"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: "#86EFAC", fontWeight: 700, textDecoration: "underline" }}
+                      >
+                        Learn more at blend.capital ↗
+                      </a>
+                      {/* tooltip arrow */}
+                      <div style={{
+                        position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)",
+                        width: 0, height: 0,
+                        borderLeft: "5px solid transparent", borderRight: "5px solid transparent",
+                        borderTop: "5px solid #14532D",
+                      }} />
+                    </div>
+                  )}
+                </span>
               </div>
               <div style={{ fontSize: 12, color: "#166534", marginTop: 2 }}>
                 Sweep funds into Blend's USDC liquidity pool — withdraw anytime.
