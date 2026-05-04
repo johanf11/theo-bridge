@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { Shield, Home, Bell, Lock, Users, ChevronDown, ChevronUp } from "lucide-react";
+import { Shield, Home, Bell, Lock, Users, ChevronDown, ChevronUp, User, Check, Loader2 } from "lucide-react";
 import { WalletKeys } from "@/components/theo/WalletKeys";
 import { usePermissions, type Permission } from "@/hooks/usePermissions";
 
@@ -150,6 +150,27 @@ export default function Settings() {
   const [inviteRoleId, setInviteRoleId] = useState("");
   const [showInvite, setShowInvite] = useState(false);
 
+  // Display name
+  const [displayName, setDisplayName] = useState("");
+  const [savingName, setSavingName] = useState(false);
+  const [nameSaved, setNameSaved] = useState(false);
+
+  // Initialise display name from user metadata once user loads
+  useEffect(() => {
+    if (!user) return;
+    setDisplayName(user.user_metadata?.display_name || user.email?.split("@")[0] || "");
+  }, [user?.id]);
+
+  const handleSaveName = async () => {
+    const trimmed = displayName.trim();
+    if (!trimmed) return;
+    setSavingName(true);
+    await supabase.auth.updateUser({ data: { display_name: trimmed } });
+    setSavingName(false);
+    setNameSaved(true);
+    setTimeout(() => setNameSaved(false), 2000);
+  };
+
   useEffect(() => {
     supabase.from("customers").select("id, company_name, kyb_status").maybeSingle().then(({ data }) => {
       setCustomer(data as Customer | null);
@@ -234,7 +255,8 @@ export default function Settings() {
   };
 
   const kybPending = customer?.kyb_status !== "APPROVED";
-  const initials = user?.email?.slice(0, 2).toUpperCase() ?? "TB";
+  const savedName = user?.user_metadata?.display_name || user?.email?.split("@")[0] || "Owner";
+  const initials = savedName.slice(0, 2).toUpperCase();
 
   const getRoleName = (roleId: string) => roles.find((r) => r.id === roleId)?.name ?? "—";
 
@@ -280,6 +302,61 @@ export default function Settings() {
       <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "1fr 1fr", alignItems: "start" }}>
         {/* Left */}
         <div className="flex flex-col gap-4">
+
+          {/* Your profile */}
+          <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
+            <SectionHeader icon={User} title="Your profile" />
+            <div className="p-5">
+              {/* Avatar + email */}
+              <div className="flex items-center gap-3 mb-4 pb-4" style={{ borderBottom: "1px solid hsl(var(--border))" }}>
+                <div className="flex items-center justify-center font-extrabold rounded-full flex-shrink-0" style={{ width: 44, height: 44, background: "hsl(var(--theo-gold))", color: "hsl(var(--theo-blue))", fontSize: 16 }}>
+                  {initials}
+                </div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "hsl(var(--theo-ink))" }}>{savedName}</div>
+                  <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))", marginTop: 2 }}>{user?.email}</div>
+                </div>
+              </div>
+
+              {/* Display name input */}
+              <label className="block mb-3">
+                <span className="block font-bold uppercase mb-1.5" style={{ fontSize: 10, letterSpacing: "0.10em", color: "hsl(var(--theo-mid))" }}>
+                  Display name
+                </span>
+                <input
+                  value={displayName}
+                  onChange={(e) => { setDisplayName(e.target.value); setNameSaved(false); }}
+                  onKeyDown={(e) => e.key === "Enter" && handleSaveName()}
+                  maxLength={60}
+                  placeholder="Your name"
+                  className="w-full rounded-[9px] border border-border outline-none"
+                  style={{ fontFamily: "inherit", fontSize: 14, padding: "10px 12px", color: "hsl(var(--theo-ink))" }}
+                />
+                <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 5 }}>
+                  Shown on invoices, receipts, and team lists.
+                </div>
+              </label>
+
+              <button
+                onClick={handleSaveName}
+                disabled={savingName || !displayName.trim()}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  background: nameSaved ? "#1A7F37" : "hsl(var(--theo-blue))",
+                  border: "none", color: "#fff", borderRadius: 7,
+                  padding: "7px 14px", fontSize: 12, fontWeight: 700,
+                  cursor: savingName || !displayName.trim() ? "not-allowed" : "pointer",
+                  fontFamily: "inherit", opacity: !displayName.trim() ? 0.5 : 1,
+                  transition: "background 200ms",
+                }}
+              >
+                {savingName ? <><Loader2 size={12} className="animate-spin" /> Saving…</>
+                  : nameSaved ? <><Check size={12} /> Saved</>
+                  : "Save name"}
+              </button>
+            </div>
+          </div>
+
           <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
             <SectionHeader icon={Home} title="Business profile" />
             <div className="p-5">
@@ -389,7 +466,7 @@ export default function Settings() {
                     {initials}
                   </div>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--theo-blue))" }}>{user?.email?.split("@")[0] ?? "Owner"}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--theo-blue))" }}>{savedName}</div>
                     <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>Owner · {user?.email}</div>
                   </div>
                 </div>
