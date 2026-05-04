@@ -1,81 +1,112 @@
+## Goal
 
-# End-to-end Stellar testnet release
+Replace the stubbed `handleSweep` in `src/pages/Balance.tsx` with a real Soroban contract call to a Blend Capital lending pool on Stellar testnet. Same pattern as `send-payment`: signing happens server-side in an edge function using the wallet's `stellar_secret`, so the browser never touches keys.
 
-Goal: take an order all the way from `QUOTED → FUNDED → RELEASING → COMPLETED` with a real Stellar testnet transaction hash.
+## Approach
 
-## 1. Secrets to add (build mode)
+Mirror the existing `send-payment` architecture. Create two new edge functions that wrap the Blend SDK and a new `blend_positions` table to track on-chain state. Wire the UI to invoke them and refresh real positions instead of mutating local React state.
 
-- `STELLAR_DISTRIBUTOR_SECRET` — `S…` secret key of the Theo testnet distributor account.
-- `STELLAR_USDC_ISSUER` — `G…` issuer of the test USDC asset (we'll use one we control on testnet so we can mint freely).
-- `STELLAR_NETWORK` — defaults to `"testnet"` if unset.
+## Backend
 
-I'll prompt for these via `add_secret` once we enter build mode.
+### 1. Migration — `blend_positions` table
 
-## 2. Edge function: `simulate-spih-payment`
+```text
+blend_positions
+  id              uuid pk
+  customer_id     uuid -> customers(id)
+  wallet_id       uuid -> wallets(id)
+  pool_address    text                 -- Blend pool contract id
+  reserve_asset   text default 'USDC'
+  deposited_usdc  numeric(20,7) default 0
+  last_tx_hash    text
+  last_synced_at  timestamptz
+  created_at, updated_at
+  unique (wallet_id, pool_address)
+```
 
-Path: `supabase/functions/simulate-spih-payment/index.ts`
+RLS: customers can SELECT their own rows (via `customer_id` -> `customers.user_id = auth.uid()`); writes only via service_role.
 
-- POST `{ orderId }`. Validates JWT, checks `has_role(uid, 'admin')`.
-- Conditional update: `orders SET status='FUNDED', funded_at=now() WHERE id=:id AND status='QUOTED'` (idempotent lock).
-- If row updated: invoke `release-usdc` with the same `orderId` (fire-and-forget via `supabase.functions.invoke`).
-- Returns `{ ok: true, status: 'FUNDED' }`.
+### 2. Edge function `blend-sweep`
 
-## 3. Edge function: `release-usdc`
+Path: `supabase/functions/blend-sweep/index.ts`
 
-Path: `supabase/functions/release-usdc/index.ts`
+- Auth: verify caller JWT, resolve `customer_id`.
+- Body: `{ sourceWalletId, amount }`. Validate with Zod; amount > 0.
+- Load wallet (must belong to customer) → get `stellar_address` + `stellar_secret`.
+- Build Soroban tx using `npm:@blend-capital/blend-sdk` and `npm:@stellar/stellar-sdk@12.3.0`:
+  - Use Blend testnet pool address (from SDK constants or env `BLEND_POOL_ADDRESS`).
+  - Build `RequestType.SupplyCollateral` (or `Supply`) request via `PoolContractV1.submit({ from, spender, to, requests: [{ request_type, address: USDC_ASSET_ADDRESS, amount }] })`.
+  - Wrap with `SorobanRpc.Server('https://soroban-testnet.stellar.org')`, simulate → assemble → sign with `Keypair.fromSecret` → submit → poll until success.
+- On success: upsert `blend_positions` row (add to `deposited_usdc`, store `last_tx_hash`, `last_synced_at = now()`).
+- Return `{ ok, hash, position }`.
+- On failure: return 502 with the Soroban diagnostic event message; do not write to DB.
 
-- POST `{ orderId }`. Service-role internal — admin JWT or shared check.
-- Conditional update: `status='RELEASING' WHERE id=:id AND status='FUNDED'` to lock.
-- Load order + customer (`stellar_wallet_address`, `usdc_amount`, `reference_number`).
-- Build with `npm:@stellar/stellar-sdk`:
-  - `Server('https://horizon-testnet.stellar.org')`
-  - load distributor account
-  - `Operation.payment({ destination, asset: new Asset('USDC', issuer), amount })`
-  - `Memo.text(reference_number)` for idempotent reconciliation
-  - sign with `Keypair.fromSecret(...)`, network = `Networks.TESTNET`
-  - submit to Horizon
-- Success: `status='COMPLETED'`, `stellar_tx_hash=<hash>`, `released_at=now()`, `completed_at=now()`.
-- Failure: `status='FAILED'`, `failure_reason=<error>`.
+### 3. Edge function `blend-withdraw`
 
-`supabase/config.toml` gets entries for both functions (verify_jwt = false, validate in code).
+Path: `supabase/functions/blend-withdraw/index.ts`
 
-## 4. UI: `src/pages/OrderStatus.tsx`
+- Same auth/loading.
+- Body: `{ walletId, amount }` (amount can be `"max"` → use position's deposited+accrued from on-chain query).
+- Build a `RequestType.Withdraw` (or `WithdrawCollateral`) submit call against the same pool, signed by the wallet keypair.
+- On success: subtract from `deposited_usdc`; if 0, delete row. Update `last_tx_hash`.
 
-- Add admin-only "Simulate SPIH payment received" button when `status === 'QUOTED'`. Calls `supabase.functions.invoke('simulate-spih-payment', { body: { orderId } })`.
-- Add a `RELEASING` info card (spinner + "Sending USDC on Stellar testnet…").
-- Existing realtime subscription will auto-render `COMPLETED` + tx hash + stellar.expert link.
+### 4. Edge function `blend-positions`
 
-## 5. UI: `src/pages/Convert.tsx` — wallet capture for test KYB
+Path: `supabase/functions/blend-positions/index.ts`
 
-- Extend the existing "Approve test KYB" helper with a Stellar `G…` address input that writes `customers.stellar_wallet_address` alongside flipping `kyb_status='APPROVED'` (admin-only path).
+- GET, returns the customer's live positions:
+  - Read `blend_positions` rows (per wallet).
+  - For each, query the Blend pool via SDK (`Pool.load` → `pool.loadUser(address)`) to get the *current* supply balance in USDC (principal + accrued interest in bToken units, converted to underlying).
+  - Return `[{ walletId, walletLabel, deposited, current, accrued, apy }]`. Pull pool APY from `pool.metadata` / reserve data so the UI no longer hard-codes 9.2%.
 
-## 6. Setup steps you'll run once
+### 5. config.toml
 
-I'll include this as a short section in `HANDOFF.md`:
+Add three function blocks with `verify_jwt = false` (we validate inside the function), matching existing convention.
 
-1. Generate distributor keypair at https://laboratory.stellar.org → Account creation → Friendbot fund.
-2. Establish trustline to `USDC:<your test issuer G…>`.
-3. From issuer account, send some USDC to distributor.
-4. Generate customer keypair → Friendbot → USDC trustline.
-5. Paste customer `G…` into "Approve test KYB" on `/convert`.
-6. Add `STELLAR_DISTRIBUTOR_SECRET` + `STELLAR_USDC_ISSUER` secrets when prompted.
+## Frontend (`src/pages/Balance.tsx`)
 
-## Test flow
+- Remove local `BlendPosition` state mutation. Replace with a `useBlendPositions()` hook that calls the `blend-positions` edge function and refreshes after sweep/withdraw.
+- Replace `BLEND_APY` constant with the live APY returned by the function (fall back to a sensible default while loading).
+- `handleSweep`:
+  ```ts
+  const { data, error } = await supabase.functions.invoke("blend-sweep", {
+    body: { sourceWalletId: sweepWallet.id, amount: sweepAmountNum },
+  });
+  if (error) return toast.error(error.message);
+  await Promise.all([refreshTotal(), loadWallets(), refreshBlend()]);
+  toast.success(`Swept · tx ${data.hash.slice(0,8)}…`);
+  ```
+- `handleWithdraw`: same pattern against `blend-withdraw`, `{ walletId, amount: "max" }`.
+- After both actions, re-fetch live Horizon balances so the wallet card drops by the correct amount (no manual `setBalances` math).
 
-`/convert` → quote 1,000 USDC → `/orders/:id` → "Simulate SPIH payment" → watch `FUNDED → RELEASING → COMPLETED` live → click tx hash → stellar.expert/testnet shows the USDC payment.
+## Secrets to add
+
+- `BLEND_POOL_ADDRESS` — testnet Blend pool contract id (e.g. the public USDC pool from blend.capital docs). I'll prompt via `add_secret` if it's not present.
+- `BLEND_USDC_ASSET_ADDRESS` — Soroban asset contract id for testnet USDC (matches `STELLAR_USDC_ISSUER` wrapped). Optional — can derive at runtime via `Asset.contractId(networkPassphrase)`.
+
+`STELLAR_USDC_ISSUER` and `STELLAR_DISTRIBUTOR_SECRET` are already configured.
+
+## Out of scope
+
+- Multi-pool selection UI — sweeping always targets one configured pool.
+- Mainnet support.
+- Auto-sweep rules / scheduled rebalancing.
+- Position interest accrual chart.
 
 ## Files to add / edit
 
-- `supabase/functions/simulate-spih-payment/index.ts` (new)
-- `supabase/functions/release-usdc/index.ts` (new)
-- `supabase/config.toml` (add function blocks)
-- `src/pages/OrderStatus.tsx` (admin button + RELEASING card)
-- `src/pages/Convert.tsx` (wallet address in test-approve helper)
-- `HANDOFF.md` (testnet setup steps)
+- `supabase/migrations/<ts>_blend_positions.sql` (new)
+- `supabase/functions/blend-sweep/index.ts` (new)
+- `supabase/functions/blend-withdraw/index.ts` (new)
+- `supabase/functions/blend-positions/index.ts` (new)
+- `supabase/config.toml` (add 3 function entries)
+- `src/hooks/useBlendPositions.ts` (new)
+- `src/pages/Balance.tsx` (replace stub handlers + remove hard-coded APY)
 
-## Out of scope (next round)
+## Test plan (testnet)
 
-- Real SPIH CSV import + matcher.
-- `job_queue` worker / scheduled retries (we invoke `release-usdc` inline for now).
-- Customer-side wallet self-service in `/kyb`.
-- Refund path on `FAILED`.
+1. Confirm distributor + a customer wallet have USDC trustline + balance.
+2. UI → "Sweep to Blend" 100 USDC → expect Horizon balance to drop, `blend_positions.deposited_usdc=100`, tx visible on stellar.expert/testnet (Soroban invoke).
+3. Reload Balance page → live position pulled from on-chain shows ≥100 USDC supplied.
+4. "Withdraw" → balance returns, row deleted, tx hash visible.
+5. Failure path: try sweep with 0 trustline → function returns 502 with diagnostic, UI toasts the error, no DB row.
