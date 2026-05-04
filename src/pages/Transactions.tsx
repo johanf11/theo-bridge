@@ -51,7 +51,7 @@ export default function Transactions() {
 
       const cutoff = dateCutoff(dateFilter);
 
-      const [{ data: orders }, { data: payouts }] = await Promise.all([
+      const [{ data: orders }, { data: payouts }, { data: yields }] = await Promise.all([
         supabase
           .from("orders")
           .select("id, status, usdc_amount, htg_amount, reference_number, created_at, stellar_tx_hash")
@@ -64,6 +64,12 @@ export default function Transactions() {
           .eq("customer_id", c.id)
           .gte("created_at", cutoff)
           .order("created_at", { ascending: false }),
+        supabase
+          .from("blend_positions")
+          .select("id, deposited_usdc, deposited_at, last_tx_hash, wallet_id, wallets:wallet_id(label)")
+          .eq("customer_id", c.id)
+          .gte("deposited_at", cutoff)
+          .order("deposited_at", { ascending: false }),
       ]);
 
       const merged: UnifiedTx[] = [
@@ -87,6 +93,19 @@ export default function Transactions() {
           recipient_name: p.recipient_name,
           memo: p.memo,
         })),
+        ...(yields ?? []).map((y) => {
+          // Fetch wallet label via separate lookup map below; here just default.
+          const label = (y as { wallets?: { label?: string | null } | null }).wallets?.label ?? "Wallet";
+          return {
+            id: y.id,
+            type: "yield" as TxType,
+            created_at: y.deposited_at,
+            usdc_amount: Number(y.deposited_usdc),
+            status: "COMPLETED",
+            stellar_tx_hash: y.last_tx_hash ?? null,
+            wallet_label: label,
+          };
+        }),
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       setAll(merged);
