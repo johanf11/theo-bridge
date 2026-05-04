@@ -606,7 +606,7 @@ export default function Balance() {
           <table className="w-full border-collapse">
             <thead>
               <tr style={{ background: "hsl(var(--theo-cream))" }}>
-                {["Account", "Account ID", "Available", "HTG-C", "Yield Balance", "Status"].map((h) => (
+                {["Account", "Account ID", "Available", "HTG-C", "Yield Balance"].map((h) => (
                   <th key={h} className="text-left px-5 py-2.5 border-b border-border" style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.10em", color: "hsl(var(--theo-mid))" }}>
                     {h}
                   </th>
@@ -1047,11 +1047,6 @@ function LedgerRow({
         ) : (
           <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>—</span>
         )}
-      </td>
-      <td className="px-5 py-3">
-        <span className="rounded-full font-bold" style={{ background: "#EFFBF3", color: "#1A7F37", fontSize: 11, padding: "3px 8px" }}>
-          Active
-        </span>
       </td>
     </tr>
   );
