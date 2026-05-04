@@ -54,7 +54,7 @@ export default function Balance() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
 
-  // Blend yield — live from edge function (now synthetic gross/net/fee split)
+  // Yield — live from edge function (now synthetic gross/net/fee split)
   const {
     positions: livePositions,
     grossApy: liveGrossApy,
@@ -256,7 +256,7 @@ export default function Balance() {
             Balance
           </div>
           <div style={{ fontSize: 13, color: "hsl(var(--theo-mid))", marginTop: 2 }}>
-            Multi-wallet overview with Blend yield.
+            Multi-wallet overview with yield.
           </div>
         </div>
         <div className="flex gap-2">
@@ -319,7 +319,7 @@ export default function Balance() {
         </div>
       </div>
 
-      {/* ── Blend yield panel ── */}
+      {/* ── Yield panel ── */}
       {hasPositions ? (
         <div className="rounded-2xl mb-4 overflow-hidden" style={{ border: "1.5px solid #86EFAC", background: "#F0FDF4" }}>
           {/* Header row */}
@@ -329,7 +329,7 @@ export default function Balance() {
                 <TrendingUp size={14} color="#fff" />
               </div>
               <span className="font-bold uppercase" style={{ fontSize: 11, letterSpacing: "0.14em", color: "#15803D" }}>
-                Blend yield
+                Yield
               </span>
             </div>
             <div className="flex items-center gap-2">
