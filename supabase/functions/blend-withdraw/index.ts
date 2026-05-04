@@ -55,11 +55,12 @@ Deno.serve(async (req) => {
       .eq("wallet_id", walletId).eq("pool_address", TREASURY_POOL_ID).maybeSingle();
     if (!position) return json({ error: "No yield position for this wallet" }, 404);
 
-    // Compute accrued yield since deposit (simple interest, demo-grade).
+    // Compute accrued yield since deposit (continuous compounding).
     const principal = Number(position.deposited_usdc);
     const netApy = Number(position.net_apy);
     const elapsedSec = (Date.now() - new Date(position.deposited_at).getTime()) / 1000;
-    const accrued = principal * netApy * (elapsedSec / (365 * 24 * 3600));
+    const years = elapsedSec / (365 * 24 * 3600);
+    const accrued = principal * (Math.exp(netApy * years) - 1);
     const totalAvailable = principal + accrued;
 
     const isMax = amount === "max" || amount === undefined;
