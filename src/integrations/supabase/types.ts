@@ -377,6 +377,41 @@ export type Database = {
           },
         ]
       }
+      saved_recipients: {
+        Row: {
+          created_at: string
+          customer_id: string
+          id: string
+          label: string | null
+          name: string
+          stellar_address: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          id?: string
+          label?: string | null
+          name: string
+          stellar_address: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          id?: string
+          label?: string | null
+          name?: string
+          stellar_address?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_recipients_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       spih_imports: {
         Row: {
           created_at: string
