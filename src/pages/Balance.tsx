@@ -262,7 +262,7 @@ export default function Balance() {
           </div>
 
           {/* Stats row */}
-          <div className="grid grid-cols-3 divide-x" style={{ borderBottom: "1px solid #BBF7D0", divideColor: "#BBF7D0" }}>
+          <div className="grid grid-cols-3 divide-x divide-[#BBF7D0]" style={{ borderBottom: "1px solid #BBF7D0" }}>
             {[
               { label: "Earning", value: `$${fmt(totalEarning)}`, sub: "deposited in Blend" },
               { label: "Accrued today", value: `+$${fmt(totalAccruedToday)}`, sub: "at current APY" },
