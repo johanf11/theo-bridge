@@ -204,6 +204,47 @@ export default function Balance() {
     await Promise.all([loadWallets(), refreshBlend(), refreshTotal()]);
   };
 
+  const openMoveModal = (sourceId?: string) => {
+    const src = sourceId && wallets.find((w) => w.id === sourceId) ? sourceId : (wallets[0]?.id ?? "");
+    const dst = wallets.find((w) => w.id !== src)?.id ?? "";
+    setMoveSourceId(src);
+    setMoveDestId(dst);
+    setMoveAmount("");
+    setMoveMemo("");
+    setMoveOpen(true);
+  };
+
+  const moveAmountNum = parseFloat(moveAmount) || 0;
+  const moveSourceBalance = moveSourceId ? (balances[moveSourceId] ?? 0) : 0;
+  const moveSourceLabel = wallets.find((w) => w.id === moveSourceId)?.label ?? "Source";
+  const moveDestLabel = wallets.find((w) => w.id === moveDestId)?.label ?? "Destination";
+  const moveValid =
+    moveSourceId && moveDestId && moveSourceId !== moveDestId &&
+    moveAmountNum > 0 && moveAmountNum <= moveSourceBalance;
+
+  const handleMove = async () => {
+    if (!moveValid) return;
+    setMoving(true);
+    const { data, error } = await supabase.functions.invoke("move-funds", {
+      body: {
+        sourceWalletId: moveSourceId,
+        destinationWalletId: moveDestId,
+        amount: moveAmountNum,
+        memo: moveMemo.trim() || undefined,
+      },
+    });
+    setMoving(false);
+    if (error || (data as { error?: string })?.error) {
+      const msg = (data as { error?: string })?.error ?? error?.message ?? "Transfer failed";
+      toast.error(msg);
+      return;
+    }
+    const hash = (data as { hash?: string })?.hash ?? "";
+    toast.success(`Moved $${fmt(moveAmountNum)} from ${moveSourceLabel} to ${moveDestLabel} · ${hash.slice(0, 8)}…`);
+    setMoveOpen(false);
+    await Promise.all([loadWallets(), refreshTotal()]);
+  };
+
   const walletColors = ["hsl(var(--theo-blue))", "#1A2966", "#0F1D54"];
 
   return (
