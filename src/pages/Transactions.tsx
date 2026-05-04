@@ -66,11 +66,18 @@ export default function Transactions() {
           .order("created_at", { ascending: false }),
         supabase
           .from("blend_positions")
-          .select("id, deposited_usdc, deposited_at, last_tx_hash, wallet_id, wallets:wallet_id(label)")
+          .select("id, deposited_usdc, deposited_at, last_tx_hash, wallet_id")
           .eq("customer_id", c.id)
           .gte("deposited_at", cutoff)
           .order("deposited_at", { ascending: false }),
       ]);
+
+      // Look up wallet labels for yield rows (no FK so embed isn't reliable).
+      const yieldWalletIds = Array.from(new Set((yields ?? []).map((y) => y.wallet_id).filter(Boolean)));
+      const { data: wRows } = yieldWalletIds.length
+        ? await supabase.from("wallets").select("id, label").in("id", yieldWalletIds)
+        : { data: [] as { id: string; label: string | null }[] };
+      const walletLabel = new Map((wRows ?? []).map((w) => [w.id, w.label ?? "Wallet"]));
 
       const merged: UnifiedTx[] = [
         ...(orders ?? []).map((o) => ({
