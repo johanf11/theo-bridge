@@ -45,7 +45,36 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Conditional update — idempotent lock
+    // Look up the order to branch on kind
+    const { data: existing, error: exErr } = await admin
+      .from("orders")
+      .select("id, status, order_kind")
+      .eq("id", orderId)
+      .maybeSingle();
+    if (exErr) throw exErr;
+    if (!existing || existing.status !== "QUOTED") {
+      return new Response(JSON.stringify({ error: "Order not in QUOTED state" }), {
+        status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const isMint = (existing as { order_kind?: string }).order_kind === "htgc_mint";
+
+    if (isMint) {
+      // HTG-C mint: 1:1, no Stellar release needed for the demo flow.
+      const now = new Date().toISOString();
+      const { error: cErr } = await admin
+        .from("orders")
+        .update({ status: "COMPLETED", funded_at: now, completed_at: now })
+        .eq("id", orderId)
+        .eq("status", "QUOTED");
+      if (cErr) throw cErr;
+      return new Response(JSON.stringify({ ok: true, status: "COMPLETED" }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Standard USDC conversion path
     const { data: updated, error: upErr } = await admin
       .from("orders")
       .update({ status: "FUNDED", funded_at: new Date().toISOString() })
@@ -60,7 +89,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Fire-and-forget release-usdc
     admin.functions.invoke("release-usdc", { body: { orderId } }).catch((e) => {
       console.error("release-usdc invoke failed", e);
     });
