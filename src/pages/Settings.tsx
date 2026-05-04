@@ -6,9 +6,17 @@ import { useAuth } from "@/lib/auth";
 import { Shield, Home, Bell, Lock, Users, ChevronDown, ChevronUp, User, Check, Loader2 } from "lucide-react";
 import { WalletKeys } from "@/components/theo/WalletKeys";
 import { usePermissions, type Permission } from "@/hooks/usePermissions";
+import { toast } from "sonner";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-type Customer = { id: string; company_name: string; kyb_status: string };
+type Customer = {
+  id: string;
+  company_name: string;
+  kyb_status: string;
+  legal_name: string | null;
+  registration_number: string | null;
+  country: string | null;
+};
 
 type OrgRole = {
   id: string;
