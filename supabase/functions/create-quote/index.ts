@@ -103,41 +103,55 @@ Deno.serve(async (req) => {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (customer.kyb_status !== "APPROVED") {
+    if (customer.kyb_status !== "APPROVED" && orderKind === "usdc_conversion") {
       return new Response(JSON.stringify({ error: "KYB approval required before requesting quotes" }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Latest spot rate
-    const { data: rate } = await admin
-      .from("rate_snapshots")
-      .select("spot_rate")
-      .order("captured_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const spot = Number(rate?.spot_rate ?? 130);
-    const customerRate = spot + FORWARD_PREMIUM + MARGIN;
-    const htgRequired = Math.round(usdc * customerRate * 100) / 100;
     const referenceNumber = generateReference();
     const expiresAt = new Date(Date.now() + QUOTE_TTL_MIN * 60 * 1000).toISOString();
 
+    let htgRequired = 0;
+    let customerRate: number | null = null;
+    let spot: number | null = null;
+
+    if (orderKind === "usdc_conversion") {
+      const { data: rate } = await admin
+        .from("rate_snapshots")
+        .select("spot_rate")
+        .order("captured_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      spot = Number(rate?.spot_rate ?? 130);
+      customerRate = spot + FORWARD_PREMIUM + MARGIN;
+      htgRequired = Math.round(usdc * customerRate * 100) / 100;
+    } else {
+      // HTG-C mint: 1:1, no rate
+      htgRequired = Math.round(htgMint * 100) / 100;
+    }
+
+    const insertPayload: Record<string, unknown> = {
+      customer_id: customer.id,
+      status: "QUOTED",
+      htg_amount: htgRequired,
+      forward_premium: FORWARD_PREMIUM,
+      margin: MARGIN,
+      reference_number: referenceNumber,
+      quote_expires_at: expiresAt,
+      destination_wallet_address: destinationWallet || null,
+      destination_stellar_address: destinationWallet || null,
+      order_kind: orderKind,
+    };
+    if (orderKind === "usdc_conversion") {
+      insertPayload.usdc_amount = usdc;
+      insertPayload.rate = customerRate;
+      insertPayload.spot_rate = spot;
+    }
+
     const { data: order, error: insErr } = await admin
       .from("orders")
-      .insert({
-        customer_id: customer.id,
-        status: "QUOTED",
-        htg_amount: htgRequired,
-        usdc_amount: usdc,
-        rate: customerRate,
-        spot_rate: spot,
-        forward_premium: FORWARD_PREMIUM,
-        margin: MARGIN,
-        reference_number: referenceNumber,
-        quote_expires_at: expiresAt,
-        destination_wallet_address: destinationWallet || null,
-        destination_stellar_address: destinationWallet || null,
-      })
+      .insert(insertPayload)
       .select()
       .single();
     if (insErr) throw insErr;
