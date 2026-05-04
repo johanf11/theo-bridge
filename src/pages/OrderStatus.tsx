@@ -3,10 +3,8 @@ import { useParams, Link } from "react-router-dom";
 import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { useRoles } from "@/lib/auth";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { fmtHTG, fmtRate, fmtUSDC } from "@/lib/format";
-import { Copy, ExternalLink, CheckCircle2, Clock, Loader2, CreditCard, AlertTriangle, Hourglass, ArrowLeftRight } from "lucide-react";
+import { Copy, ExternalLink, CheckCircle2, Clock, Loader2, CreditCard, AlertTriangle, Hourglass } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -78,8 +76,8 @@ export default function OrderStatus() {
     <AppLayout>
       {/* Header */}
       <div className="mb-6">
-        <Link to="/convert" className="text-sm font-medium text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
-          ← Back to Convert
+        <Link to="/" className="text-sm font-medium text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
+          ← Back to dashboard
         </Link>
         <div className="flex items-start justify-between gap-4 mt-3">
           <div>
@@ -115,36 +113,43 @@ export default function OrderStatus() {
       </div>
 
       {/* Stepper */}
-      <Card className="mb-6">
-        <CardContent className="py-7 px-6">
-          <div className="flex items-start justify-between gap-2">
-            {STEPS.map((s, i) => {
-              const reached = !isTerminalFail && i <= idx;
-              const done = !isTerminalFail && i < idx;
-              const active = !isTerminalFail && i === idx && order.status !== "COMPLETED";
-              return (
-                <div key={s.key} className="flex-1 flex items-start">
-                  <div className="flex flex-col items-center text-center min-w-0 flex-1">
-                    <div className={cn(
-                      "h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors",
-                      reached ? "bg-primary border-primary text-primary-foreground" : "bg-card border-border text-muted-foreground",
-                    )}>
-                      {done || order.status === "COMPLETED" && i <= idx ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
-                    </div>
-                    <div className={cn("mt-2 text-sm font-semibold truncate", reached ? "text-foreground" : "text-muted-foreground")}>
-                      {s.label}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-0.5">{s.sub}</div>
+      <div className="rounded-2xl border border-border bg-card mb-6 px-6 py-7">
+        <div className="flex items-start justify-between gap-2">
+          {STEPS.map((s, i) => {
+            const reached = !isTerminalFail && i <= idx;
+            const done = !isTerminalFail && i < idx;
+            return (
+              <div key={s.key} className="flex-1 flex items-start">
+                <div className="flex flex-col items-center text-center min-w-0 flex-1">
+                  <div style={{
+                    height: 32, width: 32, borderRadius: 99,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 12, fontWeight: 700, transition: "all 150ms",
+                    background: reached ? "hsl(var(--theo-blue))" : "transparent",
+                    border: `2px solid ${reached ? "hsl(var(--theo-blue))" : "hsl(var(--border))"}`,
+                    color: reached ? "#fff" : "hsl(var(--theo-mid))",
+                  }}>
+                    {(done || (order.status === "COMPLETED" && i <= idx)) ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
                   </div>
-                  {i < STEPS.length - 1 && (
-                    <div className={cn("flex-1 h-[2px] mt-4 mx-1", reached && i < idx ? "bg-primary" : "bg-border")} />
-                  )}
+                  <div style={{
+                    marginTop: 8, fontSize: 13, fontWeight: 700,
+                    color: reached ? "hsl(var(--theo-blue))" : "hsl(var(--theo-mid))",
+                  }}>
+                    {s.label}
+                  </div>
+                  <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 2 }}>{s.sub}</div>
                 </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+                {i < STEPS.length - 1 && (
+                  <div style={{
+                    flex: 1, height: 2, marginTop: 15, marginLeft: 4, marginRight: 4,
+                    background: (reached && i < idx) ? "hsl(var(--theo-blue))" : "hsl(var(--border))",
+                  }} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Quote details — gold highlight on USDC */}
       <div className="grid md:grid-cols-3 gap-4 mb-6">
@@ -213,9 +218,7 @@ export default function OrderStatus() {
               </button>
               {debugOpen && (
                 <div className="px-5 pb-4">
-                  <Button
-                    size="sm"
-                    variant="outline"
+                  <button
                     disabled={simulating}
                     onClick={async () => {
                       setSimulating(true);
@@ -224,10 +227,17 @@ export default function OrderStatus() {
                       if (error) toast.error(error.message);
                       else toast.success("Payment simulated — releasing USDC");
                     }}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 6,
+                      background: "transparent", border: "1.5px solid hsl(var(--border))",
+                      color: "hsl(var(--theo-ink))", borderRadius: 7, padding: "7px 14px",
+                      fontSize: 12, fontWeight: 600, cursor: simulating ? "wait" : "pointer",
+                      fontFamily: "inherit", opacity: simulating ? 0.6 : 1,
+                    }}
                   >
-                    {simulating && <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />}
+                    {simulating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                     Simulate SPIH payment received
-                  </Button>
+                  </button>
                 </div>
               )}
             </div>
@@ -237,79 +247,111 @@ export default function OrderStatus() {
 
       {/* RELEASING */}
       {(order.status === "FUNDED" || order.status === "RELEASING") && (
-        <Card className="border-theo-cyan/30 bg-theo-blue-soft mb-6">
-          <CardContent className="py-5">
-            <div className="font-display text-lg font-bold text-theo-blue flex items-center gap-2 mb-1">
-              <Loader2 className="h-5 w-5 animate-spin" />
+        <div className="rounded-2xl mb-6 p-5 flex items-center gap-4" style={{ background: "hsl(var(--theo-cyan-soft))", border: "1.5px solid hsl(var(--theo-cyan) / 0.35)" }}>
+          <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "hsl(var(--theo-blue) / 0.08)", border: "1.5px solid hsl(var(--theo-cyan) / 0.35)" }}>
+            <Loader2 className="h-5 w-5 animate-spin" style={{ color: "hsl(var(--theo-blue))" }} />
+          </div>
+          <div>
+            <div className="font-bold text-base" style={{ color: "hsl(var(--theo-blue))", letterSpacing: "-0.01em" }}>
               {order.status === "FUNDED" ? "Payment received" : "Releasing USDC"}
             </div>
-            <p className="text-sm text-muted-foreground">
+            <div className="text-sm mt-0.5" style={{ color: "hsl(var(--theo-mid))" }}>
               {order.status === "FUNDED"
                 ? "Queued for release. This usually completes within a few seconds."
-                : "Confirming on the Theo network. Your receipt ID will appear here once confirmed."}
-            </p>
-          </CardContent>
-        </Card>
+                : "Confirming on the Stellar network. Your transaction hash will appear once confirmed."}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* COMPLETED */}
       {order.status === "COMPLETED" && (
         <>
-          <div className="rounded-2xl bg-primary p-6 mb-4 flex items-center gap-5">
-            <div className="h-12 w-12 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
-              <ArrowLeftRight className="h-6 w-6 text-theo-gold" />
+          {/* Green success banner */}
+          <div className="rounded-2xl mb-4 p-6 flex items-center gap-5" style={{ background: "#EFFBF3", border: "1.5px solid #86EFAC" }}>
+            <div className="h-12 w-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#1A7F37" }}>
+              <CheckCircle2 className="h-6 w-6 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-theo-gold">
+              <div className="text-[11px] font-bold uppercase tracking-[0.18em] mb-1" style={{ color: "#1A7F37" }}>
                 Conversion complete
               </div>
-              <div className="font-display text-2xl md:text-3xl font-extrabold text-primary-foreground mt-1 tracking-tight">
+              <div className="font-extrabold text-2xl md:text-3xl tracking-tight" style={{ color: "#14532D", letterSpacing: "-0.02em" }}>
                 {fmtUSDC(Number(order.usdc_amount))} delivered
               </div>
-              <div className="text-sm text-primary-foreground/70 mt-1">
-                Settled to your account · Theo network
+              <div className="text-sm mt-1" style={{ color: "#166534" }}>
+                Settled to your account · Stellar network
               </div>
             </div>
-            <Button asChild className="bg-theo-gold text-theo-blue hover:bg-theo-gold/90 font-semibold shrink-0">
-              <Link to="/balance">View balance →</Link>
-            </Button>
+            <Link
+              to="/balance"
+              style={{
+                background: "hsl(var(--theo-gold))", color: "hsl(var(--theo-blue))",
+                borderRadius: 8, padding: "9px 18px", fontSize: 13,
+                fontWeight: 700, fontFamily: "inherit", textDecoration: "none",
+                whiteSpace: "nowrap", flexShrink: 0,
+              }}
+            >
+              View balance →
+            </Link>
           </div>
 
           {order.stellar_tx_hash && (
-            <Card className="mb-6">
-              <CardContent className="py-5 space-y-3">
-                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-                  Receipt ID
+            <div className="rounded-xl border border-border bg-card mb-6 overflow-hidden">
+              <div className="px-5 py-4 border-b border-border" style={{ background: "hsl(var(--theo-cream))" }}>
+                <div className="text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: "hsl(var(--theo-mid))" }}>
+                  Stellar transaction
                 </div>
+              </div>
+              <div className="px-5 py-4 space-y-3">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <code className="text-xs md:text-sm font-mono text-theo-blue break-all">{order.stellar_tx_hash}</code>
+                  <code className="text-xs md:text-sm font-mono break-all" style={{ color: "hsl(var(--theo-ink))" }}>{order.stellar_tx_hash}</code>
                   <div className="flex items-center gap-2 shrink-0">
-                    <Button size="sm" variant="outline" className="h-9 w-9 p-0" onClick={() => copy(order.stellar_tx_hash!, "Receipt ID")}>
+                    <button
+                      onClick={() => copy(order.stellar_tx_hash!, "Transaction hash")}
+                      style={{
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        height: 32, width: 32, background: "transparent",
+                        border: "1.5px solid hsl(var(--border))", borderRadius: 6,
+                        color: "hsl(var(--theo-mid))", cursor: "pointer",
+                      }}
+                    >
                       <Copy className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button asChild size="sm" variant="outline" className="bg-theo-cyan-soft border-theo-cyan/30 text-theo-blue hover:bg-theo-cyan-soft/80">
-                      <a href={`https://stellar.expert/explorer/testnet/tx/${order.stellar_tx_hash}`} target="_blank" rel="noreferrer">
-                        Verify <ExternalLink className="h-3 w-3 ml-1" />
-                      </a>
-                    </Button>
+                    </button>
+                    <a
+                      href={`https://stellar.expert/explorer/testnet/tx/${order.stellar_tx_hash}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        display: "flex", alignItems: "center", gap: 4,
+                        background: "hsl(var(--theo-cyan-soft))", border: "1.5px solid hsl(var(--theo-cyan) / 0.3)",
+                        color: "hsl(var(--theo-blue))", borderRadius: 6, padding: "5px 10px",
+                        fontSize: 12, fontWeight: 600, fontFamily: "inherit", textDecoration: "none",
+                      }}
+                    >
+                      View <ExternalLink className="h-3 w-3" />
+                    </a>
                   </div>
                 </div>
-                <div className="pt-2 border-t flex items-center gap-2 text-sm font-semibold text-success">
-                  <span className="h-2 w-2 rounded-full bg-success" /> Confirmed on Theo network
+                <div className="pt-3 border-t border-border flex items-center gap-2" style={{ fontSize: 13, fontWeight: 600, color: "#1A7F37" }}>
+                  <span style={{ height: 8, width: 8, borderRadius: 99, background: "#1A7F37", display: "inline-block" }} />
+                  Confirmed on Stellar mainnet
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
         </>
       )}
 
       {isTerminalFail && (
-        <Card className="border-destructive/30 bg-destructive/5">
-          <CardContent className="py-5">
-            <div className="font-display text-lg font-bold text-destructive mb-2">Order {order.status.toLowerCase()}</div>
-            <p className="text-sm">{order.failure_reason ?? "If a payment was sent, our team will contact you about a refund."}</p>
-          </CardContent>
-        </Card>
+        <div className="rounded-2xl p-5 mb-6" style={{ background: "#FDE8E8", border: "1.5px solid #FCA5A5" }}>
+          <div className="font-bold text-base mb-1.5" style={{ color: "#B91C1C" }}>
+            Order {order.status === "EXPIRED" ? "expired" : "failed"}
+          </div>
+          <p className="text-sm" style={{ color: "#7F1D1D" }}>
+            {order.failure_reason ?? "If a payment was sent, our team will contact you about a refund."}
+          </p>
+        </div>
       )}
     </AppLayout>
   );
@@ -321,11 +363,18 @@ function DetailRow({ label, value, copyable, onCopy }:
     <div className="bg-card rounded-xl p-4 border">
       <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
       <div className="flex items-center justify-between gap-2 mt-1.5">
-        <div className="font-mono text-sm font-semibold text-theo-blue">{value}</div>
+        <div className="font-mono text-sm font-semibold" style={{ color: "hsl(var(--theo-ink))" }}>{value}</div>
         {copyable && (
-          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground" onClick={() => onCopy?.(value)}>
+          <button
+            onClick={() => onCopy?.(value)}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center",
+              height: 28, width: 28, background: "transparent", border: "none",
+              color: "hsl(var(--theo-mid))", cursor: "pointer", borderRadius: 6,
+            }}
+          >
             <Copy className="h-3.5 w-3.5" />
-          </Button>
+          </button>
         )}
       </div>
     </div>
@@ -334,15 +383,22 @@ function DetailRow({ label, value, copyable, onCopy }:
 
 function ReferenceRow({ value, onCopy }: { value: string; onCopy: (v: string) => void }) {
   return (
-    <div className="rounded-xl p-4 bg-primary text-primary-foreground">
-      <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-theo-gold">
-        Reference (memo) — Required
+    <div className="rounded-xl p-4" style={{ background: "hsl(var(--theo-blue))", color: "#fff" }}>
+      <div className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--theo-gold))" }}>
+        Reference / Memo — Required
       </div>
       <div className="flex items-center justify-between gap-2 mt-1.5">
         <div className="font-mono text-base font-bold">{value}</div>
-        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-primary-foreground hover:bg-white/10 hover:text-primary-foreground" onClick={() => onCopy(value)}>
+        <button
+          onClick={() => onCopy(value)}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center",
+            height: 32, width: 32, background: "rgba(255,255,255,0.12)", border: "none",
+            color: "#fff", cursor: "pointer", borderRadius: 6,
+          }}
+        >
           <Copy className="h-4 w-4" />
-        </Button>
+        </button>
       </div>
     </div>
   );
