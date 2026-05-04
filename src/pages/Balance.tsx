@@ -514,12 +514,14 @@ export default function Balance() {
                   </div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.50)", marginTop: 4 }}>USDC available</div>
 
-                  {/* Blend position badge */}
-                  {pos && (
-                    <div className="flex items-center gap-1.5 mt-2" style={{ fontSize: 11, color: "#4ADE80", fontWeight: 600 }}>
+                  {/* Blend position badge — reserve a fixed-height row so all cards align */}
+                  {pos ? (
+                    <div className="flex items-center gap-1.5 mt-2" style={{ height: 16, fontSize: 11, color: "#4ADE80", fontWeight: 600 }}>
                       <TrendingUp size={11} />
                       ${fmt(pos.deposited + pos.accrued)} earning · +${fmt(dailyYield(pos.deposited))}/day
                     </div>
+                  ) : (
+                    <div className="mt-2" style={{ height: 16 }} aria-hidden />
                   )}
 
                   {/* Status row */}
