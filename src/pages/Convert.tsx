@@ -602,7 +602,7 @@ export default function Convert() {
               </div>
 
               <div style={{ marginBottom: 14 }}>
-                <label style={labelStyle}>{swapDir === "htgc_to_usdc" ? "HTG-C to convert" : "USDC to convert"}</label>
+                <label style={labelStyle}>{swapDir === "htgc_to_usdc" ? "HTG-C to swap" : "USDC to swap"}</label>
                 <div style={{ position: "relative" }}>
                   <input
                     style={{ ...inputStyle, paddingRight: 64 }}
