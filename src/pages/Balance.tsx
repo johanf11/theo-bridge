@@ -93,7 +93,7 @@ export default function Balance() {
     );
     const balanceMap = Object.fromEntries(entries);
     setBalances(balanceMap);
-    setTotal(Object.values(balanceMap).reduce((s, v) => s + v, 0));
+    refreshTotal();
     setLoading(false);
   };
 
