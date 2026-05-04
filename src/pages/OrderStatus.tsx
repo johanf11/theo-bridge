@@ -4,7 +4,7 @@ import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { useRoles } from "@/lib/auth";
 import { fmtHTG, fmtRate, fmtUSDC } from "@/lib/format";
-import { Copy, ExternalLink, CheckCircle2, Clock, Loader2, CreditCard, AlertTriangle, Hourglass } from "lucide-react";
+import { Copy, ExternalLink, CheckCircle2, Clock, Loader2, CreditCard, AlertTriangle, Hourglass, Check } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -76,8 +76,8 @@ export default function OrderStatus() {
     <AppLayout>
       {/* Header */}
       <div className="mb-6">
-        <Link to="/" className="text-sm font-medium text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
-          ← Back to dashboard
+        <Link to="/convert" className="text-sm font-medium text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
+          ← Back to On / Off Ramp
         </Link>
         <div className="flex items-start justify-between gap-4 mt-3">
           <div>
@@ -267,20 +267,20 @@ export default function OrderStatus() {
       {/* COMPLETED */}
       {order.status === "COMPLETED" && (
         <>
-          {/* Green success banner */}
-          <div className="rounded-2xl mb-4 p-6 flex items-center gap-5" style={{ background: "#EFFBF3", border: "1.5px solid #86EFAC" }}>
-            <div className="h-12 w-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#1A7F37" }}>
-              <CheckCircle2 className="h-6 w-6 text-white" />
+          {/* Navy completion banner */}
+          <div className="rounded-2xl mb-4 p-6 flex items-center gap-5" style={{ background: "hsl(var(--theo-blue))" }}>
+            <div className="h-12 w-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(255,255,255,0.08)", border: "1.5px solid rgba(255,255,255,0.18)" }}>
+              <Check className="h-6 w-6" style={{ color: "hsl(var(--theo-gold))" }} />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-[11px] font-bold uppercase tracking-[0.18em] mb-1" style={{ color: "#1A7F37" }}>
+              <div className="text-[11px] font-bold uppercase tracking-[0.18em] mb-1" style={{ color: "hsl(var(--theo-gold))" }}>
                 Conversion complete
               </div>
-              <div className="font-extrabold text-2xl md:text-3xl tracking-tight" style={{ color: "#14532D", letterSpacing: "-0.02em" }}>
+              <div className="font-extrabold text-2xl md:text-3xl tracking-tight" style={{ color: "#fff", letterSpacing: "-0.02em" }}>
                 {fmtUSDC(Number(order.usdc_amount))} delivered
               </div>
-              <div className="text-sm mt-1" style={{ color: "#166534" }}>
-                Settled to your account · Stellar network
+              <div className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.6)" }}>
+                Settled to your Primary — Operations wallet · Stellar network
               </div>
             </div>
             <Link
