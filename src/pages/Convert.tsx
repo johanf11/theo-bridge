@@ -464,7 +464,7 @@ export default function Convert() {
                   <div style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>
                     <strong>KYB approval required</strong> to convert directly to USDC.{" "}
                     {isAdmin && profile?.kyb_status !== "APPROVED" && (
-                      <button onClick={approveTestKyb} disabled={busy} className="underline cursor-pointer border-none bg-transparent" style={{ fontFamily: "inherit", fontSize: 13, color: "hsl(var(--theo-cyan))" }}>
+                      <button onClick={approveTestKyb} disabled={busy} className="underline cursor-pointer border-none bg-transparent text-theo-cyan" style={{ fontFamily: "inherit", fontSize: 13, color: "hsl(var(--theo-cyan))" }}>
                         Approve test KYB
                       </button>
                     )}
@@ -587,7 +587,7 @@ export default function Convert() {
                   <div style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>
                     <strong>KYB approval required</strong> to unlock swaps.{" "}
                     {isAdmin && profile?.kyb_status !== "APPROVED" && (
-                      <button onClick={approveTestKyb} disabled={busy} className="underline cursor-pointer border-none bg-transparent" style={{ fontFamily: "inherit", fontSize: 13, color: "hsl(var(--theo-cyan))" }}>
+                      <button onClick={approveTestKyb} disabled={busy} className="underline cursor-pointer border-none bg-transparent text-theo-cyan" style={{ fontFamily: "inherit", fontSize: 13, color: "hsl(var(--theo-cyan))" }}>
                         Approve test KYB
                       </button>
                     )}
