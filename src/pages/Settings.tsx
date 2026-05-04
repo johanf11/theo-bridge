@@ -351,9 +351,9 @@ export default function Settings() {
       </div>
 
       {/* Two-column grid */}
-      <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "1fr 1fr", alignItems: "start" }}>
+      <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "1fr 1fr" }}>
         {/* Left */}
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4" style={{ height: "100%" }}>
           <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
             <SectionHeader icon={Home} title="Business profile" />
             <div className="p-5">
@@ -381,7 +381,7 @@ export default function Settings() {
           </div>
 
           {/* Members card */}
-          <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
+          <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden" style={{ flex: 1 }}>
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-border" style={{ background: "hsl(var(--theo-blue-soft))" }}>
               <div className="flex items-center gap-2.5">
                 <Users className="flex-shrink-0" style={{ width: 14, height: 14, stroke: "hsl(var(--theo-blue))", fill: "none", strokeWidth: 2 }} />
@@ -488,7 +488,7 @@ export default function Settings() {
         </div>
 
         {/* Right */}
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4" style={{ height: "100%" }}>
           <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
             <SectionHeader icon={Lock} title="Security" />
             <div className="px-5 py-1">
@@ -502,7 +502,7 @@ export default function Settings() {
             </div>
           </div>
 
-          <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
+          <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden" style={{ flex: 1 }}>
             <SectionHeader icon={Bell} title="Notifications" />
             <div className="px-5 py-1">
               <SettingsRow label="Transaction confirmations" sub="Email on every settled conversion" right={<Toggle on />} />
