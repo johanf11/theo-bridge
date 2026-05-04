@@ -718,6 +718,175 @@ export default function Balance() {
         </div>
       )}
 
+      {/* ── Move funds modal ── */}
+      {moveOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: "rgba(15, 29, 84, 0.45)" }}
+          onClick={() => !moving && setMoveOpen(false)}
+        >
+          <div
+            className="bg-card rounded-2xl shadow-xl"
+            style={{ width: 460, maxWidth: "90vw", padding: 24 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center rounded-lg" style={{ width: 32, height: 32, background: "hsl(var(--theo-blue-soft))" }}>
+                  <ArrowLeftRight size={15} color="hsl(var(--theo-blue))" />
+                </div>
+                <div>
+                  <div className="font-extrabold" style={{ fontSize: 16, color: "hsl(var(--theo-blue))", letterSpacing: "-0.01em" }}>
+                    Move funds
+                  </div>
+                  <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 1 }}>
+                    Between your own accounts · settles in seconds
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setMoveOpen(false)}
+                style={{ background: "transparent", border: "none", cursor: "pointer", padding: 4 }}
+                aria-label="Close"
+              >
+                <X size={16} color="hsl(var(--theo-mid))" />
+              </button>
+            </div>
+
+            {/* From */}
+            <label className="block mb-3">
+              <div className="font-bold uppercase mb-1.5" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>
+                From
+              </div>
+              <select
+                value={moveSourceId}
+                onChange={(e) => setMoveSourceId(e.target.value)}
+                disabled={moving}
+                className="w-full bg-card border border-border rounded-lg"
+                style={{ padding: "10px 12px", fontSize: 13, fontFamily: "inherit", color: "hsl(var(--theo-ink))" }}
+              >
+                {wallets.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.label ?? "Wallet"} · ${fmt(balances[w.id] ?? 0)} available
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {/* To */}
+            <label className="block mb-3">
+              <div className="font-bold uppercase mb-1.5" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>
+                To
+              </div>
+              <select
+                value={moveDestId}
+                onChange={(e) => setMoveDestId(e.target.value)}
+                disabled={moving}
+                className="w-full bg-card border border-border rounded-lg"
+                style={{ padding: "10px 12px", fontSize: 13, fontFamily: "inherit", color: "hsl(var(--theo-ink))" }}
+              >
+                {wallets.filter((w) => w.id !== moveSourceId).map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.label ?? "Wallet"} · ${fmt(balances[w.id] ?? 0)} balance
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {/* Amount */}
+            <label className="block mb-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="font-bold uppercase" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>
+                  Amount
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setMoveAmount(String(moveSourceBalance))}
+                  style={{
+                    background: "hsl(var(--theo-blue-soft))", border: "none",
+                    color: "hsl(var(--theo-blue))", borderRadius: 5, padding: "2px 8px",
+                    fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                  }}
+                >
+                  Max ${fmt(moveSourceBalance)}
+                </button>
+              </div>
+              <div className="flex items-center bg-card border border-border rounded-lg" style={{ padding: "0 12px" }}>
+                <span style={{ fontSize: 16, fontWeight: 700, color: "hsl(var(--theo-mid))", marginRight: 6 }}>$</span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  value={moveAmount}
+                  onChange={(e) => setMoveAmount(e.target.value)}
+                  placeholder="0.00"
+                  disabled={moving}
+                  className="flex-1 bg-transparent outline-none"
+                  style={{ padding: "10px 0", fontSize: 18, fontWeight: 700, fontFamily: "inherit", color: "hsl(var(--theo-ink))" }}
+                />
+                <span style={{ fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>USDC</span>
+              </div>
+              {moveAmountNum > moveSourceBalance && (
+                <div style={{ fontSize: 11, color: "hsl(0 70% 45%)", marginTop: 4 }}>
+                  Exceeds available balance.
+                </div>
+              )}
+            </label>
+
+            {/* Memo (optional) */}
+            <label className="block mb-4">
+              <div className="font-bold uppercase mb-1.5" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>
+                Memo · optional
+              </div>
+              <input
+                type="text"
+                maxLength={28}
+                value={moveMemo}
+                onChange={(e) => setMoveMemo(e.target.value)}
+                placeholder="e.g. payroll top-up"
+                disabled={moving}
+                className="w-full bg-card border border-border rounded-lg"
+                style={{ padding: "10px 12px", fontSize: 13, fontFamily: "inherit", color: "hsl(var(--theo-ink))" }}
+              />
+            </label>
+
+            <div className="flex items-start gap-2 mb-4" style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>
+              <Info size={13} style={{ marginTop: 1, flexShrink: 0, color: "hsl(var(--theo-cyan))" }} />
+              <span>On-chain Stellar transfer between your own accounts. No platform fee.</span>
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setMoveOpen(false)}
+                disabled={moving}
+                style={{
+                  background: "transparent", border: "1.5px solid hsl(var(--theo-mid))",
+                  color: "hsl(var(--theo-mid))", borderRadius: 7, padding: "8px 16px",
+                  fontSize: 13, fontWeight: 700, cursor: moving ? "wait" : "pointer", fontFamily: "inherit",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMove}
+                disabled={!moveValid || moving}
+                style={{
+                  background: moveValid && !moving ? "hsl(var(--theo-blue))" : "hsl(var(--theo-mid))",
+                  border: "none", color: "#fff", borderRadius: 7, padding: "8px 16px",
+                  fontSize: 13, fontWeight: 700, cursor: moveValid && !moving ? "pointer" : "not-allowed",
+                  fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6,
+                }}
+              >
+                {moving
+                  ? <><Loader2 size={13} className="animate-spin" /> Moving…</>
+                  : <><ArrowLeftRight size={13} /> Move {moveAmountNum > 0 ? `$${fmt(moveAmountNum)}` : ""} →</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Add account modal */}
       {open && (
         <div
