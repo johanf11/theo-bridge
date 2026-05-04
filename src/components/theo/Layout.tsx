@@ -78,6 +78,45 @@ function NavItem({
 
 type TxResult = { id: string; reference_number: string; usdc_amount: number; status: string; created_at: string };
 type WalletResult = { id: string; label: string | null; stellar_address: string };
+type PayoutResult = { id: string; recipient_name: string; amount_usdc: number; status: string; memo: string | null; created_at: string };
+
+// Pages where search filters the visible table inline (no dropdown)
+const FILTER_PAGES = ["/transactions", "/payout"];
+
+function SectionLabel({ label }: { label: string }) {
+  return (
+    <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "hsl(var(--theo-mid))", padding: "8px 12px 4px" }}>
+      {label}
+    </div>
+  );
+}
+
+function ResultRow({
+  active, onSelect, onHover, left, right, sub,
+}: {
+  active: boolean; onSelect: () => void; onHover: () => void;
+  left: React.ReactNode; right?: React.ReactNode; sub?: string;
+}) {
+  return (
+    <button
+      onMouseDown={onSelect}
+      onMouseEnter={onHover}
+      style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        width: "100%", padding: "8px 12px", border: "none",
+        background: active ? "hsl(var(--theo-blue-soft))" : "transparent",
+        cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+        transition: "background 80ms", gap: 8,
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--theo-ink))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{left}</div>
+        {sub && <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 1 }}>{sub}</div>}
+      </div>
+      {right && <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))", flexShrink: 0 }}>{right}</span>}
+    </button>
+  );
+}
 
 function GlobalSearchBar() {
   const { query, setQuery } = useSearch();
@@ -87,23 +126,26 @@ function GlobalSearchBar() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [focused, setFocused] = useState(false);
   const [txResults, setTxResults] = useState<TxResult[]>([]);
+  const [payoutResults, setPayoutResults] = useState<PayoutResult[]>([]);
   const [walletResults, setWalletResults] = useState<WalletResult[]>([]);
   const [activeIdx, setActiveIdx] = useState(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const onTransactionsPage = location.pathname === "/transactions";
+  const isFilterPage = FILTER_PAGES.includes(location.pathname);
 
   // Clear search when navigating
   useEffect(() => {
     setQuery("");
     setTxResults([]);
+    setPayoutResults([]);
     setWalletResults([]);
   }, [location.pathname]);
 
-  // Debounced Supabase search (only on non-transactions pages)
+  // Debounced Supabase search (dropdown mode only)
   useEffect(() => {
-    if (onTransactionsPage || query.length < 2) {
+    if (isFilterPage || query.length < 2) {
       setTxResults([]);
+      setPayoutResults([]);
       setWalletResults([]);
       return;
     }
@@ -112,26 +154,35 @@ function GlobalSearchBar() {
       const { data: c } = await supabase.from("customers").select("id").maybeSingle();
       if (!c) return;
 
-      const [{ data: txs }, { data: ws }] = await Promise.all([
+      const q = query;
+      const [{ data: txs }, { data: pays }, { data: ws }] = await Promise.all([
         supabase
           .from("orders")
           .select("id, reference_number, usdc_amount, status, created_at")
           .eq("customer_id", c.id)
-          .or(`reference_number.ilike.%${query}%`)
+          .or(`reference_number.ilike.%${q}%`)
+          .limit(3),
+        supabase
+          .from("payouts")
+          .select("id, recipient_name, amount_usdc, status, memo, created_at")
+          .eq("customer_id", c.id)
+          .or(`recipient_name.ilike.%${q}%,memo.ilike.%${q}%,recipient_address.ilike.%${q}%`)
+          .order("created_at", { ascending: false })
           .limit(4),
         supabase
           .from("wallets")
           .select("id, label, stellar_address")
           .eq("customer_id", c.id)
-          .or(`label.ilike.%${query}%,stellar_address.ilike.%${query}%`)
+          .or(`label.ilike.%${q}%,stellar_address.ilike.%${q}%`)
           .limit(3),
       ]);
       setTxResults((txs ?? []) as TxResult[]);
+      setPayoutResults((pays ?? []) as PayoutResult[]);
       setWalletResults((ws ?? []) as WalletResult[]);
       setActiveIdx(0);
-    }, 200);
+    }, 180);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [query, onTransactionsPage]);
+  }, [query, isFilterPage]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -139,9 +190,7 @@ function GlobalSearchBar() {
       if (
         dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
         inputRef.current && !inputRef.current.contains(e.target as Node)
-      ) {
-        setFocused(false);
-      }
+      ) setFocused(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -154,33 +203,50 @@ function GlobalSearchBar() {
       )
     : [];
 
-  const showDropdown = !onTransactionsPage && focused && query.length >= 1 &&
-    (navMatches.length > 0 || txResults.length > 0 || walletResults.length > 0);
+  type AnyResult =
+    | { type: "nav"; item: typeof mainNav[0] }
+    | { type: "tx"; item: TxResult }
+    | { type: "payout"; item: PayoutResult }
+    | { type: "wallet"; item: WalletResult };
 
-  const allResults: Array<{ type: "nav" | "tx" | "wallet"; item: (typeof mainNav)[0] | TxResult | WalletResult }> = [
+  const allResults: AnyResult[] = [
     ...navMatches.map(n => ({ type: "nav" as const, item: n })),
     ...txResults.map(t => ({ type: "tx" as const, item: t })),
+    ...payoutResults.map(p => ({ type: "payout" as const, item: p })),
     ...walletResults.map(w => ({ type: "wallet" as const, item: w })),
   ];
 
+  const hasResults = allResults.length > 0;
+  const showDropdown = !isFilterPage && focused && query.length >= 1;
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!showDropdown) return;
+    if (!showDropdown || !hasResults) {
+      if (e.key === "Escape") { setQuery(""); setFocused(false); }
+      return;
+    }
     if (e.key === "ArrowDown") { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, allResults.length - 1)); }
     if (e.key === "ArrowUp") { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, 0)); }
-    if (e.key === "Enter" && allResults[activeIdx]) {
-      e.preventDefault();
-      selectResult(allResults[activeIdx]);
-    }
+    if (e.key === "Enter" && allResults[activeIdx]) { e.preventDefault(); selectResult(allResults[activeIdx]); }
     if (e.key === "Escape") { setQuery(""); setFocused(false); }
   };
 
-  const selectResult = (r: typeof allResults[0]) => {
+  const selectResult = (r: AnyResult) => {
     setFocused(false);
-    if (r.type === "nav") navigate((r.item as typeof mainNav[0]).to);
-    if (r.type === "tx") navigate("/transactions");
-    if (r.type === "wallet") navigate("/balance");
     setQuery("");
+    if (r.type === "nav") navigate(r.item.to);
+    else if (r.type === "tx") navigate("/transactions");
+    else if (r.type === "payout") navigate("/payout");
+    else if (r.type === "wallet") navigate("/balance");
   };
+
+  const placeholder = location.pathname === "/transactions"
+    ? "Filter by reference, amount, date…"
+    : location.pathname === "/payout"
+    ? "Filter payouts by recipient, amount…"
+    : "Search payouts, transactions, accounts…";
+
+  // Divider helper
+  const divider = (show: boolean) => show ? <div style={{ height: 1, background: "hsl(var(--theo-light))" }} /> : null;
 
   return (
     <div style={{ position: "relative", flex: 1, maxWidth: 380 }}>
@@ -197,7 +263,7 @@ function GlobalSearchBar() {
         <input
           ref={inputRef}
           type="text"
-          placeholder={onTransactionsPage ? "Filter by reference, amount, date…" : "Search transactions, accounts, navigate…"}
+          placeholder={placeholder}
           value={query}
           onChange={e => { setQuery(e.target.value); setActiveIdx(0); }}
           onFocus={() => setFocused(true)}
@@ -210,7 +276,7 @@ function GlobalSearchBar() {
         {query && (
           <button
             onClick={() => { setQuery(""); inputRef.current?.focus(); }}
-            style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "hsl(var(--theo-mid))", fontSize: 14, lineHeight: 1, flexShrink: 0 }}
+            style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "hsl(var(--theo-mid))", fontSize: 16, lineHeight: 1, flexShrink: 0 }}
           >
             ×
           </button>
@@ -228,23 +294,26 @@ function GlobalSearchBar() {
             overflow: "hidden",
           }}
         >
+          {!hasResults && query.length >= 2 && (
+            <div style={{ padding: "14px 12px", fontSize: 13, color: "hsl(var(--theo-mid))" }}>
+              No results for "{query}"
+            </div>
+          )}
+
           {navMatches.length > 0 && (
-            <div>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "hsl(var(--theo-mid))", padding: "8px 12px 4px" }}>
-                Navigate
-              </div>
+            <>
+              <SectionLabel label="Navigate" />
               {navMatches.map((n, i) => {
-                const globalIdx = i;
                 const Icon = n.icon;
                 return (
                   <button
                     key={n.to}
                     onMouseDown={() => selectResult({ type: "nav", item: n })}
-                    onMouseEnter={() => setActiveIdx(globalIdx)}
+                    onMouseEnter={() => setActiveIdx(i)}
                     style={{
                       display: "flex", alignItems: "center", gap: 9,
                       width: "100%", padding: "8px 12px", border: "none",
-                      background: activeIdx === globalIdx ? "hsl(var(--theo-blue-soft))" : "transparent",
+                      background: activeIdx === i ? "hsl(var(--theo-blue-soft))" : "transparent",
                       cursor: "pointer", fontFamily: "inherit", textAlign: "left",
                       transition: "background 80ms",
                     }}
@@ -255,81 +324,76 @@ function GlobalSearchBar() {
                   </button>
                 );
               })}
-            </div>
+            </>
+          )}
+
+          {payoutResults.length > 0 && (
+            <>
+              {divider(navMatches.length > 0)}
+              <SectionLabel label="Payouts" />
+              {payoutResults.map((p, i) => {
+                const gIdx = navMatches.length + i;
+                return (
+                  <ResultRow
+                    key={p.id}
+                    active={activeIdx === gIdx}
+                    onSelect={() => selectResult({ type: "payout", item: p })}
+                    onHover={() => setActiveIdx(gIdx)}
+                    left={p.recipient_name}
+                    sub={`${new Date(p.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}${p.memo ? ` · ${p.memo}` : ""}`}
+                    right={`$${Number(p.amount_usdc).toLocaleString()} USDC`}
+                  />
+                );
+              })}
+            </>
           )}
 
           {txResults.length > 0 && (
-            <div style={{ borderTop: navMatches.length ? "1px solid hsl(var(--theo-light))" : "none" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "hsl(var(--theo-mid))", padding: "8px 12px 4px" }}>
-                Transactions
-              </div>
+            <>
+              {divider(navMatches.length + payoutResults.length > 0)}
+              <SectionLabel label="Conversions" />
               {txResults.map((t, i) => {
-                const globalIdx = navMatches.length + i;
+                const gIdx = navMatches.length + payoutResults.length + i;
                 return (
-                  <button
+                  <ResultRow
                     key={t.id}
-                    onMouseDown={() => selectResult({ type: "tx", item: t })}
-                    onMouseEnter={() => setActiveIdx(globalIdx)}
-                    style={{
-                      display: "flex", alignItems: "center", justifyContent: "space-between",
-                      width: "100%", padding: "8px 12px", border: "none",
-                      background: activeIdx === globalIdx ? "hsl(var(--theo-blue-soft))" : "transparent",
-                      cursor: "pointer", fontFamily: "inherit", textAlign: "left",
-                      transition: "background 80ms",
-                    }}
-                  >
-                    <div>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--theo-ink))", fontFamily: "monospace" }}>{t.reference_number}</span>
-                      <span style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginLeft: 8 }}>
-                        {new Date(t.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                      </span>
-                    </div>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
-                      ${Number(t.usdc_amount).toLocaleString()} USDC
-                    </span>
-                  </button>
+                    active={activeIdx === gIdx}
+                    onSelect={() => selectResult({ type: "tx", item: t })}
+                    onHover={() => setActiveIdx(gIdx)}
+                    left={<span style={{ fontFamily: "monospace" }}>{t.reference_number}</span>}
+                    sub={new Date(t.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    right={`$${Number(t.usdc_amount).toLocaleString()} USDC`}
+                  />
                 );
               })}
-            </div>
+            </>
           )}
 
           {walletResults.length > 0 && (
-            <div style={{ borderTop: (navMatches.length + txResults.length) ? "1px solid hsl(var(--theo-light))" : "none" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "hsl(var(--theo-mid))", padding: "8px 12px 4px" }}>
-                Accounts
-              </div>
+            <>
+              {divider(navMatches.length + payoutResults.length + txResults.length > 0)}
+              <SectionLabel label="Accounts" />
               {walletResults.map((w, i) => {
-                const globalIdx = navMatches.length + txResults.length + i;
+                const gIdx = navMatches.length + payoutResults.length + txResults.length + i;
                 return (
-                  <button
+                  <ResultRow
                     key={w.id}
-                    onMouseDown={() => selectResult({ type: "wallet", item: w })}
-                    onMouseEnter={() => setActiveIdx(globalIdx)}
-                    style={{
-                      display: "flex", alignItems: "center", justifyContent: "space-between",
-                      width: "100%", padding: "8px 12px", border: "none",
-                      background: activeIdx === globalIdx ? "hsl(var(--theo-blue-soft))" : "transparent",
-                      cursor: "pointer", fontFamily: "inherit", textAlign: "left",
-                      transition: "background 80ms",
-                    }}
-                  >
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--theo-ink))" }}>
-                      {w.label ?? "Unnamed account"}
-                    </span>
-                    <span style={{ fontSize: 11, fontFamily: "monospace", color: "hsl(var(--theo-mid))" }}>
-                      {w.stellar_address.slice(0, 6)}…{w.stellar_address.slice(-4)}
-                    </span>
-                  </button>
+                    active={activeIdx === gIdx}
+                    onSelect={() => selectResult({ type: "wallet", item: w })}
+                    onHover={() => setActiveIdx(gIdx)}
+                    left={w.label ?? "Unnamed account"}
+                    right={`${w.stellar_address.slice(0, 6)}…${w.stellar_address.slice(-4)}`}
+                  />
                 );
               })}
-            </div>
+            </>
           )}
 
-          <div style={{ padding: "6px 12px 8px", borderTop: "1px solid hsl(var(--theo-light))" }}>
-            <span style={{ fontSize: 10, color: "hsl(var(--theo-mid))" }}>
-              ↑↓ navigate · ↵ select · Esc clear
-            </span>
-          </div>
+          {hasResults && (
+            <div style={{ padding: "6px 12px 8px", borderTop: "1px solid hsl(var(--theo-light))" }}>
+              <span style={{ fontSize: 10, color: "hsl(var(--theo-mid))" }}>↑↓ navigate · ↵ select · Esc clear</span>
+            </div>
+          )}
         </div>
       )}
     </div>

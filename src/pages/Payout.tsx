@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/theo/Layout";
-import { Upload, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Upload, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
+import { useSearch } from "@/contexts/SearchContext";
 
 type Tab = "single" | "bulk";
 
@@ -27,6 +28,7 @@ const STATUS_STYLE: Record<string, { bg: string; color: string; label: string }>
 
 export default function Payout() {
   const { user } = useAuth();
+  const { query } = useSearch();
   const [tab, setTab] = useState<Tab>("single");
 
   // Wallets
@@ -44,6 +46,18 @@ export default function Payout() {
   // Recent payouts
   const [payouts, setPayouts] = useState<Payout[]>([]);
   const [payoutsLoading, setPayoutsLoading] = useState(true);
+
+  // Filter recent payouts by search query (recipient name, amount, memo)
+  const filteredPayouts = query.trim()
+    ? payouts.filter(p => {
+        const q = query.toLowerCase();
+        return (
+          p.recipient_name.toLowerCase().includes(q) ||
+          String(p.amount_usdc).includes(q) ||
+          (p.memo ?? "").toLowerCase().includes(q)
+        );
+      })
+    : payouts;
 
   useEffect(() => {
     if (!user) return;
@@ -294,21 +308,30 @@ export default function Payout() {
 
         {/* Recent payouts */}
         <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
-          <div className="font-bold mb-4" style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>Recent payouts</div>
+          <div className="flex items-center justify-between mb-4">
+            <div className="font-bold" style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>Recent payouts</div>
+            {query.trim() && !payoutsLoading && (
+              <span style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>
+                {filteredPayouts.length} of {payouts.length}
+              </span>
+            )}
+          </div>
           {payoutsLoading ? (
             <div style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>Loading…</div>
           ) : payouts.length === 0 ? (
             <div style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>No payouts yet.</div>
+          ) : filteredPayouts.length === 0 ? (
+            <div style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>No results for "{query}"</div>
           ) : (
             <div className="flex flex-col gap-2.5">
-              {payouts.map((p, i) => {
+              {filteredPayouts.map((p, i) => {
                 const s = STATUS_STYLE[p.status] ?? STATUS_STYLE.PENDING;
                 const date = new Date(p.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
                 return (
                   <div
                     key={p.id}
                     className="flex justify-between items-center py-2.5"
-                    style={{ borderBottom: i < payouts.length - 1 ? "1px solid hsl(var(--theo-light))" : "none" }}
+                    style={{ borderBottom: i < filteredPayouts.length - 1 ? "1px solid hsl(var(--theo-light))" : "none" }}
                   >
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--theo-blue))" }}>
