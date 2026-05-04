@@ -3,16 +3,43 @@ import { Link } from "react-router-dom";
 import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { Shield, Home, Bell, Lock, Users } from "lucide-react";
+import { Shield, Home, Bell, Lock, Users, ChevronDown, ChevronUp } from "lucide-react";
 import { WalletKeys } from "@/components/theo/WalletKeys";
+import { usePermissions, type Permission } from "@/hooks/usePermissions";
 
+// ── Types ─────────────────────────────────────────────────────────────────────
 type Customer = { id: string; company_name: string; kyb_status: string };
 
-function Toggle({ on: defaultOn }: { on?: boolean }) {
+type OrgRole = {
+  id: string;
+  name: string;
+  is_system: boolean;
+  permissions: Record<Permission, boolean>;
+};
+
+type OrgMember = {
+  id: string;
+  email: string;
+  role_id: string;
+  accepted_at: string | null;
+};
+
+const ALL_PERMISSIONS: { key: Permission; label: string; description: string }[] = [
+  { key: "convert",           label: "Convert",        description: "Submit HTG → USDC conversions" },
+  { key: "payout_send",       label: "Send payouts",   description: "Send USDC to recipients" },
+  { key: "balance_view_keys", label: "View account IDs", description: "See Stellar account addresses" },
+  { key: "accounts_manage",   label: "Manage accounts", description: "Add, rename, or remove wallets" },
+  { key: "view_balances",     label: "View balances",  description: "See USDC balances across accounts" },
+];
+
+// ── Small components ──────────────────────────────────────────────────────────
+function Toggle({ on: defaultOn, onChange }: { on?: boolean; onChange?: (v: boolean) => void }) {
   const [on, setOn] = useState(defaultOn ?? false);
+  useEffect(() => { setOn(defaultOn ?? false); }, [defaultOn]);
+
   return (
     <div
-      onClick={() => setOn(!on)}
+      onClick={() => { const next = !on; setOn(next); onChange?.(next); }}
       className="cursor-pointer flex-shrink-0 relative"
       style={{
         width: 36, height: 20, borderRadius: 10,
@@ -54,9 +81,74 @@ function SettingsRow({ label, sub, right }: { label: string; sub?: string; right
   );
 }
 
+// ── Role card ─────────────────────────────────────────────────────────────────
+function RoleCard({
+  role,
+  isOwner,
+  onToggle,
+}: {
+  role: OrgRole;
+  isOwner: boolean;
+  onToggle: (roleId: string, perm: Permission, value: boolean) => void;
+}) {
+  const isOwnerRole = role.name === "Owner";
+
+  return (
+    <div className="border border-border rounded-xl overflow-hidden">
+      <div
+        className="flex items-center justify-between px-4 py-3"
+        style={{ background: "hsl(var(--theo-cream))" }}
+      >
+        <div>
+          <span className="font-bold" style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>{role.name}</span>
+          {role.is_system && (
+            <span className="rounded-full font-bold ml-2" style={{ fontSize: 10, background: "hsl(var(--theo-blue-soft))", color: "hsl(var(--theo-blue))", padding: "2px 7px" }}>
+              Default
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="divide-y divide-border">
+        {ALL_PERMISSIONS.map(({ key, label, description }) => (
+          <div key={key} className="flex items-center justify-between px-4 py-2.5">
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--theo-ink))" }}>{label}</div>
+              <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>{description}</div>
+            </div>
+            {isOwner && !isOwnerRole ? (
+              <Toggle
+                on={role.permissions[key]}
+                onChange={(v) => onToggle(role.id, key, v)}
+              />
+            ) : (
+              <span
+                style={{
+                  fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99,
+                  background: role.permissions[key] ? "#EFFBF3" : "hsl(var(--theo-light))",
+                  color: role.permissions[key] ? "#1A7F37" : "hsl(var(--theo-mid))",
+                }}
+              >
+                {role.permissions[key] ? "Allowed" : "Blocked"}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 export default function Settings() {
   const { user } = useAuth();
+  const { isOwner } = usePermissions();
   const [customer, setCustomer] = useState<Customer | null>(null);
+  const [roles, setRoles] = useState<OrgRole[]>([]);
+  const [members, setMembers] = useState<OrgMember[]>([]);
+  const [rolesLoading, setRolesLoading] = useState(true);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRoleId, setInviteRoleId] = useState("");
+  const [showInvite, setShowInvite] = useState(false);
 
   useEffect(() => {
     supabase.from("customers").select("id, company_name, kyb_status").maybeSingle().then(({ data }) => {
@@ -64,8 +156,87 @@ export default function Settings() {
     });
   }, []);
 
+  useEffect(() => {
+    if (!customer) return;
+    loadTeam(customer.id);
+  }, [customer?.id]);
+
+  const loadTeam = async (customerId: string) => {
+    setRolesLoading(true);
+
+    const [{ data: rawRoles }, { data: rawPerms }, { data: rawMembers }] = await Promise.all([
+      supabase.from("org_roles").select("id, name, is_system").eq("customer_id", customerId).order("created_at"),
+      supabase.from("role_permissions").select("role_id, permission, enabled"),
+      supabase.from("org_members").select("id, email, role_id, accepted_at").eq("customer_id", customerId),
+    ]);
+
+    // Build roles with permission maps
+    const permMap: Record<string, Record<string, boolean>> = {};
+    for (const p of rawPerms ?? []) {
+      if (!permMap[p.role_id]) permMap[p.role_id] = {};
+      permMap[p.role_id][p.permission] = p.enabled;
+    }
+
+    const built: OrgRole[] = (rawRoles ?? []).map((r) => ({
+      id: r.id,
+      name: r.name,
+      is_system: r.is_system,
+      permissions: {
+        convert:            permMap[r.id]?.convert ?? false,
+        payout_send:        permMap[r.id]?.payout_send ?? false,
+        balance_view_keys:  permMap[r.id]?.balance_view_keys ?? false,
+        accounts_manage:    permMap[r.id]?.accounts_manage ?? false,
+        view_balances:      permMap[r.id]?.view_balances ?? false,
+      },
+    }));
+
+    setRoles(built);
+    setMembers((rawMembers ?? []) as OrgMember[]);
+    if (built.length > 0 && !inviteRoleId) setInviteRoleId(built[0].id);
+    setRolesLoading(false);
+  };
+
+  const handleTogglePermission = async (roleId: string, perm: Permission, value: boolean) => {
+    // Optimistic update
+    setRoles((prev) =>
+      prev.map((r) =>
+        r.id === roleId ? { ...r, permissions: { ...r.permissions, [perm]: value } } : r
+      )
+    );
+
+    await supabase
+      .from("role_permissions")
+      .update({ enabled: value })
+      .eq("role_id", roleId)
+      .eq("permission", perm);
+  };
+
+  const handleInvite = async () => {
+    if (!inviteEmail.trim() || !inviteRoleId || !customer) return;
+    await supabase.from("org_members").insert({
+      customer_id: customer.id,
+      role_id: inviteRoleId,
+      email: inviteEmail.trim().toLowerCase(),
+    });
+    setInviteEmail("");
+    setShowInvite(false);
+    loadTeam(customer.id);
+  };
+
+  const handleRemoveMember = async (memberId: string) => {
+    await supabase.from("org_members").delete().eq("id", memberId);
+    setMembers((prev) => prev.filter((m) => m.id !== memberId));
+  };
+
+  const handleChangeMemberRole = async (memberId: string, roleId: string) => {
+    setMembers((prev) => prev.map((m) => m.id === memberId ? { ...m, role_id: roleId } : m));
+    await supabase.from("org_members").update({ role_id: roleId }).eq("id", memberId);
+  };
+
   const kybPending = customer?.kyb_status !== "APPROVED";
   const initials = user?.email?.slice(0, 2).toUpperCase() ?? "TB";
+
+  const getRoleName = (roleId: string) => roles.find((r) => r.id === roleId)?.name ?? "—";
 
   return (
     <AppLayout>
@@ -75,7 +246,7 @@ export default function Settings() {
       </div>
       <div className="mb-5" style={{ width: 28, height: 3, background: "hsl(var(--theo-gold))", borderRadius: 2, marginTop: 8 }} />
 
-      {/* KYB status banner */}
+      {/* KYB banner */}
       <div
         className="flex items-center justify-between mb-5 rounded-xl"
         style={{ background: "hsl(var(--theo-blue-soft))", border: "1px solid hsl(var(--theo-blue-chip))", padding: "14px 18px" }}
@@ -89,9 +260,7 @@ export default function Settings() {
               KYB Verification — {kybPending ? "Not started" : "Approved"}
             </div>
             <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 2 }}>
-              {kybPending
-                ? "Complete business verification to unlock full transaction limits."
-                : "Your business is verified and fully active."}
+              {kybPending ? "Complete business verification to unlock full transaction limits." : "Your business is verified and fully active."}
             </div>
           </div>
         </div>
@@ -100,45 +269,28 @@ export default function Settings() {
             {kybPending ? "Pending" : "Approved"}
           </span>
           {kybPending && (
-            <Link
-              to="/kyb"
-              className="font-bold text-white"
-              style={{ background: "hsl(var(--theo-blue))", borderRadius: 7, padding: "5px 12px", fontSize: 12, textDecoration: "none" }}
-            >
+            <Link to="/kyb" className="font-bold text-white" style={{ background: "hsl(var(--theo-blue))", borderRadius: 7, padding: "5px 12px", fontSize: 12, textDecoration: "none" }}>
               Start KYB
             </Link>
           )}
         </div>
       </div>
 
-      <div className="grid gap-4" style={{ gridTemplateColumns: "1fr 1fr", alignItems: "start" }}>
-        {/* Left column */}
+      {/* Two-column grid */}
+      <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "1fr 1fr", alignItems: "start" }}>
+        {/* Left */}
         <div className="flex flex-col gap-4">
-          {/* Business profile */}
           <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
             <SectionHeader icon={Home} title="Business profile" />
             <div className="p-5">
               <div className="grid gap-3 mb-3.5" style={{ gridTemplateColumns: "1fr 1fr" }}>
                 <div>
-                  <label className="block font-bold uppercase mb-1.5" style={{ fontSize: 10, letterSpacing: "0.10em", color: "hsl(var(--theo-mid))" }}>
-                    Legal company name
-                  </label>
-                  <input
-                    className="w-full rounded-[9px] border border-border outline-none"
-                    style={{ fontFamily: "inherit", fontSize: 14, padding: "10px 12px", color: "hsl(var(--theo-ink))" }}
-                    defaultValue={customer?.company_name ?? ""}
-                    placeholder="Your company"
-                  />
+                  <label className="block font-bold uppercase mb-1.5" style={{ fontSize: 10, letterSpacing: "0.10em", color: "hsl(var(--theo-mid))" }}>Legal company name</label>
+                  <input className="w-full rounded-[9px] border border-border outline-none" style={{ fontFamily: "inherit", fontSize: 14, padding: "10px 12px", color: "hsl(var(--theo-ink))" }} defaultValue={customer?.company_name ?? ""} placeholder="Your company" />
                 </div>
                 <div>
-                  <label className="block font-bold uppercase mb-1.5" style={{ fontSize: 10, letterSpacing: "0.10em", color: "hsl(var(--theo-mid))" }}>
-                    Registration no.
-                  </label>
-                  <input
-                    className="w-full rounded-[9px] border border-border outline-none"
-                    style={{ fontFamily: "inherit", fontSize: 14, padding: "10px 12px", color: "hsl(var(--theo-ink))" }}
-                    placeholder="RNFE-XXXXX"
-                  />
+                  <label className="block font-bold uppercase mb-1.5" style={{ fontSize: 10, letterSpacing: "0.10em", color: "hsl(var(--theo-mid))" }}>Registration no.</label>
+                  <input className="w-full rounded-[9px] border border-border outline-none" style={{ fontFamily: "inherit", fontSize: 14, padding: "10px 12px", color: "hsl(var(--theo-ink))" }} placeholder="RNFE-XXXXX" />
                 </div>
               </div>
               <div className="mb-3.5">
@@ -148,16 +300,12 @@ export default function Settings() {
                   <option>Dominican Republic</option>
                 </select>
               </div>
-              <button
-                className="font-bold text-white"
-                style={{ background: "hsl(var(--theo-blue))", borderRadius: 7, padding: "6px 12px", fontSize: 12, border: "none", cursor: "pointer", fontFamily: "inherit" }}
-              >
+              <button className="font-bold text-white" style={{ background: "hsl(var(--theo-blue))", borderRadius: 7, padding: "6px 12px", fontSize: 12, border: "none", cursor: "pointer", fontFamily: "inherit" }}>
                 Save changes
               </button>
             </div>
           </div>
 
-          {/* Notifications */}
           <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
             <SectionHeader icon={Bell} title="Notifications" />
             <div className="px-5 py-1">
@@ -168,9 +316,8 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Right column */}
+        {/* Right */}
         <div className="flex flex-col gap-4">
-          {/* Security */}
           <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
             <SectionHeader icon={Lock} title="Security" />
             <div className="px-5 py-1">
@@ -178,50 +325,143 @@ export default function Settings() {
               <SettingsRow label="Login notifications" sub="Email on new device sign-in" right={<Toggle on />} />
             </div>
             <div className="px-5 pb-4 pt-2">
-              <button
-                className="font-bold"
-                style={{ background: "transparent", border: "1.5px solid hsl(var(--theo-blue))", color: "hsl(var(--theo-blue))", borderRadius: 7, padding: "6px 12px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}
-              >
+              <button className="font-bold" style={{ background: "transparent", border: "1.5px solid hsl(var(--theo-blue))", color: "hsl(var(--theo-blue))", borderRadius: 7, padding: "6px 12px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
                 Change password
               </button>
             </div>
           </div>
 
-          {/* Team */}
+          {/* Members card */}
           <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
-            <SectionHeader icon={Users} title="Team members" />
-            <div className="px-5 py-1">
-              <div className="flex items-center justify-between py-3">
-                <div className="flex items-center gap-2.5">
-                  <div
-                    className="flex items-center justify-center font-extrabold rounded-full flex-shrink-0"
-                    style={{ width: 28, height: 28, background: "hsl(var(--theo-gold))", color: "hsl(var(--theo-blue))", fontSize: 11 }}
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-border" style={{ background: "hsl(var(--theo-blue-soft))" }}>
+              <div className="flex items-center gap-2.5">
+                <Users className="flex-shrink-0" style={{ width: 14, height: 14, stroke: "hsl(var(--theo-blue))", fill: "none", strokeWidth: 2 }} />
+                <div className="font-bold" style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>Team members</div>
+              </div>
+              {isOwner && (
+                <button
+                  onClick={() => setShowInvite((v) => !v)}
+                  style={{ fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-blue))", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  + Invite
+                </button>
+              )}
+            </div>
+
+            {showInvite && isOwner && (
+              <div className="px-5 py-3 border-b border-border" style={{ background: "#fafafa" }}>
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    placeholder="colleague@company.com"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    className="flex-1 border border-border rounded-lg outline-none"
+                    style={{ fontFamily: "inherit", fontSize: 13, padding: "7px 10px" }}
+                  />
+                  <select
+                    value={inviteRoleId}
+                    onChange={(e) => setInviteRoleId(e.target.value)}
+                    className="border border-border rounded-lg outline-none"
+                    style={{ fontFamily: "inherit", fontSize: 13, padding: "7px 10px", appearance: "none" }}
                   >
+                    {roles.filter((r) => r.name !== "Owner").map((r) => (
+                      <option key={r.id} value={r.id}>{r.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={handleInvite}
+                    disabled={!inviteEmail.trim()}
+                    className="font-bold text-white"
+                    style={{ background: "hsl(var(--theo-blue))", borderRadius: 7, padding: "7px 14px", fontSize: 12, border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                  >
+                    Send
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="px-5 py-1">
+              {/* Always show the current user as owner */}
+              <div className="flex items-center justify-between py-3 border-b border-border">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex items-center justify-center font-extrabold rounded-full flex-shrink-0" style={{ width: 28, height: 28, background: "hsl(var(--theo-gold))", color: "hsl(var(--theo-blue))", fontSize: 11 }}>
                     {initials}
                   </div>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--theo-blue))" }}>
-                      {user?.email?.split("@")[0] ?? "Owner"}
-                    </div>
-                    <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>
-                      Owner · {user?.email}
-                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--theo-blue))" }}>{user?.email?.split("@")[0] ?? "Owner"}</div>
+                    <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>Owner · {user?.email}</div>
                   </div>
                 </div>
-                <span className="rounded-full font-bold" style={{ fontSize: 11, background: "hsl(var(--theo-blue-soft))", color: "hsl(var(--theo-blue))", padding: "3px 8px" }}>
-                  Owner
-                </span>
+                <span className="rounded-full font-bold" style={{ fontSize: 11, background: "hsl(var(--theo-blue-soft))", color: "hsl(var(--theo-blue))", padding: "3px 8px" }}>Owner</span>
               </div>
-            </div>
-            <div className="px-5 pb-4">
-              <button
-                className="flex items-center gap-1.5 font-bold"
-                style={{ background: "transparent", border: "1.5px solid hsl(var(--theo-blue))", color: "hsl(var(--theo-blue))", borderRadius: 7, padding: "6px 12px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}
-              >
-                + Invite team member
-              </button>
+
+              {/* Invited members */}
+              {members
+                .filter((m) => m.email !== user?.email)
+                .map((m) => (
+                  <div key={m.id} className="flex items-center justify-between py-3 border-b border-border last:border-0">
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--theo-ink))" }}>{m.email}</div>
+                      <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>
+                        {m.accepted_at ? "Active" : "Invite pending"}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {isOwner ? (
+                        <select
+                          value={m.role_id}
+                          onChange={(e) => handleChangeMemberRole(m.id, e.target.value)}
+                          style={{ fontFamily: "inherit", fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-blue))", background: "hsl(var(--theo-blue-soft))", border: "none", borderRadius: 99, padding: "3px 8px", cursor: "pointer", appearance: "none" }}
+                        >
+                          {roles.filter((r) => r.name !== "Owner").map((r) => (
+                            <option key={r.id} value={r.id}>{r.name}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="rounded-full font-bold" style={{ fontSize: 11, background: "hsl(var(--theo-blue-soft))", color: "hsl(var(--theo-blue))", padding: "3px 8px" }}>
+                          {getRoleName(m.role_id)}
+                        </span>
+                      )}
+                      {isOwner && (
+                        <button
+                          onClick={() => handleRemoveMember(m.id)}
+                          style={{ background: "none", border: "none", cursor: "pointer", color: "#B91C1C", fontSize: 12, fontFamily: "inherit", fontWeight: 600 }}
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Full-width Roles & Permissions */}
+      <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden mb-4">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border" style={{ background: "hsl(var(--theo-blue-soft))" }}>
+          <div className="font-bold" style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>Roles & permissions</div>
+          {isOwner && (
+            <span style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>Click toggles to edit · Owner role is always full access</span>
+          )}
+        </div>
+        <div className="p-5">
+          {rolesLoading ? (
+            <div style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>Loading roles…</div>
+          ) : (
+            <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+              {roles.map((role) => (
+                <RoleCard
+                  key={role.id}
+                  role={role}
+                  isOwner={isOwner}
+                  onToggle={handleTogglePermission}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -233,23 +473,16 @@ export default function Settings() {
 function AdvancedSection() {
   const [open, setOpen] = useState(false);
   return (
-    <div className="mt-4">
+    <div className="mt-2">
       <button
         onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-2 font-bold"
-        style={{
-          background: "transparent", border: "1px solid hsl(var(--border))",
-          color: "hsl(var(--theo-blue))", borderRadius: 8, padding: "8px 14px",
-          fontSize: 12, cursor: "pointer", fontFamily: "inherit",
-        }}
+        style={{ background: "transparent", border: "1px solid hsl(var(--border))", color: "hsl(var(--theo-blue))", borderRadius: 8, padding: "8px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}
       >
-        {open ? "▾" : "▸"} Advanced
+        {open ? <ChevronUp style={{ width: 13, height: 13 }} /> : <ChevronDown style={{ width: 13, height: 13 }} />}
+        Advanced
       </button>
-      {open && (
-        <div className="mt-3">
-          <WalletKeys />
-        </div>
-      )}
+      {open && <div className="mt-3"><WalletKeys /></div>}
     </div>
   );
 }

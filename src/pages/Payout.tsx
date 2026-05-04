@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { useSearch } from "@/contexts/SearchContext";
+import { usePermissions } from "@/hooks/usePermissions";
 
 type Tab = "single" | "bulk";
 
@@ -29,6 +30,7 @@ const STATUS_STYLE: Record<string, { bg: string; color: string; label: string }>
 export default function Payout() {
   const { user } = useAuth();
   const { query } = useSearch();
+  const { can } = usePermissions();
   const [tab, setTab] = useState<Tab>("single");
 
   // Wallets
@@ -266,15 +268,18 @@ export default function Payout() {
                 />
               </div>
 
-              <div className="flex gap-2 mt-1">
+              <div className="flex gap-2 mt-1 items-center">
                 <button
                   type="submit"
-                  disabled={sending || wallets.length === 0}
+                  disabled={sending || wallets.length === 0 || !can("payout_send")}
                   className="flex items-center gap-1.5 font-bold text-white"
-                  style={{ background: "hsl(var(--theo-blue))", borderRadius: 8, padding: "8px 16px", fontSize: 13, border: "none", cursor: sending ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: sending ? 0.7 : 1 }}
+                  style={{ background: "hsl(var(--theo-blue))", borderRadius: 8, padding: "8px 16px", fontSize: 13, border: "none", cursor: (sending || !can("payout_send")) ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: (sending || !can("payout_send")) ? 0.5 : 1 }}
                 >
                   {sending ? <><Loader2 style={{ width: 13, height: 13, animation: "spin 1s linear infinite" }} /> Sending…</> : "Send payout"}
                 </button>
+                {!can("payout_send") && (
+                  <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Your role doesn't have send permission</span>
+                )}
               </div>
             </form>
           ) : (

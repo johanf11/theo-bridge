@@ -6,6 +6,7 @@ import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { fetchHorizonUsdcBalance } from "@/lib/balance";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
+import { usePermissions } from "@/hooks/usePermissions";
 
 type Wallet = {
   id: string;
@@ -20,6 +21,7 @@ const shortAddr = (a: string) => `${a.slice(0, 6)}...${a.slice(-4)}`;
 
 export default function Balance() {
   const navigate = useNavigate();
+  const { can } = usePermissions();
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [balances, setBalances] = useState<Record<string, number>>({});
   const { total, refresh: refreshTotal } = useCustomerBalance();
@@ -151,18 +153,20 @@ export default function Balance() {
           >
             + Fund wallet
           </button>
-          <button
-            onClick={() => setOpen(true)}
-            className="flex items-center gap-1.5 font-bold text-white transition-colors"
-            style={{
-              background: "hsl(var(--theo-blue))", borderRadius: 7, padding: "6px 12px",
-              fontSize: 12, border: "none", cursor: "pointer", fontFamily: "inherit",
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = "#3E40B0")}
-            onMouseLeave={e => (e.currentTarget.style.background = "hsl(var(--theo-blue))")}
-          >
-            + Add account
-          </button>
+          {can("accounts_manage") && (
+            <button
+              onClick={() => setOpen(true)}
+              className="flex items-center gap-1.5 font-bold text-white transition-colors"
+              style={{
+                background: "hsl(var(--theo-blue))", borderRadius: 7, padding: "6px 12px",
+                fontSize: 12, border: "none", cursor: "pointer", fontFamily: "inherit",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = "#3E40B0")}
+              onMouseLeave={e => (e.currentTarget.style.background = "hsl(var(--theo-blue))")}
+            >
+              + Add account
+            </button>
+          )}
         </div>
       </div>
       <div className="mb-5" style={{ width: 28, height: 3, background: "hsl(var(--theo-gold))", borderRadius: 2, marginTop: 8 }} />
@@ -221,9 +225,9 @@ export default function Balance() {
                     />
                   ) : (
                     <span
-                      onClick={() => startEdit(w)}
-                      title="Click to rename"
-                      style={{ cursor: "pointer" }}
+                      onClick={() => can("accounts_manage") && startEdit(w)}
+                      title={can("accounts_manage") ? "Click to rename" : undefined}
+                      style={{ cursor: can("accounts_manage") ? "pointer" : "default" }}
                     >
                       {w.label ?? `Wallet ${i + 1}`}
                     </span>
@@ -267,7 +271,7 @@ export default function Balance() {
             </thead>
             <tbody>
               {wallets.map((w, i) => (
-                <LedgerRow key={w.id} w={w} idx={i} balance={balances[w.id] ?? 0} />
+                <LedgerRow key={w.id} w={w} idx={i} balance={balances[w.id] ?? 0} canViewKeys={can("balance_view_keys")} />
               ))}
             </tbody>
           </table>
@@ -342,13 +346,15 @@ export default function Balance() {
   );
 }
 
-function LedgerRow({ w, idx, balance }: { w: Wallet; idx: number; balance: number }) {
+function LedgerRow({ w, idx, balance, canViewKeys }: { w: Wallet; idx: number; balance: number; canViewKeys: boolean }) {
   const [show, setShow] = useState(false);
   return (
     <tr className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
       <td className="px-5 py-3" style={{ fontSize: 13, fontWeight: 600 }}>{w.label ?? `Account ${idx + 1}`}</td>
       <td className="px-5 py-3" style={{ fontFamily: "monospace", fontSize: 12 }}>
-        {show ? (
+        {!canViewKeys ? (
+          <span style={{ color: "hsl(var(--theo-mid))", fontSize: 12 }}>Hidden</span>
+        ) : show ? (
           <span style={{ color: "hsl(var(--theo-ink))", wordBreak: "break-all" }}>{w.stellar_address}</span>
         ) : (
           <button
