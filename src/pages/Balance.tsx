@@ -328,27 +328,27 @@ export default function Balance() {
               <div className="flex items-center justify-center rounded-lg" style={{ width: 28, height: 28, background: "#1A7F37" }}>
                 <TrendingUp size={14} color="#fff" />
               </div>
-              <span className="font-bold uppercase" style={{ fontSize: 11, letterSpacing: "0.14em", color: "#15803D" }}>
-                Yield
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex flex-col items-end" style={{ lineHeight: 1.1 }}>
-                <span className="font-bold rounded-full" style={{ fontSize: 12, background: "#1A7F37", color: "#fff", padding: "3px 10px" }}>
-                  {(NET_APY * 100).toFixed(2)}% net APY
+              <div className="flex flex-col" style={{ lineHeight: 1.1 }}>
+                <span className="font-bold uppercase" style={{ fontSize: 11, letterSpacing: "0.14em", color: "#15803D" }}>
+                  Yield
                 </span>
-                <span style={{ fontSize: 10, color: "#15803D", opacity: 0.7, marginTop: 3, fontWeight: 600 }}>
-                  {(GROSS_APY * 100).toFixed(2)}% gross · {(FEE_BPS / 100).toFixed(2)}% platform fee
-                </span>
+                <a
+                  href="https://blend.capital"
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ fontSize: 10, color: "#15803D", fontWeight: 600, textDecoration: "none", opacity: 0.7, marginTop: 3 }}
+                >
+                  Powered by Blend ↗
+                </a>
               </div>
-              <a
-                href="https://blend.capital"
-                target="_blank"
-                rel="noreferrer"
-                style={{ fontSize: 11, color: "#15803D", fontWeight: 600, textDecoration: "none", opacity: 0.7 }}
-              >
-                Powered by Blend ↗
-              </a>
+            </div>
+            <div className="flex flex-col items-end" style={{ lineHeight: 1.1 }}>
+              <span className="font-bold rounded-full" style={{ fontSize: 12, background: "#1A7F37", color: "#fff", padding: "3px 10px" }}>
+                {(NET_APY * 100).toFixed(2)}% net APY
+              </span>
+              <span style={{ fontSize: 10, color: "#15803D", opacity: 0.7, marginTop: 3, fontWeight: 600 }}>
+                {(GROSS_APY * 100).toFixed(2)}% gross · {(FEE_BPS / 100).toFixed(2)}% platform fee
+              </span>
             </div>
           </div>
 
