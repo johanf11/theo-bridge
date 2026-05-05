@@ -359,7 +359,24 @@ export default function Transactions() {
 
                     {/* Status */}
                     <td className="px-5 py-3">
-                      <StatusBadge status={tx.status} />
+                      <div className="flex items-center gap-2">
+                        <StatusBadge status={tx.status} />
+                        {isAdmin && tx.type === "swap" && tx.status === "FAILED" && (
+                          <button
+                            onClick={() => handleRetry(tx.id)}
+                            disabled={retryingId === tx.id}
+                            title="Admin: re-submit leg 2 (distributor → user) for this failed swap"
+                            style={{
+                              background: "transparent", border: "1px solid hsl(var(--theo-blue))",
+                              color: "hsl(var(--theo-blue))", borderRadius: 6, padding: "2px 8px",
+                              fontSize: 11, fontWeight: 700, cursor: retryingId === tx.id ? "wait" : "pointer",
+                              fontFamily: "inherit",
+                            }}
+                          >
+                            {retryingId === tx.id ? "Retrying…" : "Retry payout"}
+                          </button>
+                        )}
+                      </div>
                     </td>
 
                     {/* Reference / Recipient */}
