@@ -75,6 +75,7 @@ Deno.serve(async (req) => {
         recipient_name: dstWallet.label ?? "Wallet",
         recipient_address: dstWallet.stellar_address,
         amount_usdc: parsedAmount,
+        asset_code: assetCode,
         memo: INTERNAL_MEMO_TAG,
         status: "PENDING",
       })
@@ -82,16 +83,30 @@ Deno.serve(async (req) => {
       .single();
     if (payErr) throw payErr;
 
-    // Build & submit Stellar USDC payment.
+    // Build & submit Stellar payment for the chosen asset.
     const server = new Horizon.Server(HORIZON_URL);
     const sourceKp = Keypair.fromSecret(srcWallet.stellar_secret);
     const sourceAccount = await server.loadAccount(sourceKp.publicKey());
-    const usdc = new Asset("USDC", usdcIssuer);
+
+    let paymentAsset: Asset;
+    if (assetCode === "HTGC") {
+      if (!distributorSecret) {
+        await admin.from("payouts").update({
+          status: "FAILED",
+          failure_reason: "STELLAR_DISTRIBUTOR_SECRET not configured",
+        }).eq("id", payout.id);
+        return json({ error: "STELLAR_DISTRIBUTOR_SECRET not configured" }, 500);
+      }
+      const distributor = Keypair.fromSecret(distributorSecret);
+      paymentAsset = new Asset("HTGC", distributor.publicKey());
+    } else {
+      paymentAsset = new Asset("USDC", usdcIssuer);
+    }
 
     const txBuilder = new TransactionBuilder(sourceAccount, {
       fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
     }).addOperation(Operation.payment({
-      destination: dstWallet.stellar_address, asset: usdc, amount: parsedAmount.toFixed(7),
+      destination: dstWallet.stellar_address, asset: paymentAsset, amount: parsedAmount.toFixed(7),
     }));
 
     // User-supplied memo, capped to Stellar text-memo limit (28 bytes).
