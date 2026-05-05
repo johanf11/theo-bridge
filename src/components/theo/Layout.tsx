@@ -4,7 +4,7 @@ import { useAuth, useRoles } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import {
   LayoutGrid, ArrowLeftRight, ArrowRightLeft, Wallet, SendHorizonal,
-  Settings, LogOut, ShieldCheck, Search,
+  Settings, LogOut, ShieldCheck, Search, Wrench,
 } from "lucide-react";
 import { useSearch } from "@/contexts/SearchContext";
 
@@ -474,6 +474,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </div>
               <NavItem to="/admin/kyb" label="KYB Review" icon={ShieldCheck} />
               <NavItem to="/admin/conversions" label="Conversions" icon={ArrowLeftRight} />
+              <NavItem to="/admin/tools" label="Tools" icon={Wrench} />
             </>
           )}
         </div>
