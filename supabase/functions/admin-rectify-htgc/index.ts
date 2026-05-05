@@ -114,6 +114,25 @@ Deno.serve(async (req) => {
       steps.push(`Burned ${phantomBalance} phantom HTGC (issuer ${phantomIssuer}) — tx ${burnHash}`);
     }
 
+    // Step 1b: close phantom trustline (requires balance = 0)
+    if (phantomIssuer) {
+      try {
+        const phantomAsset = new Asset("HTGC", phantomIssuer);
+        const walletAcct = await server.loadAccount(walletKp.publicKey());
+        const closeTx = new TransactionBuilder(walletAcct, {
+          fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
+        })
+          .addOperation(Operation.changeTrust({ asset: phantomAsset, limit: "0" }))
+          .setTimeout(60)
+          .build();
+        closeTx.sign(walletKp);
+        await server.submitTransaction(closeTx);
+        steps.push(`Closed phantom HTGC trustline (issuer ${phantomIssuer})`);
+      } catch (e: unknown) {
+        steps.push(`Could not close phantom trustline: ${(e as Error).message}`);
+      }
+    }
+
     // Step 2: ensure real HTGC trustline exists
     const hasRealTrust = bals.some(
       (b) => b.asset_code === "HTGC" && b.asset_issuer === HTGC_ISSUER
