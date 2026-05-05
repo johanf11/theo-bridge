@@ -366,6 +366,7 @@ export type Database = {
       payouts: {
         Row: {
           amount_usdc: number
+          asset_code: string
           completed_at: string | null
           created_at: string
           customer_id: string
@@ -380,6 +381,7 @@ export type Database = {
         }
         Insert: {
           amount_usdc: number
+          asset_code?: string
           completed_at?: string | null
           created_at?: string
           customer_id: string
@@ -394,6 +396,7 @@ export type Database = {
         }
         Update: {
           amount_usdc?: number
+          asset_code?: string
           completed_at?: string | null
           created_at?: string
           customer_id?: string
