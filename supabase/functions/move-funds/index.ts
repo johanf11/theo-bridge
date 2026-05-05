@@ -132,6 +132,47 @@ Deno.serve(async (req) => {
       return json({ error: `Trustline setup failed: ${msg}` }, 502);
     }
 
+    // HTGC issuer requires AUTH_REQUIRED — authorize destination's trustline
+    // before the distributor/source can pay HTGC into it.
+    if (assetCode === "HTGC") {
+      const htgcIssuerSecret = Deno.env.get("STELLAR_HTGC_ISSUER_SECRET");
+      if (!htgcIssuerSecret) {
+        await admin.from("payouts").update({
+          status: "FAILED",
+          failure_reason: "STELLAR_HTGC_ISSUER_SECRET not configured — required to authorize HTGC trustline before transfer.",
+        }).eq("id", payout.id);
+        return json({ error: "STELLAR_HTGC_ISSUER_SECRET not configured" }, 500);
+      }
+      try {
+        const issuerKp = Keypair.fromSecret(htgcIssuerSecret);
+        if (issuerKp.publicKey() !== HTGC_ISSUER) {
+          return json({ error: `STELLAR_HTGC_ISSUER_SECRET public key (${issuerKp.publicKey()}) does not match HTGC_ISSUER (${HTGC_ISSUER})` }, 500);
+        }
+        const issuerAccount = await server.loadAccount(issuerKp.publicKey());
+        const authTx = new TransactionBuilder(issuerAccount, {
+          fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
+        })
+          .addOperation(Operation.setTrustLineFlags({
+            trustor: dstWallet.stellar_address,
+            asset: paymentAsset,
+            flags: { authorized: true },
+          }))
+          .setTimeout(60)
+          .build();
+        authTx.sign(issuerKp);
+        await server.submitTransaction(authTx);
+      } catch (authErr: unknown) {
+        const msg = (authErr as { response?: { data?: unknown } })?.response?.data
+          ? JSON.stringify((authErr as { response: { data: unknown } }).response.data)
+          : (authErr as Error).message;
+        await admin.from("payouts").update({
+          status: "FAILED",
+          failure_reason: `HTGC trustline authorization failed: ${String(msg).slice(0, 900)}`,
+        }).eq("id", payout.id);
+        return json({ error: `HTGC trustline authorization failed: ${msg}` }, 502);
+      }
+    }
+
     const txBuilder = new TransactionBuilder(sourceAccount, {
       fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
     }).addOperation(Operation.payment({
