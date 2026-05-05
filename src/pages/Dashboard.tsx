@@ -117,7 +117,7 @@ export default function Dashboard() {
   const [txs, setTxs] = useState<UnifiedTx[]>([]);
   const [convertedThisMonth, setConvertedThisMonth] = useState(0);
   const [txCount30d, setTxCount30d] = useState(0);
-  const { total: balance } = useCustomerBalance();
+  const { total: balance, htgcTotal } = useCustomerBalance();
   const [chartPeriod, setChartPeriod] = useState("1M");
 
   useEffect(() => {
