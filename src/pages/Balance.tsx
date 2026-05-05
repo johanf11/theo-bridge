@@ -642,8 +642,6 @@ export default function Balance() {
                   htgcBalance={htgcBalances[w.id] ?? 0}
                   blendPosition={blendPositions[w.id] ?? null}
                   canViewKeys={can("balance_view_keys")}
-                  isAdmin={isAdmin}
-                  onRectify={handleRectifyHtgc}
                 />
               ))}
             </tbody>
