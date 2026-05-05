@@ -209,12 +209,7 @@ export default function Dashboard() {
     customer?.contact_name ||
     customer?.company_name ||
     "there";
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const convertedThisMonth = txs
-    .filter((t) => t.type === "conversion" && t.status === "COMPLETED" && new Date(t.created_at) >= monthStart)
-    .reduce((s, t) => s + t.usdc_amount, 0);
-  const txCount = txs.length;
+  const txCount = txCount30d;
 
   return (
     <AppLayout>
