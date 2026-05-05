@@ -116,6 +116,40 @@ Deno.serve(async (req) => {
       }
     }
 
+    // The HTGC issuer requires authorization on each trustline before the wallet can
+    // receive HTGC. Authorize the new wallet's HTGC trustline using the issuer secret.
+    const htgcOk = trustResults.find((r) => r.asset === "HTGC")?.ok;
+    if (htgcOk) {
+      const htgcIssuerSecret = Deno.env.get("STELLAR_HTGC_ISSUER_SECRET");
+      if (htgcIssuerSecret) {
+        try {
+          const issuerKp = Keypair.fromSecret(htgcIssuerSecret);
+          if (issuerKp.publicKey() === HTGC_ISSUER) {
+            const issuerAcct = await server.loadAccount(issuerKp.publicKey());
+            const authTx = new TransactionBuilder(issuerAcct, {
+              fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
+            })
+              .addOperation(Operation.setTrustLineFlags({
+                trustor: publicKey,
+                asset: htgc,
+                flags: { authorized: true },
+              }))
+              .setTimeout(60)
+              .build();
+            authTx.sign(issuerKp);
+            await server.submitTransaction(authTx);
+          } else {
+            console.error(`STELLAR_HTGC_ISSUER_SECRET pubkey ${issuerKp.publicKey()} != HTGC_ISSUER ${HTGC_ISSUER}`);
+          }
+        } catch (err: unknown) {
+          const msg = (err as { response?: { data?: unknown } })?.response?.data
+            ? JSON.stringify((err as { response: { data: unknown } }).response.data)
+            : (err as Error).message;
+          console.error(`HTGC trustline authorization failed for ${publicKey}`, msg);
+        }
+      }
+    }
+
     // 4. Persist (service role bypasses RLS; trustworthy because user verified above)
     const { data: inserted, error: insErr } = await admin
       .from("wallets")
