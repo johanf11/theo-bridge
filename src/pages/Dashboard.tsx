@@ -119,6 +119,10 @@ export default function Dashboard() {
   const [convertedThisMonth, setConvertedThisMonth] = useState(0);
   const [txCount30d, setTxCount30d] = useState(0);
   const { total: balance, htgcTotal } = useCustomerBalance();
+  const { positions: yieldPositions, netApy } = useBlendPositions();
+  const totalEarning = yieldPositions.reduce((s, p) => s + p.deposited + p.accrued, 0);
+  const totalAccrued = yieldPositions.reduce((s, p) => s + p.accrued, 0);
+  const hasYield = yieldPositions.length > 0;
   const [chartPeriod, setChartPeriod] = useState("1M");
 
   useEffect(() => {
