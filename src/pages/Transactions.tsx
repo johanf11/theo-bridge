@@ -368,6 +368,11 @@ export default function Transactions() {
                             </span>
                           );
                         })()
+                      ) : tx.type === "yield_earned" ? (
+                        <span style={{ color: "hsl(var(--theo-ink))" }}>
+                          Yield accrued on {tx.wallet_label}
+                          <span style={{ color: "hsl(var(--theo-mid))" }}> · since {new Date(tx.deposited_at ?? tx.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {((tx.net_apy ?? 0.07) * 100).toFixed(2)}% APY</span>
+                        </span>
                       ) : tx.type === "transfer" ? (
                         <span style={{ color: "hsl(var(--theo-ink))" }}>From {tx.wallet_label} → {tx.recipient_name}</span>
                       ) : (
