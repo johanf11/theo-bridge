@@ -83,20 +83,39 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 3. USDC trustline (signed by the new account itself; it has XLM from friendbot)
+    // 3. Establish trustlines (USDC + HTG-C) — signed by the new account itself.
     const server = new Horizon.Server(HORIZON_URL);
-    const account = await server.loadAccount(publicKey);
+    const distributorKp = Keypair.fromSecret(distributorSecret);
     const usdc = new Asset("USDC", issuer);
+    const htgc = new Asset("HTGC", distributorKp.publicKey());
 
-    const tx = new TransactionBuilder(account, {
-      fee: BASE_FEE,
-      networkPassphrase: Networks.TESTNET,
-    })
-      .addOperation(Operation.changeTrust({ asset: usdc }))
-      .setTimeout(60)
-      .build();
-    tx.sign(kp);
-    await server.submitTransaction(tx);
+    async function trust(asset: Asset) {
+      const acct = await server.loadAccount(publicKey);
+      const tx = new TransactionBuilder(acct, {
+        fee: BASE_FEE,
+        networkPassphrase: Networks.TESTNET,
+      })
+        .addOperation(Operation.changeTrust({ asset }))
+        .setTimeout(60)
+        .build();
+      tx.sign(kp);
+      await server.submitTransaction(tx);
+    }
+
+    // Submit independently so one failure doesn't block the other.
+    const trustResults: { asset: string; ok: boolean; error?: string }[] = [];
+    for (const [code, asset] of [["USDC", usdc], ["HTGC", htgc]] as const) {
+      try {
+        await trust(asset);
+        trustResults.push({ asset: code, ok: true });
+      } catch (err: unknown) {
+        const msg = (err as { response?: { data?: unknown } })?.response?.data
+          ? JSON.stringify((err as { response: { data: unknown } }).response.data)
+          : (err as Error).message;
+        trustResults.push({ asset: code, ok: false, error: String(msg).slice(0, 500) });
+        console.error(`trustline ${code} failed for ${publicKey}`, msg);
+      }
+    }
 
     // 4. Persist (service role bypasses RLS; trustworthy because user verified above)
     const { data: inserted, error: insErr } = await admin
@@ -121,7 +140,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ wallet: inserted, public_key: publicKey }),
+      JSON.stringify({ wallet: inserted, public_key: publicKey, trustlines: trustResults }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (e) {
