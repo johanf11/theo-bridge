@@ -11,6 +11,7 @@ import {
 } from "npm:@stellar/stellar-sdk@12.3.0";
 
 const HORIZON_URL = "https://horizon-testnet.stellar.org";
+const HTGC_ISSUER = "GDSRYZWTLQLBECKCL4TV7ZRGBZGBMSPD4V47B7Y7JSQVDJRSEXQTFCQT";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -85,9 +86,8 @@ Deno.serve(async (req) => {
 
     // 3. Establish trustlines (USDC + HTG-C) — signed by the new account itself.
     const server = new Horizon.Server(HORIZON_URL);
-    const distributorKp = Keypair.fromSecret(distributorSecret);
     const usdc = new Asset("USDC", issuer);
-    const htgc = new Asset("HTGC", distributorKp.publicKey());
+    const htgc = new Asset("HTGC", HTGC_ISSUER);
 
     async function trust(asset: Asset) {
       const acct = await server.loadAccount(publicKey);
