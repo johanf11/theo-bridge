@@ -213,6 +213,7 @@ export default function Balance() {
   const openMoveModal = (sourceId?: string) => {
     const src = sourceId && wallets.find((w) => w.id === sourceId) ? sourceId : (wallets[0]?.id ?? "");
     const dst = wallets.find((w) => w.id !== src)?.id ?? "";
+    setMoveAsset("USDC");
     setMoveSourceId(src);
     setMoveDestId(dst);
     setMoveAmount("");
@@ -221,9 +222,14 @@ export default function Balance() {
   };
 
   const moveAmountNum = parseFloat(moveAmount) || 0;
-  const moveSourceBalance = moveSourceId ? (balances[moveSourceId] ?? 0) : 0;
+  const moveAssetBalances = moveAsset === "HTGC" ? htgcBalances : balances;
+  const moveSourceBalance = moveSourceId ? (moveAssetBalances[moveSourceId] ?? 0) : 0;
   const moveSourceLabel = wallets.find((w) => w.id === moveSourceId)?.label ?? "Source";
   const moveDestLabel = wallets.find((w) => w.id === moveDestId)?.label ?? "Destination";
+  const moveAssetLabel = moveAsset === "HTGC" ? "HTG-C" : "USDC";
+  const moveAmountPrefix = moveAsset === "HTGC" ? "" : "$";
+  const moveAmountSuffix = moveAsset === "HTGC" ? " HTG-C" : "";
+  const fmtMoveAmount = (n: number) => `${moveAmountPrefix}${fmt(n)}${moveAmountSuffix}`;
   const moveValid =
     moveSourceId && moveDestId && moveSourceId !== moveDestId &&
     moveAmountNum > 0 && moveAmountNum <= moveSourceBalance;
@@ -236,6 +242,7 @@ export default function Balance() {
         sourceWalletId: moveSourceId,
         destinationWalletId: moveDestId,
         amount: moveAmountNum,
+        asset: moveAsset,
         memo: moveMemo.trim() || undefined,
       },
     });
@@ -246,7 +253,7 @@ export default function Balance() {
       return;
     }
     const hash = (data as { hash?: string })?.hash ?? "";
-    toast.success(`Moved $${fmt(moveAmountNum)} from ${moveSourceLabel} to ${moveDestLabel} · ${hash.slice(0, 8)}…`);
+    toast.success(`Moved ${fmtMoveAmount(moveAmountNum)} from ${moveSourceLabel} to ${moveDestLabel} · ${hash.slice(0, 8)}…`);
     setMoveOpen(false);
     await Promise.all([loadWallets(), refreshTotal()]);
   };
