@@ -4,9 +4,10 @@ import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { useRoles } from "@/lib/auth";
 import { fmtHTG, fmtRate, fmtUSDC } from "@/lib/format";
-import { Copy, ExternalLink, CheckCircle2, Clock, Loader2, CreditCard, AlertTriangle, Hourglass, Check } from "lucide-react";
+import { Copy, ExternalLink, CheckCircle2, Clock, Loader2, CreditCard, AlertTriangle, Hourglass, Check, Download } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { generateReceipt } from "@/lib/receipt";
 
 type Order = {
   id: string; status: string; htg_amount: number; usdc_amount: number; rate: number;
@@ -295,17 +296,42 @@ export default function OrderStatus() {
                 Settled to your Primary — Operations wallet · Stellar network
               </div>
             </div>
-            <Link
-              to="/balance"
-              style={{
-                background: "hsl(var(--theo-gold))", color: "hsl(var(--theo-blue))",
-                borderRadius: 8, padding: "9px 18px", fontSize: 13,
-                fontWeight: 700, fontFamily: "inherit", textDecoration: "none",
-                whiteSpace: "nowrap", flexShrink: 0,
-              }}
-            >
-              View balance →
-            </Link>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+              <button
+                onClick={() => generateReceipt({
+                  kind: (order.order_kind ?? "conversion") as Parameters<typeof generateReceipt>[0]["kind"],
+                  referenceNumber: order.reference_number,
+                  createdAt: order.created_at,
+                  htgAmount: Number(order.htg_amount),
+                  usdcAmount: Number(order.usdc_amount),
+                  rate: Number(order.rate),
+                  stellarTxHash: order.stellar_tx_hash,
+                  status: order.status,
+                })}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  background: "rgba(255,255,255,0.12)",
+                  border: "1.5px solid rgba(255,255,255,0.25)",
+                  color: "#fff", borderRadius: 8, padding: "9px 16px", fontSize: 13,
+                  fontWeight: 700, fontFamily: "inherit", cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <Download style={{ width: 13, height: 13 }} />
+                Receipt
+              </button>
+              <Link
+                to="/balance"
+                style={{
+                  background: "hsl(var(--theo-gold))", color: "hsl(var(--theo-blue))",
+                  borderRadius: 8, padding: "9px 18px", fontSize: 13,
+                  fontWeight: 700, fontFamily: "inherit", textDecoration: "none",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                View balance →
+              </Link>
+            </div>
           </div>
 
           {order.stellar_tx_hash && (
