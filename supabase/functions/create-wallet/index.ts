@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ wallet: inserted, public_key: publicKey }),
+      JSON.stringify({ wallet: inserted, public_key: publicKey, trustlines: trustResults }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (e) {
