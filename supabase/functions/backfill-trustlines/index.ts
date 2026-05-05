@@ -13,6 +13,7 @@ const corsHeaders = {
 };
 
 const HORIZON_URL = "https://horizon-testnet.stellar.org";
+const HTGC_ISSUER = "GDSRYZWTLQLBECKCL4TV7ZRGBZGBMSPD4V47B7Y7JSQVDJRSEXQTFCQT";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -41,10 +42,9 @@ Deno.serve(async (req) => {
     const { data: isAdmin } = await admin.rpc("has_role", { _user_id: user.id, _role: "admin" });
     if (!isAdmin) return json({ error: "Admin only" }, 403);
 
-    const distributorKp = Keypair.fromSecret(distributorSecret);
     const assets: { code: string; asset: Asset }[] = [
       { code: "USDC", asset: new Asset("USDC", usdcIssuer) },
-      { code: "HTGC", asset: new Asset("HTGC", distributorKp.publicKey()) },
+      { code: "HTGC", asset: new Asset("HTGC", HTGC_ISSUER) },
     ];
 
     const { data: wallets, error: wErr } = await admin
