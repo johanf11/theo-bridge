@@ -133,15 +133,23 @@ export default function Compliance() {
       if (!assetRes.ok) throw new Error(`Asset lookup failed (${assetRes.status})`);
 
       const distJson  = await distRes.json()  as { balances: HorizonBalance[] };
-      const assetJson = await assetRes.json() as { _embedded: { records: Array<{ amount: string }> } };
+      const assetJson = await assetRes.json() as Record<string, unknown>;
 
+      // Distributor treasury balance
       const htgcBal = distJson.balances.find(
         (b) => b.asset_code === "HTGC" && b.asset_issuer === HTGC_ISSUER,
       );
-      const treasury    = htgcBal ? Number(htgcBal.balance) : 0;
-      const totalMinted = assetJson._embedded.records[0]
-        ? Number(assetJson._embedded.records[0].amount)
-        : treasury;
+      const treasury = htgcBal ? parseFloat(htgcBal.balance) : 0;
+
+      // Total minted — Horizon /assets returns balances.authorized (not `amount`)
+      // e.g. { balances: { authorized: "11075000.0000000", ... } }
+      const records = (assetJson?._embedded as {
+        records?: Array<{ balances?: { authorized?: string } }>
+      } | undefined)?.records ?? [];
+      const rawAmount = records[0]?.balances?.authorized;
+      const parsed = rawAmount != null ? parseFloat(rawAmount) : NaN;
+      const totalMinted = !isNaN(parsed) ? parsed : treasury;
+
       const circulation = Math.max(0, totalMinted - treasury);
 
       setReserve({ treasury, totalMinted, circulation });
@@ -217,19 +225,19 @@ export default function Compliance() {
           accent
           icon={Landmark}
           label="Total HTG-C Minted"
-          value={state === "ok" && reserve ? `${fmtN(reserve.totalMinted, 0)}` : "—"}
+          value={state === "ok" && reserve && !isNaN(reserve.totalMinted) ? fmtN(reserve.totalMinted, 0) : "—"}
           sub="All tokens issued · on-chain supply"
         />
         <StatCard
           icon={CircleDot}
           label="In Circulation"
-          value={state === "ok" && reserve ? `${fmtN(reserve.circulation, 0)}` : "—"}
+          value={state === "ok" && reserve && !isNaN(reserve.circulation) ? fmtN(reserve.circulation, 0) : "—"}
           sub="Held in customer wallets"
         />
         <StatCard
           icon={Landmark}
           label="In Treasury"
-          value={state === "ok" && reserve ? `${fmtN(reserve.treasury, 0)}` : "—"}
+          value={state === "ok" && reserve && !isNaN(reserve.treasury) ? fmtN(reserve.treasury, 0) : "—"}
           sub="Available for distribution"
         />
         <StatCard
