@@ -326,7 +326,21 @@ export default function Transactions() {
                           {fmtHTGC(tx.htg_amount ?? 0)} HTG-C ↔ {fmtUSDC(tx.usdc_amount)}
                         </span>
                       ) : tx.type === "yield" ? (
-                        <span style={{ color: "hsl(var(--theo-ink))" }}>From {tx.wallet_label} → Yield treasury</span>
+                        (() => {
+                          const principal = tx.usdc_amount;
+                          const apy = tx.net_apy ?? 0.07;
+                          const elapsedSec = (Date.now() - new Date(tx.deposited_at ?? tx.created_at).getTime()) / 1000;
+                          const accrued = principal * (Math.exp(apy * (elapsedSec / (365 * 24 * 3600))) - 1);
+                          return (
+                            <span style={{ color: "hsl(var(--theo-ink))" }}>
+                              From {tx.wallet_label} → Yield treasury
+                              <span style={{ color: "hsl(150 70% 25%)", fontWeight: 700, marginLeft: 6 }}>
+                                +{fmtUSDC(accrued)} earned
+                              </span>
+                              <span style={{ color: "hsl(var(--theo-mid))" }}> · {(apy * 100).toFixed(2)}% APY</span>
+                            </span>
+                          );
+                        })()
                       ) : tx.type === "transfer" ? (
                         <span style={{ color: "hsl(var(--theo-ink))" }}>From {tx.wallet_label} → {tx.recipient_name}</span>
                       ) : (
