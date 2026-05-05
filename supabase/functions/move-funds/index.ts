@@ -30,6 +30,7 @@ Deno.serve(async (req) => {
     const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
     const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const usdcIssuer = Deno.env.get("STELLAR_USDC_ISSUER");
+    const distributorSecret = Deno.env.get("STELLAR_DISTRIBUTOR_SECRET");
     if (!usdcIssuer) return json({ error: "STELLAR_USDC_ISSUER not configured" }, 500);
 
     const userClient = createClient(url, anon, { global: { headers: { Authorization: authHeader } } });
@@ -42,7 +43,8 @@ Deno.serve(async (req) => {
     if (!customer) return json({ error: "Customer not found" }, 404);
 
     const body = await req.json().catch(() => ({}));
-    const { sourceWalletId, destinationWalletId, amount, memo } = body;
+    const { sourceWalletId, destinationWalletId, amount, memo, asset } = body;
+    const assetCode = (asset === "HTGC" || asset === "HTG-C") ? "HTGC" : "USDC";
 
     if (!sourceWalletId) return json({ error: "sourceWalletId required" }, 400);
     if (!destinationWalletId) return json({ error: "destinationWalletId required" }, 400);
@@ -73,6 +75,7 @@ Deno.serve(async (req) => {
         recipient_name: dstWallet.label ?? "Wallet",
         recipient_address: dstWallet.stellar_address,
         amount_usdc: parsedAmount,
+        asset_code: assetCode,
         memo: INTERNAL_MEMO_TAG,
         status: "PENDING",
       })
@@ -80,16 +83,30 @@ Deno.serve(async (req) => {
       .single();
     if (payErr) throw payErr;
 
-    // Build & submit Stellar USDC payment.
+    // Build & submit Stellar payment for the chosen asset.
     const server = new Horizon.Server(HORIZON_URL);
     const sourceKp = Keypair.fromSecret(srcWallet.stellar_secret);
     const sourceAccount = await server.loadAccount(sourceKp.publicKey());
-    const usdc = new Asset("USDC", usdcIssuer);
+
+    let paymentAsset: Asset;
+    if (assetCode === "HTGC") {
+      if (!distributorSecret) {
+        await admin.from("payouts").update({
+          status: "FAILED",
+          failure_reason: "STELLAR_DISTRIBUTOR_SECRET not configured",
+        }).eq("id", payout.id);
+        return json({ error: "STELLAR_DISTRIBUTOR_SECRET not configured" }, 500);
+      }
+      const distributor = Keypair.fromSecret(distributorSecret);
+      paymentAsset = new Asset("HTGC", distributor.publicKey());
+    } else {
+      paymentAsset = new Asset("USDC", usdcIssuer);
+    }
 
     const txBuilder = new TransactionBuilder(sourceAccount, {
       fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
     }).addOperation(Operation.payment({
-      destination: dstWallet.stellar_address, asset: usdc, amount: parsedAmount.toFixed(7),
+      destination: dstWallet.stellar_address, asset: paymentAsset, amount: parsedAmount.toFixed(7),
     }));
 
     // User-supplied memo, capped to Stellar text-memo limit (28 bytes).
