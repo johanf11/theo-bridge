@@ -126,17 +126,43 @@ export default function Transactions() {
             wallet_label: isTransfer ? (walletLabel.get(p.source_wallet_id ?? "") ?? "Wallet") : undefined,
           };
         }),
-        ...(yields ?? []).map((y) => ({
-          id: y.id,
-          type: "yield" as TxType,
-          created_at: y.deposited_at,
-          usdc_amount: Number(y.deposited_usdc),
-          status: "EARNING",
-          stellar_tx_hash: y.last_tx_hash ?? null,
-          wallet_label: walletLabel.get(y.wallet_id) ?? "Wallet",
-          deposited_at: y.deposited_at,
-          net_apy: Number(y.net_apy ?? 0.07),
-        })),
+        ...(yields ?? []).flatMap((y) => {
+          const principal = Number(y.deposited_usdc);
+          const apy = Number(y.net_apy ?? 0.07);
+          const depositedAt = new Date(y.deposited_at);
+          const elapsedSec = (Date.now() - depositedAt.getTime()) / 1000;
+          const accruedTotal = principal * (Math.exp(apy * (elapsedSec / (365 * 24 * 3600))) - 1);
+          const label = walletLabel.get(y.wallet_id) ?? "Wallet";
+
+          const rows: UnifiedTx[] = [{
+            id: y.id,
+            type: "yield" as TxType,
+            created_at: y.deposited_at,
+            usdc_amount: principal,
+            status: "EARNING",
+            stellar_tx_hash: y.last_tx_hash ?? null,
+            wallet_label: label,
+            deposited_at: y.deposited_at,
+            net_apy: apy,
+          }];
+
+          // Synthetic "Yield earned" line item — shows accrual since deposit, dated today.
+          // Only meaningful once at least a few cents have accrued.
+          if (accruedTotal >= 0.01) {
+            rows.push({
+              id: `${y.id}-earned`,
+              type: "yield_earned" as TxType,
+              created_at: new Date().toISOString(),
+              usdc_amount: accruedTotal,
+              status: "ACCRUING",
+              stellar_tx_hash: null,
+              wallet_label: label,
+              deposited_at: y.deposited_at,
+              net_apy: apy,
+            });
+          }
+          return rows;
+        }),
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       setAll(merged);
