@@ -7,6 +7,7 @@ import {
   Asset, Horizon, Keypair, Memo, Networks, Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
+import { ensureWalletReady } from "../_shared/ensure-wallet-ready.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -147,38 +148,20 @@ Deno.serve(async (req) => {
     const userKp = Keypair.fromSecret(wallet.stellar_secret);
     let htgcBalanceBeforeLeg1: number | null = null;
 
-    // Ensure user wallet has trustlines for both source (leg 1) and destination (leg 2) assets.
-    try {
-      const userAccount = await server.loadAccount(wallet.stellar_address);
-      const needsTrust = (a: Asset) => {
-        if (a.isNative()) return false;
-        const code = a.getCode();
-        const issuer = a.getIssuer();
-        return !userAccount.balances.some((b: { asset_type: string; asset_code?: string; asset_issuer?: string }) =>
-          b.asset_type !== "native" && b.asset_code === code && b.asset_issuer === issuer
-        );
-      };
-      const toTrust = [sourceAsset, destAsset].filter(needsTrust);
-      if (toTrust.length > 0) {
-        const builder = new TransactionBuilder(userAccount, {
-          fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
-        });
-        for (const a of toTrust) builder.addOperation(Operation.changeTrust({ asset: a }));
-        const trustTx = builder.setTimeout(60).build();
-        trustTx.sign(userKp);
-        await server.submitTransaction(trustTx);
-      }
-    } catch (trustErr: unknown) {
-      const msg = (trustErr as { response?: { data?: unknown } })?.response?.data
-        ? JSON.stringify((trustErr as { response: { data: unknown } }).response.data)
-        : (trustErr as Error).message;
-      return json({ error: `Trustline setup failed: ${msg}` }, 502);
+    // Self-heal user wallet — guarantees USDC + HTGC trustlines exist and are
+    // authorized before any payment runs. Idempotent.
+    const htgcIssuerSecret = Deno.env.get("STELLAR_HTGC_ISSUER_SECRET") ?? undefined;
+    {
+      const ready = await ensureWalletReady({
+        server, address: wallet.stellar_address, secret: wallet.stellar_secret,
+        usdcIssuer, htgcIssuerSecret,
+      });
+      if (!ready.ok) return json({ error: `Wallet not ready: ${ready.error}` }, 502);
     }
 
     // If swapping HTGC → USDC, ensure the user wallet holds enough HTGC issued by HTGC_ISSUER.
     // If short, mint the shortfall from the HTGC issuer (testnet only, simulates upstream funding).
     if (direction === "htgc_to_usdc") {
-      const htgcIssuerSecret = Deno.env.get("STELLAR_HTGC_ISSUER_SECRET");
       try {
         const have = await loadRealHtgcBalance(server, wallet.stellar_address);
         const shortfall = sourceAmount - have;
@@ -187,18 +170,10 @@ Deno.serve(async (req) => {
             return json({ error: `Wallet has ${have} HTGC from issuer ${HTGC_ISSUER}, needs ${sourceAmount}. STELLAR_HTGC_ISSUER_SECRET not configured.` }, 400);
           }
           const issuerKp = Keypair.fromSecret(htgcIssuerSecret);
-          if (issuerKp.publicKey() !== HTGC_ISSUER) {
-            return json({ error: `STELLAR_HTGC_ISSUER_SECRET public key (${issuerKp.publicKey()}) does not match HTGC_ISSUER (${HTGC_ISSUER})` }, 500);
-          }
           const issuerAccount = await server.loadAccount(issuerKp.publicKey());
           const mintTx = new TransactionBuilder(issuerAccount, {
             fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
           })
-            .addOperation(Operation.setTrustLineFlags({
-              trustor: wallet.stellar_address,
-              asset: htgc,
-              flags: { authorized: true },
-            }))
             .addOperation(Operation.payment({
               destination: wallet.stellar_address,
               asset: htgc,
@@ -215,39 +190,6 @@ Deno.serve(async (req) => {
           ? JSON.stringify((mintErr as { response: { data: unknown } }).response.data)
           : (mintErr as Error).message;
         return json({ error: `HTGC pre-funding failed: ${msg}` }, 502);
-      }
-    }
-
-    // If swapping USDC → HTGC, the user wallet's HTGC trustline must be authorized by the
-    // issuer before the distributor can pay HTGC into it (HTGC issuer requires authorization).
-    if (direction === "usdc_to_htgc") {
-      const htgcIssuerSecret = Deno.env.get("STELLAR_HTGC_ISSUER_SECRET");
-      if (!htgcIssuerSecret) {
-        return json({ error: "STELLAR_HTGC_ISSUER_SECRET not configured — required to authorize user's HTGC trustline before payout." }, 500);
-      }
-      try {
-        const issuerKp = Keypair.fromSecret(htgcIssuerSecret);
-        if (issuerKp.publicKey() !== HTGC_ISSUER) {
-          return json({ error: `STELLAR_HTGC_ISSUER_SECRET public key (${issuerKp.publicKey()}) does not match HTGC_ISSUER (${HTGC_ISSUER})` }, 500);
-        }
-        const issuerAccount = await server.loadAccount(issuerKp.publicKey());
-        const authTx = new TransactionBuilder(issuerAccount, {
-          fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
-        })
-          .addOperation(Operation.setTrustLineFlags({
-            trustor: wallet.stellar_address,
-            asset: htgc,
-            flags: { authorized: true },
-          }))
-          .setTimeout(60)
-          .build();
-        authTx.sign(issuerKp);
-        await server.submitTransaction(authTx);
-      } catch (authErr: unknown) {
-        const msg = (authErr as { response?: { data?: unknown } })?.response?.data
-          ? JSON.stringify((authErr as { response: { data: unknown } }).response.data)
-          : (authErr as Error).message;
-        return json({ error: `HTGC trustline authorization failed: ${msg}` }, 502);
       }
     }
 
