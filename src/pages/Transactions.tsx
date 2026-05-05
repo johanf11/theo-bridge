@@ -5,7 +5,7 @@ import { StatusBadge } from "@/components/theo/StatusBadge";
 import { fmtUSDC, fmtHTG, fmtHTGC } from "@/lib/format";
 import { Download } from "lucide-react";
 import { useSearch } from "@/contexts/SearchContext";
-import { toast } from "sonner";
+
 
 type TxType = "conversion" | "htgc_mint" | "swap" | "withdraw" | "payout" | "yield" | "transfer";
 
@@ -36,8 +36,6 @@ const PAYOUT_STATUS_MAP: Record<string, string> = {
 export default function Transactions() {
   const [all, setAll] = useState<UnifiedTx[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [retryingId, setRetryingId] = useState<string | null>(null);
   const { query } = useSearch();
   const highlightRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
 
@@ -45,31 +43,6 @@ export default function Transactions() {
   const [typeFilter, setTypeFilter] = useState("All types");
   const [statusFilter, setStatusFilter] = useState("All statuses");
   const [dateFilter, setDateFilter] = useState("Last 30 days");
-
-  useEffect(() => {
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data } = await supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle();
-      setIsAdmin(!!data);
-    })();
-  }, []);
-
-  const handleRetry = async (orderId: string) => {
-    setRetryingId(orderId);
-    try {
-      const { data, error } = await supabase.functions.invoke("retry-swap-payout", { body: { orderId } });
-      if (error || (data as { error?: string })?.error) {
-        toast.error(`Retry failed: ${(data as { error?: string })?.error ?? error?.message ?? "unknown"}`);
-        return;
-      }
-      toast.success(`Payout settled · leg 2 ${(data as { leg2Hash?: string }).leg2Hash?.slice(0, 8)}…`);
-      // Refresh list
-      setAll((prev) => prev.map((t) => t.id === orderId ? { ...t, status: "COMPLETED", stellar_tx_hash: (data as { leg2Hash?: string }).leg2Hash ?? t.stellar_tx_hash } : t));
-    } finally {
-      setRetryingId(null);
-    }
-  };
 
   useEffect(() => {
     (async () => {
@@ -359,24 +332,7 @@ export default function Transactions() {
 
                     {/* Status */}
                     <td className="px-5 py-3">
-                      <div className="flex items-center gap-2">
-                        <StatusBadge status={tx.status} />
-                        {isAdmin && tx.type === "swap" && tx.status === "FAILED" && (
-                          <button
-                            onClick={() => handleRetry(tx.id)}
-                            disabled={retryingId === tx.id}
-                            title="Admin: re-submit leg 2 (distributor → user) for this failed swap"
-                            style={{
-                              background: "transparent", border: "1px solid hsl(var(--theo-blue))",
-                              color: "hsl(var(--theo-blue))", borderRadius: 6, padding: "2px 8px",
-                              fontSize: 11, fontWeight: 700, cursor: retryingId === tx.id ? "wait" : "pointer",
-                              fontFamily: "inherit",
-                            }}
-                          >
-                            {retryingId === tx.id ? "Retrying…" : "Retry payout"}
-                          </button>
-                        )}
-                      </div>
+                      <StatusBadge status={tx.status} />
                     </td>
 
                     {/* Reference / Recipient */}

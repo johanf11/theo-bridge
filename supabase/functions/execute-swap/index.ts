@@ -317,9 +317,47 @@ Deno.serve(async (req) => {
         : (e as Error).message;
     }
 
+    // ── COMPENSATING REFUND: if leg 2 failed, return leg-1 funds to user ───
+    let refundHash: string | null = null;
+    let refundError: string | null = null;
+    if (leg2Hash === null) {
+      try {
+        const distAccount = await server.loadAccount(distributor.publicKey());
+        const refundMemo = `${reference}-RFND`.slice(0, 28);
+        const txR = new TransactionBuilder(distAccount, {
+          fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
+        })
+          .addOperation(Operation.payment({
+            destination: wallet.stellar_address,
+            asset: sourceAsset,
+            amount: sourceAmount.toFixed(7),
+          }))
+          .addMemo(Memo.text(refundMemo))
+          .setTimeout(60)
+          .build();
+        txR.sign(distributor);
+        const rR = await server.submitTransaction(txR);
+        refundHash = (rR as { hash: string }).hash;
+        console.log(`Auto-refund OK ${reference}: ${refundHash}`);
+      } catch (e: unknown) {
+        refundError = (e as { response?: { data?: unknown } })?.response?.data
+          ? JSON.stringify((e as { response: { data: unknown } }).response.data)
+          : (e as Error).message;
+        console.error(`AUTO-REFUND FAILED ${reference}:`, refundError);
+      }
+    }
+
     // Persist order
     const completed = leg2Hash !== null;
     const now = new Date().toISOString();
+    let failureReason: string | null = null;
+    if (!completed) {
+      if (refundHash) {
+        failureReason = `Leg 2 failed: ${leg2Error?.slice(0, 600)}. Auto-refunded leg 1 to user wallet in tx ${refundHash}.`;
+      } else {
+        failureReason = `Leg 2 failed: ${leg2Error?.slice(0, 500)}. AUTO-REFUND ALSO FAILED: ${refundError?.slice(0, 300)}. MANUAL INTERVENTION REQUIRED — funds held at distributor.`;
+      }
+    }
     const { data: order, error: orderErr } = await admin
       .from("orders")
       .insert({
@@ -333,23 +371,37 @@ Deno.serve(async (req) => {
         reference_number: reference,
         destination_stellar_address: wallet.stellar_address,
         destination_wallet_address: wallet.stellar_address,
-        stellar_tx_hash: leg2Hash ?? leg1Hash,
+        stellar_tx_hash: leg2Hash ?? refundHash ?? leg1Hash,
         quote_expires_at: new Date(Date.now() + 60_000).toISOString(),
         funded_at: now,
         released_at: completed ? now : null,
         completed_at: completed ? now : null,
-        failure_reason: leg2Error
-          ? `Leg 1 ok (${leg1Hash}); leg 2 failed: ${leg2Error.slice(0, 800)}`
-          : null,
+        failure_reason: failureReason,
       })
       .select("id")
       .single();
     if (orderErr) {
-      return json({ error: `Swap submitted on-chain but failed to persist: ${orderErr.message}`, leg1Hash, leg2Hash }, 500);
+      return json({ error: `Swap submitted on-chain but failed to persist: ${orderErr.message}`, leg1Hash, leg2Hash, refundHash }, 500);
     }
 
     if (!completed) {
-      return json({ error: `Swap partially failed. Leg 2: ${leg2Error}`, orderId: order.id, leg1Hash }, 502);
+      if (refundHash) {
+        return json({
+          error: `Swap couldn't complete — your funds were returned to your wallet.`,
+          orderId: order.id,
+          leg1Hash,
+          refundHash,
+          refunded: true,
+          detail: leg2Error,
+        }, 502);
+      }
+      return json({
+        error: `Swap failed and auto-refund also failed. Theo support has been notified — funds are held at the distributor and will be returned manually.`,
+        orderId: order.id,
+        leg1Hash,
+        refundFailed: true,
+        detail: `leg2: ${leg2Error}; refund: ${refundError}`,
+      }, 502);
     }
 
     return json({ ok: true, orderId: order.id, hash: leg2Hash, reference });

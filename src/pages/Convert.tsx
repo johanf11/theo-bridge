@@ -414,7 +414,18 @@ export default function Convert() {
         body: { wallet_id: wallet.id, amount: swapAmountRaw, direction: swapDir },
       });
       if (error || data?.error) {
-        toast.error(data?.error || error?.message || "Swap failed");
+        if (data?.refunded) {
+          toast.error("Swap couldn't complete — your funds were returned to your wallet.", {
+            description: data?.detail ? String(data.detail).slice(0, 160) : undefined,
+          });
+        } else if (data?.refundFailed) {
+          toast.error("Swap failed and funds are temporarily held. Theo support has been notified.", {
+            description: "An operations team member will return your funds shortly.",
+          });
+        } else {
+          toast.error(data?.error || error?.message || "Swap failed");
+        }
+        if (selectedWallet) fetchHorizonBalances(selectedWallet).then(setWalletBalances);
         return;
       }
       toast.success("Swap completed");
