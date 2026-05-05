@@ -7,6 +7,8 @@ const styles: Record<string, string> = {
   FUNDED:    "bg-warning/15 text-warning border-warning/30",
   RELEASING: "bg-theo-blue/15 text-theo-blue border-theo-blue/30",
   COMPLETED: "bg-success/15 text-success border-success/30",
+  EARNING:   "bg-success/15 text-success border-success/30",
+  EARNED:    "bg-success/15 text-success border-success/30",
   FAILED:    "bg-destructive/15 text-destructive border-destructive/30",
   EXPIRED:   "bg-destructive/10 text-destructive border-destructive/20",
   REFUNDED:  "bg-muted text-muted-foreground",
@@ -14,8 +16,9 @@ const styles: Record<string, string> = {
 
 const labels: Record<string, string> = {
   CREATED: "Created", QUOTED: "Awaiting payment", FUNDED: "Payment received",
-  RELEASING: "Releasing USDC", COMPLETED: "Complete", FAILED: "Failed",
-  EXPIRED: "Expired", REFUNDED: "Refunded",
+  RELEASING: "Releasing USDC", COMPLETED: "Complete",
+  EARNING: "Earning", EARNED: "Earned",
+  FAILED: "Failed", EXPIRED: "Expired", REFUNDED: "Refunded",
 };
 
 export function StatusBadge({ status }: { status: string }) {
