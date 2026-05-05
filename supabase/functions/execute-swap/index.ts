@@ -246,6 +246,20 @@ Deno.serve(async (req) => {
       return json({ error: `Leg 1 (user → distributor) failed: ${msg}` }, 502);
     }
 
+    if (direction === "htgc_to_usdc") {
+      const before = htgcBalanceBeforeLeg1 ?? await loadRealHtgcBalance(server, wallet.stellar_address);
+      const debit = await waitForRealHtgcDebit(server, wallet.stellar_address, before, sourceAmount);
+      if (!debit.ok) {
+        return json({
+          error: `Leg 1 safety check failed: real HTGC balance did not decrease by ${sourceAmount.toFixed(7)}. USDC payout aborted.`,
+          leg1Hash,
+          before,
+          after: debit.latest,
+          issuer: HTGC_ISSUER,
+        }, 502);
+      }
+    }
+
     // ── LEG 2: distributor → user ──────────────────────────────────────────
     let leg2Hash: string | null = null;
     let leg2Error: string | null = null;
