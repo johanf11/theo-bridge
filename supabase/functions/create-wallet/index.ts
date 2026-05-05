@@ -9,6 +9,7 @@ import {
   Networks,
   BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
+import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
 
 const HORIZON_URL = "https://horizon-testnet.stellar.org";
 
@@ -60,8 +61,7 @@ Deno.serve(async (req) => {
     }
 
     const issuer = Deno.env.get("STELLAR_USDC_ISSUER");
-    const distributorSecret = Deno.env.get("STELLAR_DISTRIBUTOR_SECRET");
-    if (!issuer || !distributorSecret) {
+    if (!issuer) {
       return new Response(JSON.stringify({ error: "Stellar config missing" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -85,9 +85,8 @@ Deno.serve(async (req) => {
 
     // 3. Establish trustlines (USDC + HTG-C) — signed by the new account itself.
     const server = new Horizon.Server(HORIZON_URL);
-    const distributorKp = Keypair.fromSecret(distributorSecret);
     const usdc = new Asset("USDC", issuer);
-    const htgc = new Asset("HTGC", distributorKp.publicKey());
+    const htgc = new Asset("HTGC", HTGC_ISSUER);
 
     async function trust(asset: Asset) {
       const acct = await server.loadAccount(publicKey);

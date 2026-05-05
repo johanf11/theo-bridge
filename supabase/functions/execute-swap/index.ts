@@ -6,6 +6,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import {
   Asset, Horizon, Keypair, Memo, Networks, Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
+import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,6 +15,37 @@ const corsHeaders = {
 };
 
 const HORIZON_URL = "https://horizon-testnet.stellar.org";
+type HorizonBalance = {
+  asset_type: string;
+  asset_code?: string;
+  asset_issuer?: string;
+  balance: string;
+};
+
+const realHtgcBalance = (balances: HorizonBalance[]) => {
+  const bal = balances.find((b) =>
+    b.asset_type !== "native" && b.asset_code === "HTGC" && b.asset_issuer === HTGC_ISSUER
+  );
+  return bal ? Number(bal.balance) : 0;
+};
+
+const loadRealHtgcBalance = async (server: Horizon.Server, address: string) => {
+  const account = await server.loadAccount(address);
+  return realHtgcBalance(account.balances as HorizonBalance[]);
+};
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const waitForRealHtgcDebit = async (server: Horizon.Server, address: string, before: number, amount: number) => {
+  const minExpected = before - amount;
+  let latest = before;
+  for (let i = 0; i < 6; i++) {
+    latest = await loadRealHtgcBalance(server, address);
+    if (latest <= minExpected + 0.000001) return { ok: true, latest };
+    await sleep(750);
+  }
+  return { ok: false, latest };
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -86,7 +118,6 @@ Deno.serve(async (req) => {
     // Compute legs
     const distributor = Keypair.fromSecret(distributorSecret);
     const usdc = new Asset("USDC", usdcIssuer);
-    const HTGC_ISSUER = "GDSRYZWTLQLBECKCL4TV7ZRGBZGBMSPD4V47B7Y7JSQVDJRSEXQTFCQT";
     const htgc = new Asset("HTGC", HTGC_ISSUER);
 
     let sourceAsset: Asset;
@@ -114,6 +145,7 @@ Deno.serve(async (req) => {
 
     const server = new Horizon.Server(HORIZON_URL);
     const userKp = Keypair.fromSecret(wallet.stellar_secret);
+    let htgcBalanceBeforeLeg1: number | null = null;
 
     // Ensure user wallet has trustlines for both source (leg 1) and destination (leg 2) assets.
     try {
@@ -148,11 +180,7 @@ Deno.serve(async (req) => {
     if (direction === "htgc_to_usdc") {
       const htgcIssuerSecret = Deno.env.get("STELLAR_HTGC_ISSUER_SECRET");
       try {
-        const userAccount = await server.loadAccount(wallet.stellar_address);
-        const htgcBal = userAccount.balances.find((b: { asset_type: string; asset_code?: string; asset_issuer?: string; balance: string }) =>
-          b.asset_type !== "native" && b.asset_code === "HTGC" && b.asset_issuer === HTGC_ISSUER
-        );
-        const have = htgcBal ? Number(htgcBal.balance) : 0;
+        const have = await loadRealHtgcBalance(server, wallet.stellar_address);
         const shortfall = sourceAmount - have;
         if (shortfall > 0) {
           if (!htgcIssuerSecret) {
@@ -181,6 +209,7 @@ Deno.serve(async (req) => {
           mintTx.sign(issuerKp);
           await server.submitTransaction(mintTx);
         }
+        htgcBalanceBeforeLeg1 = await loadRealHtgcBalance(server, wallet.stellar_address);
       } catch (mintErr: unknown) {
         const msg = (mintErr as { response?: { data?: unknown } })?.response?.data
           ? JSON.stringify((mintErr as { response: { data: unknown } }).response.data)
@@ -214,6 +243,20 @@ Deno.serve(async (req) => {
         ? JSON.stringify((e as { response: { data: unknown } }).response.data)
         : (e as Error).message;
       return json({ error: `Leg 1 (user → distributor) failed: ${msg}` }, 502);
+    }
+
+    if (direction === "htgc_to_usdc") {
+      const before = htgcBalanceBeforeLeg1 ?? await loadRealHtgcBalance(server, wallet.stellar_address);
+      const debit = await waitForRealHtgcDebit(server, wallet.stellar_address, before, sourceAmount);
+      if (!debit.ok) {
+        return json({
+          error: `Leg 1 safety check failed: real HTGC balance did not decrease by ${sourceAmount.toFixed(7)}. USDC payout aborted.`,
+          leg1Hash,
+          before,
+          after: debit.latest,
+          issuer: HTGC_ISSUER,
+        }, 502);
+      }
     }
 
     // ── LEG 2: distributor → user ──────────────────────────────────────────

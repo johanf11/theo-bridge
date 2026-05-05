@@ -1,10 +1,11 @@
 // Admin-only debug: flip QUOTED -> FUNDED, then invoke release-usdc.
-// For htgc_mint orders: mint HTG-C 1:1 from the distributor (acting as HTG-C issuer)
+// For htgc_mint orders: mint real HTG-C 1:1 from the HTG-C issuer
 // directly to the destination wallet, opening a trustline first if needed.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import {
   Asset, Horizon, Keypair, Memo, Networks, Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
+import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
 
 const HORIZON = "https://horizon-testnet.stellar.org";
 
@@ -68,9 +69,9 @@ Deno.serve(async (req) => {
     const isMint = (existing as { order_kind?: string }).order_kind === "htgc_mint";
 
     if (isMint) {
-      // HTG-C mint on Stellar testnet — distributor acts as HTG-C issuer.
-      const distributorSecret = Deno.env.get("STELLAR_DISTRIBUTOR_SECRET");
-      if (!distributorSecret) throw new Error("STELLAR_DISTRIBUTOR_SECRET not configured");
+      // HTG-C mint on Stellar testnet — use the real HTG-C issuer, not the distributor.
+      const htgcIssuerSecret = Deno.env.get("STELLAR_HTGC_ISSUER_SECRET");
+      if (!htgcIssuerSecret) throw new Error("STELLAR_HTGC_ISSUER_SECRET not configured");
 
       // Resolve destination address + secret (need secret to add trustline if missing)
       let dest = (existing.destination_stellar_address ?? existing.destination_wallet_address) as string | null;
@@ -96,13 +97,14 @@ Deno.serve(async (req) => {
       if (!dest || !dest.startsWith("G")) throw new Error("No Stellar destination wallet for this mint");
 
       const server = new Horizon.Server(HORIZON);
-      const distributor = Keypair.fromSecret(distributorSecret);
-      const htgc = new Asset("HTGC", distributor.publicKey());
+      const issuer = Keypair.fromSecret(htgcIssuerSecret);
+      if (issuer.publicKey() !== HTGC_ISSUER) throw new Error("STELLAR_HTGC_ISSUER_SECRET does not match HTGC_ISSUER");
+      const htgc = new Asset("HTGC", HTGC_ISSUER);
 
       // Open HTG-C trustline if missing (requires destination wallet secret)
       const destAccount = await server.loadAccount(dest);
       const hasTrust = (destAccount.balances as any[]).some(
-        (b) => b.asset_code === "HTGC" && b.asset_issuer === distributor.publicKey()
+        (b) => b.asset_code === "HTGC" && b.asset_issuer === HTGC_ISSUER
       );
       if (!hasTrust) {
         if (!destSecret) throw new Error("Destination wallet missing HTG-C trustline and no signing key available");
@@ -117,17 +119,22 @@ Deno.serve(async (req) => {
         await server.submitTransaction(trustTx);
       }
 
-      // Mint = payment from issuer (distributor) to destination
-      const issuerAccount = await server.loadAccount(distributor.publicKey());
+      // Mint = payment from real issuer to destination
+      const issuerAccount = await server.loadAccount(issuer.publicKey());
       const amount = Number(existing.htg_amount).toFixed(7);
       const mintTx = new TransactionBuilder(issuerAccount, {
         fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
       })
+        .addOperation(Operation.setTrustLineFlags({
+          trustor: dest,
+          asset: htgc,
+          flags: { authorized: true },
+        }))
         .addOperation(Operation.payment({ destination: dest, asset: htgc, amount }))
         .addMemo(Memo.text(String(existing.reference_number).slice(0, 28)))
         .setTimeout(60)
         .build();
-      mintTx.sign(distributor);
+      mintTx.sign(issuer);
       const mintResult = await server.submitTransaction(mintTx);
       const hash = (mintResult as { hash: string }).hash;
 

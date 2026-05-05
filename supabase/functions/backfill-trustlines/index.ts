@@ -5,6 +5,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import {
   Asset, Horizon, Keypair, Networks, Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
+import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,8 +29,7 @@ Deno.serve(async (req) => {
     const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
     const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const usdcIssuer = Deno.env.get("STELLAR_USDC_ISSUER");
-    const distributorSecret = Deno.env.get("STELLAR_DISTRIBUTOR_SECRET");
-    if (!usdcIssuer || !distributorSecret) return json({ error: "Stellar config missing" }, 500);
+    if (!usdcIssuer) return json({ error: "Stellar config missing" }, 500);
 
     const userClient = createClient(url, anon, { global: { headers: { Authorization: authHeader } } });
     const { data: { user } } = await userClient.auth.getUser();
@@ -41,10 +41,9 @@ Deno.serve(async (req) => {
     const { data: isAdmin } = await admin.rpc("has_role", { _user_id: user.id, _role: "admin" });
     if (!isAdmin) return json({ error: "Admin only" }, 403);
 
-    const distributorKp = Keypair.fromSecret(distributorSecret);
     const assets: { code: string; asset: Asset }[] = [
       { code: "USDC", asset: new Asset("USDC", usdcIssuer) },
-      { code: "HTGC", asset: new Asset("HTGC", distributorKp.publicKey()) },
+      { code: "HTGC", asset: new Asset("HTGC", HTGC_ISSUER) },
     ];
 
     const { data: wallets, error: wErr } = await admin

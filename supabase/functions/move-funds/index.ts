@@ -6,6 +6,7 @@ import {
   Asset, Horizon, Keypair, Memo, Networks,
   Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
+import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,7 +31,6 @@ Deno.serve(async (req) => {
     const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
     const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const usdcIssuer = Deno.env.get("STELLAR_USDC_ISSUER");
-    const distributorSecret = Deno.env.get("STELLAR_DISTRIBUTOR_SECRET");
     if (!usdcIssuer) return json({ error: "STELLAR_USDC_ISSUER not configured" }, 500);
 
     const userClient = createClient(url, anon, { global: { headers: { Authorization: authHeader } } });
@@ -90,15 +90,7 @@ Deno.serve(async (req) => {
 
     let paymentAsset: Asset;
     if (assetCode === "HTGC") {
-      if (!distributorSecret) {
-        await admin.from("payouts").update({
-          status: "FAILED",
-          failure_reason: "STELLAR_DISTRIBUTOR_SECRET not configured",
-        }).eq("id", payout.id);
-        return json({ error: "STELLAR_DISTRIBUTOR_SECRET not configured" }, 500);
-      }
-      const distributor = Keypair.fromSecret(distributorSecret);
-      paymentAsset = new Asset("HTGC", distributor.publicKey());
+      paymentAsset = new Asset("HTGC", HTGC_ISSUER);
     } else {
       paymentAsset = new Asset("USDC", usdcIssuer);
     }
