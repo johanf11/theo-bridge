@@ -154,7 +154,7 @@ export default function Transactions() {
               type: "yield_earned" as TxType,
               created_at: new Date().toISOString(),
               usdc_amount: accruedTotal,
-              status: "ACCRUING",
+              status: "EARNED",
               stellar_tx_hash: null,
               wallet_label: label,
               deposited_at: y.deposited_at,
