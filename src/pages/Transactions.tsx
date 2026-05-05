@@ -6,7 +6,7 @@ import { fmtUSDC, fmtHTG, fmtHTGC } from "@/lib/format";
 import { Download } from "lucide-react";
 import { useSearch } from "@/contexts/SearchContext";
 
-type TxType = "conversion" | "payout" | "yield" | "transfer";
+type TxType = "conversion" | "htgc_mint" | "swap" | "payout" | "yield" | "transfer";
 
 type UnifiedTx = {
   id: string;
