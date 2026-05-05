@@ -13,7 +13,6 @@ const corsHeaders = {
 // Margin is now captured via customer fee_bps, not rate inflation.
 const FORWARD_PREMIUM = 0;
 const MARGIN = 0;
-const MIN_USDC = 1000;
 const MAX_USDC = 50000;
 const QUOTE_TTL_MIN = 15;
 
@@ -62,9 +61,9 @@ Deno.serve(async (req) => {
     let htgMint = 0;
     if (orderKind === "usdc_conversion") {
       usdc = Number(body.usdc_amount);
-      if (!Number.isFinite(usdc) || usdc < MIN_USDC || usdc > MAX_USDC) {
+      if (!Number.isFinite(usdc) || usdc <= 0 || usdc > MAX_USDC) {
         return new Response(
-          JSON.stringify({ error: `usdc_amount must be between ${MIN_USDC} and ${MAX_USDC}` }),
+          JSON.stringify({ error: `usdc_amount must be between 0 and ${MAX_USDC}` }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }

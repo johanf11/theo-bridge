@@ -4,6 +4,7 @@ import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth, useRoles } from "@/lib/auth";
+import { fetchHorizonBalances } from "@/lib/balance";
 import { X, Plus, Building2, CheckCircle2 } from "lucide-react";
 
 type Tab = "htg" | "swap" | "off";
@@ -40,6 +41,8 @@ export default function Convert() {
   const [swapAmount, setSwapAmount] = useState("5,000");
   const [swapAmountRaw, setSwapAmountRaw] = useState(5000);
   const [swapBusy, setSwapBusy] = useState(false);
+  const [walletBalances, setWalletBalances] = useState<{ usdc: number; htgc: number }>({ usdc: 0, htgc: 0 });
+  const [balLoading, setBalLoading] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [spotRate, setSpotRate] = useState<number | null>(null);
@@ -163,6 +166,20 @@ export default function Convert() {
 
     return () => { cancelled = true; };
   }, [user]);
+
+  // Fetch live wallet balances whenever the selected wallet address changes
+  useEffect(() => {
+    if (!selectedWallet || !selectedWallet.startsWith("G")) {
+      setWalletBalances({ usdc: 0, htgc: 0 });
+      return;
+    }
+    let cancelled = false;
+    setBalLoading(true);
+    fetchHorizonBalances(selectedWallet).then((bals) => {
+      if (!cancelled) { setWalletBalances(bals); setBalLoading(false); }
+    });
+    return () => { cancelled = true; };
+  }, [selectedWallet]);
 
   // No random ticker — rate is BRH official, only refreshes on page load.
 
@@ -330,8 +347,8 @@ export default function Convert() {
       if (!canQuote) { toast.error("KYB approval required to convert to USDC"); return; }
       if (!liveRate) { toast.error("Rate unavailable, try again shortly"); return; }
       const usdcEquiv = Math.floor(htgAmountRaw / liveRate);
-      if (usdcEquiv < 1000 || usdcEquiv > 50000) {
-        toast.error(`Enter an HTG amount worth between $1,000 and $50,000 USDC (≈ ${Math.ceil(1000 * liveRate).toLocaleString()}–${Math.floor(50000 * liveRate).toLocaleString()} HTG)`);
+      if (usdcEquiv > 50000) {
+        toast.error("Maximum deposit is $50,000 USDC equivalent per order");
         return;
       }
       setHtgBusy(true);
@@ -553,7 +570,7 @@ export default function Convert() {
                     <div className="flex items-center gap-1.5 mt-2.5 pt-2.5" style={{ borderTop: "1px solid hsl(var(--theo-blue-chip))" }}>
                       <div className="rounded-full" style={{ width: 6, height: 6, background: "hsl(var(--theo-cyan))" }} />
                       <span style={{ fontSize: 11, color: "hsl(var(--theo-blue))", fontWeight: 600 }}>
-                        Min $1,000 · max $50,000 USDC equivalent · fees applied at settlement
+                        Max $50,000 USDC per order · fees applied at settlement
                       </span>
                     </div>
                   </>
@@ -601,21 +618,63 @@ export default function Convert() {
                 {dirToggle(swapDir === "usdc_to_htgc", () => setSwapDir("usdc_to_htgc"), "USDC → HTG-C")}
               </div>
 
-              <div style={{ marginBottom: 14 }}>
-                <label style={labelStyle}>{swapDir === "htgc_to_usdc" ? "HTG-C to swap" : "USDC to swap"}</label>
-                <div style={{ position: "relative" }}>
-                  <input
-                    style={{ ...inputStyle, paddingRight: 64 }}
-                    type="text" inputMode="numeric"
-                    value={swapAmount}
-                    onChange={handleSwapInput}
-                    placeholder="0"
-                  />
-                  <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>
-                    {swapDir === "htgc_to_usdc" ? "HTG-C" : "USDC"}
-                  </span>
-                </div>
-              </div>
+              {(() => {
+                const availBal = swapDir === "htgc_to_usdc" ? walletBalances.htgc : walletBalances.usdc;
+                const currency = swapDir === "htgc_to_usdc" ? "HTG-C" : "USDC";
+                const setQuick = (pct: number) => {
+                  const n = Math.floor(availBal * pct);
+                  setSwapAmountRaw(n);
+                  setSwapAmount(n ? n.toLocaleString("en-US") : "");
+                };
+                return (
+                  <div style={{ marginBottom: 14 }}>
+                    {/* Label row with available balance */}
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label style={{ ...labelStyle, marginBottom: 0 }}>{currency} to swap</label>
+                      <span style={{ fontSize: 11, color: "hsl(var(--theo-mid))", fontWeight: 600 }}>
+                        {balLoading ? "..." : `Available: ${availBal > 0 ? availBal.toLocaleString("en-US", { maximumFractionDigits: 2 }) : "0"} ${currency}`}
+                      </span>
+                    </div>
+
+                    {/* Input */}
+                    <div style={{ position: "relative" }}>
+                      <input
+                        style={{ ...inputStyle, paddingRight: 64 }}
+                        type="text" inputMode="numeric"
+                        value={swapAmount}
+                        onChange={handleSwapInput}
+                        placeholder="0"
+                      />
+                      <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>
+                        {currency}
+                      </span>
+                    </div>
+
+                    {/* Quick-select chips */}
+                    {availBal > 0 && (
+                      <div className="flex gap-1.5 mt-2">
+                        {([0.25, 0.5, 0.75, 1] as const).map((pct) => (
+                          <button
+                            key={pct}
+                            onClick={() => setQuick(pct)}
+                            style={{
+                              flex: 1, fontSize: 11, fontWeight: 700, padding: "4px 0",
+                              borderRadius: 6, border: "1.5px solid hsl(var(--theo-light))",
+                              background: swapAmountRaw === Math.floor(availBal * pct) && swapAmountRaw > 0
+                                ? "hsl(var(--theo-blue))" : "transparent",
+                              color: swapAmountRaw === Math.floor(availBal * pct) && swapAmountRaw > 0
+                                ? "#fff" : "hsl(var(--theo-mid))",
+                              cursor: "pointer", fontFamily: "inherit", transition: "all 120ms",
+                            }}
+                          >
+                            {pct === 1 ? "MAX" : `${pct * 100}%`}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               <div style={{ marginBottom: 14 }}>
                 <label style={labelStyle}>Account</label>
