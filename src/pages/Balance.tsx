@@ -91,6 +91,7 @@ export default function Balance() {
 
   // Move funds (between own wallets) modal
   const [moveOpen, setMoveOpen] = useState(false);
+  const [moveAsset, setMoveAsset] = useState<"USDC" | "HTGC">("USDC");
   const [moveSourceId, setMoveSourceId] = useState<string>("");
   const [moveDestId, setMoveDestId] = useState<string>("");
   const [moveAmount, setMoveAmount] = useState("");
