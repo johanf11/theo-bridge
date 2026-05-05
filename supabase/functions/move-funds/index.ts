@@ -43,7 +43,8 @@ Deno.serve(async (req) => {
     if (!customer) return json({ error: "Customer not found" }, 404);
 
     const body = await req.json().catch(() => ({}));
-    const { sourceWalletId, destinationWalletId, amount, memo } = body;
+    const { sourceWalletId, destinationWalletId, amount, memo, asset } = body;
+    const assetCode = (asset === "HTGC" || asset === "HTG-C") ? "HTGC" : "USDC";
 
     if (!sourceWalletId) return json({ error: "sourceWalletId required" }, 400);
     if (!destinationWalletId) return json({ error: "destinationWalletId required" }, 400);
