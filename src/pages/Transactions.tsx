@@ -220,7 +220,7 @@ export default function Transactions() {
       {/* Filters */}
       <div className="flex gap-2 mb-4 items-center">
         <select style={selectStyle} value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
-          {["All types", "Conversion", "Payout", "Yield", "Transfer"].map(o => <option key={o}>{o}</option>)}
+          {["All types", "Conversion", "HTG-C Mint", "Swap", "Payout", "Yield", "Transfer"].map(o => <option key={o}>{o}</option>)}
         </select>
         <select style={selectStyle} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
           {["All statuses", "Settled", "Pending", "Failed"].map(o => <option key={o}>{o}</option>)}
