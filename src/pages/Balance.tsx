@@ -1085,30 +1085,14 @@ function LedgerRow({
         </div>
       </td>
       <td className="px-5 py-3">
-        <div className="flex items-center gap-2">
-          {htgcBalance > 0 ? (
-            <div style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
-              {Math.round(htgcBalance).toLocaleString("en-US")}{" "}
-              <span style={{ fontSize: 11, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>HTG-C</span>
-            </div>
-          ) : (
-            <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>—</span>
-          )}
-          {isAdmin && (
-            <button
-              onClick={() => onRectify(w.id)}
-              title="Admin: burn phantom HTGC and mint real HTGC from issuer"
-              style={{
-                background: "transparent", border: "1px solid hsl(var(--theo-mid))",
-                color: "hsl(var(--theo-mid))", borderRadius: 4, padding: "1px 6px",
-                fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                opacity: 0.6,
-              }}
-            >
-              fix
-            </button>
-          )}
-        </div>
+        {htgcBalance > 0 ? (
+          <div style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
+            {Math.round(htgcBalance).toLocaleString("en-US")}{" "}
+            <span style={{ fontSize: 11, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>HTG-C</span>
+          </div>
+        ) : (
+          <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>—</span>
+        )}
       </td>
       <td className="px-5 py-3">
         {blendPosition ? (
