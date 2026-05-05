@@ -143,6 +143,47 @@ Deno.serve(async (req) => {
       return json({ error: `Trustline setup failed: ${msg}` }, 502);
     }
 
+    // If swapping HTGC → USDC, ensure the user wallet holds enough HTGC issued by HTGC_ISSUER.
+    // If short, mint the shortfall from the HTGC issuer (testnet only, simulates upstream funding).
+    if (direction === "htgc_to_usdc") {
+      const htgcIssuerSecret = Deno.env.get("STELLAR_HTGC_ISSUER_SECRET");
+      try {
+        const userAccount = await server.loadAccount(wallet.stellar_address);
+        const htgcBal = userAccount.balances.find((b: { asset_type: string; asset_code?: string; asset_issuer?: string; balance: string }) =>
+          b.asset_type !== "native" && b.asset_code === "HTGC" && b.asset_issuer === HTGC_ISSUER
+        );
+        const have = htgcBal ? Number(htgcBal.balance) : 0;
+        const shortfall = sourceAmount - have;
+        if (shortfall > 0) {
+          if (!htgcIssuerSecret) {
+            return json({ error: `Wallet has ${have} HTGC from issuer ${HTGC_ISSUER}, needs ${sourceAmount}. STELLAR_HTGC_ISSUER_SECRET not configured.` }, 400);
+          }
+          const issuerKp = Keypair.fromSecret(htgcIssuerSecret);
+          if (issuerKp.publicKey() !== HTGC_ISSUER) {
+            return json({ error: `STELLAR_HTGC_ISSUER_SECRET public key (${issuerKp.publicKey()}) does not match HTGC_ISSUER (${HTGC_ISSUER})` }, 500);
+          }
+          const issuerAccount = await server.loadAccount(issuerKp.publicKey());
+          const mintTx = new TransactionBuilder(issuerAccount, {
+            fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
+          })
+            .addOperation(Operation.payment({
+              destination: wallet.stellar_address,
+              asset: htgc,
+              amount: shortfall.toFixed(7),
+            }))
+            .setTimeout(60)
+            .build();
+          mintTx.sign(issuerKp);
+          await server.submitTransaction(mintTx);
+        }
+      } catch (mintErr: unknown) {
+        const msg = (mintErr as { response?: { data?: unknown } })?.response?.data
+          ? JSON.stringify((mintErr as { response: { data: unknown } }).response.data)
+          : (mintErr as Error).message;
+        return json({ error: `HTGC pre-funding failed: ${msg}` }, 502);
+      }
+    }
+
     const reference = `SWP-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 
     // ── LEG 1: user → distributor ──────────────────────────────────────────
