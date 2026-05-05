@@ -4,7 +4,7 @@ import { useAuth, useRoles } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import {
   LayoutGrid, ArrowLeftRight, ArrowRightLeft, Wallet, SendHorizonal,
-  Settings, LogOut, ShieldCheck, Search,
+  Settings, LogOut, ShieldCheck, Search, Wrench,
 } from "lucide-react";
 import { useSearch } from "@/contexts/SearchContext";
 
