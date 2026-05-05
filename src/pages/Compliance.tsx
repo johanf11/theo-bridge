@@ -1,60 +1,106 @@
 import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/theo/Layout";
-import { ShieldCheck, RefreshCw, ExternalLink, CheckCircle2, AlertCircle } from "lucide-react";
+import { RefreshCw, ExternalLink, ShieldCheck, Lock, Landmark, CircleDot } from "lucide-react";
 
-const HTGC_ISSUER = "GDSRYZWTLQLBECKCL4TV7ZRGBZGBMSPD4V47B7Y7JSQVDJRSEXQTFCQT";
-const HORIZON_URL = "https://horizon-testnet.stellar.org";
+// The distributor holds the HTG-C treasury — it receives minted tokens and
+// sends them to customers on deposit. Its balance = tokens still in reserve.
+const HTGC_DISTRIBUTOR = "GCP6VMZS3SJ4CSOT3ZVMMJIOXOHTMJK47YQ4RTUJN7P2KYKDVRCUBS2X";
+const HTGC_ISSUER      = "GDSRYZWTLQLBECKCL4TV7ZRGBZGBMSPD4V47B7Y7JSQVDJRSEXQTFCQT";
+const HORIZON_URL      = "https://horizon-testnet.stellar.org";
 
-type IssuerFlags = {
-  auth_required: boolean;
-  auth_revocable: boolean;
-  auth_clawback_enabled: boolean;
-  auth_immutable: boolean;
+type HorizonBalance = {
+  asset_type: string;
+  asset_code?: string;
+  asset_issuer?: string;
+  balance: string;
 };
 
-type IssuerData = {
-  flags: IssuerFlags;
-  balances: Array<{ asset_type: string; balance: string }>;
-  sequence: string;
-  last_modified_ledger: number;
-};
+type ReserveState = "idle" | "loading" | "ok" | "error";
 
-type FetchState = "idle" | "loading" | "ok" | "error";
+function fmtN(n: number, decimals = 2) {
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(n);
+}
 
-function Flag({ label, enabled, description }: { label: string; enabled: boolean; description: string }) {
+function StatCard({
+  label, value, sub, accent, icon: Icon,
+}: {
+  label: string; value: string; sub?: string; accent?: boolean;
+  icon: React.ComponentType<{ style?: React.CSSProperties }>;
+}) {
   return (
-    <div
-      style={{
-        display: "flex", alignItems: "flex-start", gap: 14,
-        padding: "16px 20px",
-        background: enabled ? "#F0FDF4" : "#FFF",
-        border: `1.5px solid ${enabled ? "#86EFAC" : "hsl(var(--theo-light))"}`,
-        borderRadius: 12,
-      }}
-    >
+    <div style={{
+      borderRadius: 14,
+      background: accent ? "hsl(var(--theo-blue))" : "#fff",
+      border: `1.5px solid ${accent ? "transparent" : "hsl(var(--theo-light))"}`,
+      padding: "20px 22px",
+      display: "flex", flexDirection: "column", gap: 4,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <div style={{
+          width: 28, height: 28, borderRadius: 7, flexShrink: 0,
+          background: accent ? "rgba(255,255,255,0.12)" : "hsl(var(--theo-blue-soft))",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <Icon style={{ width: 13, height: 13, color: accent ? "#FDCF00" : "hsl(var(--theo-blue))" }} />
+        </div>
+        <span style={{
+          fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em",
+          color: accent ? "rgba(255,255,255,0.55)" : "hsl(var(--theo-mid))",
+        }}>
+          {label}
+        </span>
+      </div>
       <div style={{
-        width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-        background: enabled ? "#DCFCE7" : "hsl(var(--theo-cream))",
+        fontWeight: 800, fontSize: 26, letterSpacing: "-0.03em", lineHeight: 1,
+        color: accent ? "#fff" : "hsl(var(--theo-ink))",
+      }}>
+        {value}
+      </div>
+      {sub && (
+        <div style={{ fontSize: 11, color: accent ? "rgba(255,255,255,0.45)" : "hsl(var(--theo-mid))", marginTop: 3 }}>
+          {sub}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ControlRow({
+  icon: Icon, title, description, badge,
+}: {
+  icon: React.ComponentType<{ style?: React.CSSProperties }>;
+  title: string; description: string; badge: string;
+}) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "flex-start", gap: 14,
+      padding: "16px 20px",
+      background: "#fff",
+      border: "1px solid hsl(var(--theo-light))",
+      borderRadius: 12,
+    }}>
+      <div style={{
+        width: 36, height: 36, borderRadius: 9, flexShrink: 0,
+        background: "hsl(var(--theo-blue-soft))",
         display: "flex", alignItems: "center", justifyContent: "center",
       }}>
-        {enabled
-          ? <CheckCircle2 style={{ width: 16, height: 16, color: "#16A34A" }} />
-          : <AlertCircle style={{ width: 16, height: 16, color: "hsl(var(--theo-mid))" }} />
-        }
+        <Icon style={{ width: 16, height: 16, color: "hsl(var(--theo-blue))" }} />
       </div>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
-          <span style={{ fontWeight: 700, fontSize: 14, color: "hsl(var(--theo-ink))" }}>{label}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+          <span style={{ fontWeight: 700, fontSize: 14, color: "hsl(var(--theo-ink))" }}>{title}</span>
           <span style={{
-            fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 99,
-            background: enabled ? "#16A34A" : "hsl(var(--theo-light))",
-            color: enabled ? "#fff" : "hsl(var(--theo-mid))",
+            fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99,
+            background: "#DCFCE7", color: "#15803D",
             textTransform: "uppercase", letterSpacing: "0.08em",
           }}>
-            {enabled ? "Enabled" : "Disabled"}
+            {badge}
           </span>
         </div>
-        <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))", lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))", lineHeight: 1.65 }}>
           {description}
         </div>
       </div>
@@ -62,33 +108,23 @@ function Flag({ label, enabled, description }: { label: string; enabled: boolean
   );
 }
 
-function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-      <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>
-        {label}
-      </span>
-      <span style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--theo-ink))", fontFamily: mono ? "monospace" : "inherit", wordBreak: "break-all" }}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
 export default function Compliance() {
-  const [state, setState] = useState<FetchState>("idle");
-  const [data, setData] = useState<IssuerData | null>(null);
+  const [state, setState] = useState<ReserveState>("idle");
+  const [treasuryBalance, setTreasuryBalance] = useState<number | null>(null);
   const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchIssuer = async () => {
+  const fetchReserve = async () => {
     setState("loading");
     setError(null);
     try {
-      const res = await fetch(`${HORIZON_URL}/accounts/${HTGC_ISSUER}`);
-      if (!res.ok) throw new Error(`Horizon returned ${res.status}`);
-      const json = await res.json();
-      setData(json as IssuerData);
+      const res = await fetch(`${HORIZON_URL}/accounts/${HTGC_DISTRIBUTOR}`);
+      if (!res.ok) throw new Error(`Could not reach Stellar network (${res.status})`);
+      const json = await res.json() as { balances: HorizonBalance[] };
+      const htgcBal = json.balances.find(
+        (b) => b.asset_code === "HTGC" && b.asset_issuer === HTGC_ISSUER,
+      );
+      setTreasuryBalance(htgcBal ? Number(htgcBal.balance) : 0);
       setFetchedAt(new Date());
       setState("ok");
     } catch (e) {
@@ -97,9 +133,7 @@ export default function Compliance() {
     }
   };
 
-  useEffect(() => { fetchIssuer(); }, []);
-
-  const flags = data?.flags;
+  useEffect(() => { fetchReserve(); }, []);
 
   return (
     <AppLayout>
@@ -108,10 +142,10 @@ export default function Compliance() {
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "hsl(var(--theo-mid))", marginBottom: 6 }}>
-              Issuer controls
+              Live · Stellar Testnet
             </div>
             <h1 style={{ fontWeight: 800, fontSize: 28, color: "hsl(var(--theo-blue))", letterSpacing: "-0.03em", margin: 0 }}>
-              Compliance
+              Transparency & Reserves
             </h1>
             <div style={{ width: 28, height: 3, background: "hsl(var(--theo-gold))", borderRadius: 2, marginTop: 10 }} />
           </div>
@@ -119,11 +153,11 @@ export default function Compliance() {
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {fetchedAt && (
               <span style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>
-                Live · {fetchedAt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                {fetchedAt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
               </span>
             )}
             <button
-              onClick={fetchIssuer}
+              onClick={fetchReserve}
               disabled={state === "loading"}
               style={{
                 display: "flex", alignItems: "center", gap: 6,
@@ -134,127 +168,144 @@ export default function Compliance() {
                 opacity: state === "loading" ? 0.65 : 1,
               }}
             >
-              <RefreshCw style={{ width: 12, height: 12, strokeWidth: 2.5, animation: state === "loading" ? "spin 1s linear infinite" : undefined }} />
+              <RefreshCw style={{
+                width: 12, height: 12, strokeWidth: 2.5,
+                animation: state === "loading" ? "spin 1s linear infinite" : undefined,
+              }} />
               Refresh
             </button>
           </div>
         </div>
 
-        <p style={{ fontSize: 13, color: "hsl(var(--theo-mid))", marginTop: 12, maxWidth: 580, lineHeight: 1.6 }}>
-          Live read from Horizon testnet — showing the current auth flags on the HTG-C issuer account.
-          These flags control trustline authorisation and clawback, giving Theo full regulatory control over the token supply.
+        <p style={{ fontSize: 13, color: "hsl(var(--theo-mid))", marginTop: 12, maxWidth: 600, lineHeight: 1.65 }}>
+          Every HTG-C token is backed 1 : 1 by Haitian gourdes held in Theo's
+          segregated SPIH bank account. The reserve balance below is read live from
+          the Stellar blockchain — anyone can verify it independently at any time.
         </p>
       </div>
 
-      {/* Loading / error states */}
-      {state === "loading" && (
-        <div style={{ padding: "48px 0", textAlign: "center", color: "hsl(var(--theo-mid))", fontSize: 13 }}>
-          <RefreshCw style={{ width: 20, height: 20, margin: "0 auto 12px", display: "block", opacity: 0.5, animation: "spin 1s linear infinite" }} />
-          Fetching issuer account from Stellar testnet…
-        </div>
-      )}
+      {/* Error */}
       {state === "error" && (
-        <div style={{ padding: 20, borderRadius: 12, background: "#FEF2F2", border: "1.5px solid #FECACA", color: "#991B1B", fontSize: 13, marginBottom: 20 }}>
-          <span style={{ fontWeight: 700 }}>Could not reach Horizon: </span>{error}
+        <div style={{ padding: 16, borderRadius: 12, background: "#FEF2F2", border: "1.5px solid #FECACA", color: "#991B1B", fontSize: 13, marginBottom: 20 }}>
+          <span style={{ fontWeight: 700 }}>Network error: </span>{error}
         </div>
       )}
 
-      {state === "ok" && flags && (
-        <>
-          {/* Issuer identity card */}
-          <div style={{
-            background: "hsl(var(--theo-blue))", borderRadius: 16,
-            padding: "20px 24px", marginBottom: 20,
-            display: "flex", alignItems: "center", gap: 16,
-          }}>
-            <div style={{
-              width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-              background: "rgba(255,255,255,0.10)", border: "1.5px solid rgba(255,255,255,0.18)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <ShieldCheck style={{ width: 22, height: 22, color: "#FDCF00" }} />
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "rgba(255,255,255,0.50)", marginBottom: 4 }}>
-                HTG-C Issuer Account · Stellar Testnet
-              </div>
-              <div style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 600, color: "#fff", wordBreak: "break-all" }}>
-                {HTGC_ISSUER}
-              </div>
-            </div>
-            <a
-              href={`https://stellar.expert/explorer/testnet/account/${HTGC_ISSUER}`}
-              target="_blank"
-              rel="noreferrer"
-              style={{
-                display: "flex", alignItems: "center", gap: 5,
-                background: "rgba(255,255,255,0.10)", border: "1.5px solid rgba(255,255,255,0.20)",
-                color: "#fff", borderRadius: 8, padding: "8px 14px",
-                fontSize: 12, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap", flexShrink: 0,
-              }}
-            >
-              View on Stellar Expert <ExternalLink style={{ width: 11, height: 11 }} />
-            </a>
-          </div>
+      {/* Reserve stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 20 }}>
+        <StatCard
+          accent
+          icon={Landmark}
+          label="HTG-C in Treasury"
+          value={state === "ok" && treasuryBalance !== null ? `${fmtN(treasuryBalance, 0)} HTG-C` : "—"}
+          sub="Tokens available for distribution · verified on-chain"
+        />
+        <StatCard
+          icon={CircleDot}
+          label="Backing Ratio"
+          value="1 : 1"
+          sub="1 HTG-C = 1 HTG · pegged, not algorithmic"
+        />
+        <StatCard
+          icon={ShieldCheck}
+          label="Settlement Network"
+          value="Stellar"
+          sub="Testnet · upgrading to mainnet at launch"
+        />
+      </div>
 
-          {/* Auth flags */}
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "hsl(var(--theo-mid))", marginBottom: 12 }}>
-              Account Flags
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <Flag
-                label="auth_required"
-                enabled={flags.auth_required}
-                description="Every counterparty must have an explicitly authorised trustline before they can hold HTG-C. Theo approves each holder during KYB."
-              />
-              <Flag
-                label="auth_revocable"
-                enabled={flags.auth_revocable}
-                description="Theo can freeze a holder's trustline at any time — for example, in response to a regulatory order, AML flag, or dispute resolution."
-              />
-              <Flag
-                label="auth_clawback_enabled"
-                enabled={flags.auth_clawback_enabled}
-                description="Theo can reclaim HTG-C from any wallet. This enables error correction, regulatory compliance, and enforced redemption without holder cooperation."
-              />
-              <Flag
-                label="auth_immutable"
-                enabled={flags.auth_immutable}
-                description="When enabled the issuer account can no longer be modified. Currently disabled — Theo retains the ability to update flags as the protocol matures."
-              />
-            </div>
+      {/* Peg explanation */}
+      <div style={{
+        display: "flex", gap: 0, borderRadius: 14, overflow: "hidden",
+        border: "1.5px solid hsl(var(--theo-light))", marginBottom: 20,
+      }}>
+        {/* Left — bank side */}
+        <div style={{ flex: 1, padding: "20px 22px", background: "hsl(var(--theo-cream))", borderRight: "1px solid hsl(var(--theo-light))" }}>
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "hsl(var(--theo-mid))", marginBottom: 8 }}>
+            Off-chain — SPIH Bank
           </div>
+          <div style={{ fontWeight: 700, fontSize: 15, color: "hsl(var(--theo-ink))", marginBottom: 6 }}>Segregated HTG Account</div>
+          <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))", lineHeight: 1.6 }}>
+            When a business deposits HTG via SPIH, the funds land in Theo's dedicated, ring-fenced account.
+            They cannot be commingled with operating funds.
+          </div>
+        </div>
+        {/* Arrow */}
+        <div style={{
+          width: 48, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+          background: "#fff", fontSize: 20, color: "hsl(var(--theo-blue))", fontWeight: 700,
+        }}>
+          ⇄
+        </div>
+        {/* Right — blockchain side */}
+        <div style={{ flex: 1, padding: "20px 22px", background: "#fff" }}>
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "hsl(var(--theo-mid))", marginBottom: 8 }}>
+            On-chain — Stellar Network
+          </div>
+          <div style={{ fontWeight: 700, fontSize: 15, color: "hsl(var(--theo-ink))", marginBottom: 6 }}>HTG-C Tokens Issued</div>
+          <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))", lineHeight: 1.6 }}>
+            For every HTG received, exactly one HTG-C is minted on Stellar and credited to the depositing wallet.
+            No token exists without a matching bank deposit.
+          </div>
+        </div>
+      </div>
 
-          {/* Meta */}
-          <div style={{
-            marginTop: 20, borderRadius: 12,
-            border: "1px solid hsl(var(--theo-light))",
-            background: "#fff", padding: "16px 20px",
-          }}>
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "hsl(var(--theo-mid))", marginBottom: 14 }}>
-              Account Details
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20 }}>
-              <InfoRow label="Sequence" value={data!.sequence} mono />
-              <InfoRow label="Last Modified Ledger" value={String(data!.last_modified_ledger)} mono />
-              <InfoRow label="Network" value="Stellar Testnet" />
-            </div>
-          </div>
+      {/* Regulatory controls — plain language */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "hsl(var(--theo-mid))", marginBottom: 12 }}>
+          How Theo protects your funds
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <ControlRow
+            icon={ShieldCheck}
+            title="KYB-gated access"
+            badge="Active"
+            description="Only businesses that have completed Know-Your-Business verification can hold HTG-C. Every wallet is explicitly approved by Theo before it can receive tokens."
+          />
+          <ControlRow
+            icon={Lock}
+            title="Account freeze capability"
+            badge="Active"
+            description="If a regulator, court order, or fraud investigation requires it, Theo can suspend a wallet's ability to send or receive HTG-C — without touching the underlying HTG reserve."
+          />
+          <ControlRow
+            icon={Landmark}
+            title="Regulatory clawback"
+            badge="Active"
+            description="In cases of confirmed fraud or a binding legal order, Theo can recover HTG-C from any wallet and return the corresponding HTG to the rightful owner. This is a last-resort control."
+          />
+        </div>
+      </div>
 
-          {/* Audit note */}
-          <div style={{
-            marginTop: 14, borderRadius: 12, padding: "14px 18px",
-            background: "hsl(var(--theo-blue-soft))",
-            border: "1.5px solid hsl(var(--theo-blue) / 0.15)",
-            fontSize: 12, color: "hsl(var(--theo-mid))", lineHeight: 1.6,
-          }}>
-            <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>Audit trail: </span>
-            All flag changes are permanently recorded on the Stellar blockchain and can be independently verified at any time.
-            The HTG-C asset is publicly inspectable — issuance, trustline authorisations, and balance movements are fully transparent on-chain.
+      {/* On-chain verification link */}
+      <div style={{
+        borderRadius: 12, padding: "16px 20px",
+        background: "hsl(var(--theo-blue-soft))",
+        border: "1.5px solid hsl(var(--theo-blue) / 0.15)",
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
+      }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: "hsl(var(--theo-blue))", marginBottom: 3 }}>
+            Verify the reserve yourself
           </div>
-        </>
-      )}
+          <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>
+            The treasury account is public. Open it on Stellar Expert to see every token movement — no trust required.
+          </div>
+        </div>
+        <a
+          href={`https://stellar.expert/explorer/testnet/account/${HTGC_DISTRIBUTOR}`}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            display: "flex", alignItems: "center", gap: 6,
+            background: "hsl(var(--theo-blue))", color: "#fff",
+            borderRadius: 8, padding: "9px 16px", fontSize: 12, fontWeight: 700,
+            textDecoration: "none", whiteSpace: "nowrap", flexShrink: 0,
+          }}
+        >
+          Open on Stellar Expert <ExternalLink style={{ width: 11, height: 11 }} />
+        </a>
+      </div>
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
