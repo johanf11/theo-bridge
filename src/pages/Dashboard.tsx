@@ -115,6 +115,8 @@ export default function Dashboard() {
   const { user } = useAuth();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [txs, setTxs] = useState<UnifiedTx[]>([]);
+  const [convertedThisMonth, setConvertedThisMonth] = useState(0);
+  const [txCount30d, setTxCount30d] = useState(0);
   const { total: balance } = useCustomerBalance();
   const [chartPeriod, setChartPeriod] = useState("1M");
 
@@ -129,8 +131,15 @@ export default function Dashboard() {
 
       const monthStart = new Date();
       monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-      const [{ data: orders }, { data: payouts }] = await Promise.all([
+      const [
+        { data: orders },
+        { data: payouts },
+        { data: monthOrders },
+        { count: orderCount30d },
+        { count: payoutCount30d },
+      ] = await Promise.all([
         supabase
           .from("orders")
           .select("id, status, usdc_amount, htg_amount, rate, reference_number, created_at")
@@ -143,6 +152,22 @@ export default function Dashboard() {
           .eq("customer_id", c.id)
           .order("created_at", { ascending: false })
           .limit(5),
+        supabase
+          .from("orders")
+          .select("htg_amount")
+          .eq("customer_id", c.id)
+          .eq("status", "COMPLETED")
+          .gte("created_at", monthStart.toISOString()),
+        supabase
+          .from("orders")
+          .select("id", { count: "exact", head: true })
+          .eq("customer_id", c.id)
+          .gte("created_at", thirtyDaysAgo.toISOString()),
+        supabase
+          .from("payouts")
+          .select("id", { count: "exact", head: true })
+          .eq("customer_id", c.id)
+          .gte("created_at", thirtyDaysAgo.toISOString()),
       ]);
 
       const orderTxs: UnifiedTx[] = (orders ?? []).map((o: any) => ({
@@ -172,6 +197,10 @@ export default function Dashboard() {
         .slice(0, 6);
 
       setTxs(merged);
+      setConvertedThisMonth(
+        (monthOrders ?? []).reduce((s, o: any) => s + Number(o.htg_amount ?? 0), 0)
+      );
+      setTxCount30d((orderCount30d ?? 0) + (payoutCount30d ?? 0));
     })();
   }, []);
 
@@ -180,12 +209,7 @@ export default function Dashboard() {
     customer?.contact_name ||
     customer?.company_name ||
     "there";
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const convertedThisMonth = txs
-    .filter((t) => t.type === "conversion" && t.status === "COMPLETED" && new Date(t.created_at) >= monthStart)
-    .reduce((s, t) => s + t.usdc_amount, 0);
-  const txCount = txs.length;
+  const txCount = txCount30d;
 
   return (
     <AppLayout>
@@ -225,7 +249,8 @@ export default function Dashboard() {
         <div className="rounded-xl p-4 shadow-xs bg-card border border-border">
           <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>Converted this month</div>
           <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1.5px", color: "hsl(var(--theo-blue))" }}>
-            ${convertedThisMonth.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            {convertedThisMonth.toLocaleString("fr-HT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            <span style={{ fontSize: 14, fontWeight: 700, marginLeft: 4 }}>HTG-C</span>
           </div>
           <div style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-mid))", marginTop: 6 }}>
             {new Date().toLocaleString("en-US", { month: "long" })}
