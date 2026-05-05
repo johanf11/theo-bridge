@@ -17,6 +17,12 @@ type HorizonBalance = {
 
 type ReserveState = "idle" | "loading" | "ok" | "error";
 
+type ReserveData = {
+  treasury: number;   // distributor balance
+  totalMinted: number; // from Horizon /assets endpoint
+  circulation: number; // totalMinted - treasury
+};
+
 function fmtN(n: number, decimals = 2) {
   return new Intl.NumberFormat("en-US", {
     minimumFractionDigits: decimals,
@@ -110,7 +116,7 @@ function ControlRow({
 
 export default function Compliance() {
   const [state, setState] = useState<ReserveState>("idle");
-  const [treasuryBalance, setTreasuryBalance] = useState<number | null>(null);
+  const [reserve, setReserve] = useState<ReserveData | null>(null);
   const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -118,13 +124,27 @@ export default function Compliance() {
     setState("loading");
     setError(null);
     try {
-      const res = await fetch(`${HORIZON_URL}/accounts/${HTGC_DISTRIBUTOR}`);
-      if (!res.ok) throw new Error(`Could not reach Stellar network (${res.status})`);
-      const json = await res.json() as { balances: HorizonBalance[] };
-      const htgcBal = json.balances.find(
+      // Fetch distributor account (treasury) and asset totals in parallel
+      const [distRes, assetRes] = await Promise.all([
+        fetch(`${HORIZON_URL}/accounts/${HTGC_DISTRIBUTOR}`),
+        fetch(`${HORIZON_URL}/assets?asset_code=HTGC&asset_issuer=${HTGC_ISSUER}&limit=1`),
+      ]);
+      if (!distRes.ok) throw new Error(`Stellar network error (${distRes.status})`);
+      if (!assetRes.ok) throw new Error(`Asset lookup failed (${assetRes.status})`);
+
+      const distJson  = await distRes.json()  as { balances: HorizonBalance[] };
+      const assetJson = await assetRes.json() as { _embedded: { records: Array<{ amount: string }> } };
+
+      const htgcBal = distJson.balances.find(
         (b) => b.asset_code === "HTGC" && b.asset_issuer === HTGC_ISSUER,
       );
-      setTreasuryBalance(htgcBal ? Number(htgcBal.balance) : 0);
+      const treasury    = htgcBal ? Number(htgcBal.balance) : 0;
+      const totalMinted = assetJson._embedded.records[0]
+        ? Number(assetJson._embedded.records[0].amount)
+        : treasury;
+      const circulation = Math.max(0, totalMinted - treasury);
+
+      setReserve({ treasury, totalMinted, circulation });
       setFetchedAt(new Date());
       setState("ok");
     } catch (e) {
@@ -191,26 +211,32 @@ export default function Compliance() {
         </div>
       )}
 
-      {/* Reserve stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 20 }}>
+      {/* Reserve stats — 4 cards: total minted, circulation, treasury, backing ratio */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 14, marginBottom: 20 }}>
         <StatCard
           accent
           icon={Landmark}
-          label="HTG-C in Treasury"
-          value={state === "ok" && treasuryBalance !== null ? `${fmtN(treasuryBalance, 0)} HTG-C` : "—"}
-          sub="Tokens available for distribution · verified on-chain"
+          label="Total HTG-C Minted"
+          value={state === "ok" && reserve ? `${fmtN(reserve.totalMinted, 0)}` : "—"}
+          sub="All tokens issued · on-chain supply"
         />
         <StatCard
           icon={CircleDot}
-          label="Backing Ratio"
-          value="1 : 1"
-          sub="1 HTG-C = 1 HTG · pegged, not algorithmic"
+          label="In Circulation"
+          value={state === "ok" && reserve ? `${fmtN(reserve.circulation, 0)}` : "—"}
+          sub="Held in customer wallets"
+        />
+        <StatCard
+          icon={Landmark}
+          label="In Treasury"
+          value={state === "ok" && reserve ? `${fmtN(reserve.treasury, 0)}` : "—"}
+          sub="Available for distribution"
         />
         <StatCard
           icon={ShieldCheck}
-          label="Settlement Network"
-          value="Stellar"
-          sub="Testnet · upgrading to mainnet at launch"
+          label="Backing Ratio"
+          value="1 : 1"
+          sub="1 HTG-C = 1 HTG · pegged"
         />
       </div>
 
