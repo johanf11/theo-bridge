@@ -131,8 +131,15 @@ export default function Dashboard() {
 
       const monthStart = new Date();
       monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-      const [{ data: orders }, { data: payouts }] = await Promise.all([
+      const [
+        { data: orders },
+        { data: payouts },
+        { data: monthOrders },
+        { count: orderCount30d },
+        { count: payoutCount30d },
+      ] = await Promise.all([
         supabase
           .from("orders")
           .select("id, status, usdc_amount, htg_amount, rate, reference_number, created_at")
@@ -145,6 +152,22 @@ export default function Dashboard() {
           .eq("customer_id", c.id)
           .order("created_at", { ascending: false })
           .limit(5),
+        supabase
+          .from("orders")
+          .select("htg_amount")
+          .eq("customer_id", c.id)
+          .eq("status", "COMPLETED")
+          .gte("created_at", monthStart.toISOString()),
+        supabase
+          .from("orders")
+          .select("id", { count: "exact", head: true })
+          .eq("customer_id", c.id)
+          .gte("created_at", thirtyDaysAgo.toISOString()),
+        supabase
+          .from("payouts")
+          .select("id", { count: "exact", head: true })
+          .eq("customer_id", c.id)
+          .gte("created_at", thirtyDaysAgo.toISOString()),
       ]);
 
       const orderTxs: UnifiedTx[] = (orders ?? []).map((o: any) => ({
@@ -174,6 +197,10 @@ export default function Dashboard() {
         .slice(0, 6);
 
       setTxs(merged);
+      setConvertedThisMonth(
+        (monthOrders ?? []).reduce((s, o: any) => s + Number(o.htg_amount ?? 0), 0)
+      );
+      setTxCount30d((orderCount30d ?? 0) + (payoutCount30d ?? 0));
     })();
   }, []);
 
