@@ -178,7 +178,7 @@ export default function Transactions() {
     if (typeFilter === "HTG-C Mint" && tx.type !== "htgc_mint") return false;
     if (typeFilter === "Swap" && tx.type !== "swap") return false;
     if (typeFilter === "Payout" && tx.type !== "payout") return false;
-    if (typeFilter === "Yield" && tx.type !== "yield") return false;
+    if (typeFilter === "Yield" && tx.type !== "yield" && tx.type !== "yield_earned") return false;
     if (typeFilter === "Transfer" && tx.type !== "transfer") return false;
 
     const statusLabel = tx.status.toLowerCase();
