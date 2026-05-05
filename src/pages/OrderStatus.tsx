@@ -278,7 +278,7 @@ export default function OrderStatus() {
               </div>
               <div className="font-extrabold text-2xl md:text-3xl tracking-tight" style={{ color: "#fff", letterSpacing: "-0.02em" }}>
                 {order.order_kind === "htgc_mint"
-                  ? `${fmtHTG(Number(order.htg_amount))} HTG-C delivered`
+                  ? `${new Intl.NumberFormat("fr-HT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(order.htg_amount))} HTG-C delivered`
                   : `${fmtUSDC(Number(order.usdc_amount))} delivered`}
               </div>
               <div className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.6)" }}>
