@@ -133,6 +133,7 @@ Deno.serve(async (req) => {
 
     const server = new Horizon.Server(HORIZON_URL);
     const userKp = Keypair.fromSecret(wallet.stellar_secret);
+    let htgcBalanceBeforeLeg1: number | null = null;
 
     // Ensure user wallet has trustlines for both source (leg 1) and destination (leg 2) assets.
     try {
@@ -167,11 +168,7 @@ Deno.serve(async (req) => {
     if (direction === "htgc_to_usdc") {
       const htgcIssuerSecret = Deno.env.get("STELLAR_HTGC_ISSUER_SECRET");
       try {
-        const userAccount = await server.loadAccount(wallet.stellar_address);
-        const htgcBal = userAccount.balances.find((b: { asset_type: string; asset_code?: string; asset_issuer?: string; balance: string }) =>
-          b.asset_type !== "native" && b.asset_code === "HTGC" && b.asset_issuer === HTGC_ISSUER
-        );
-        const have = htgcBal ? Number(htgcBal.balance) : 0;
+        const have = await loadRealHtgcBalance(server, wallet.stellar_address);
         const shortfall = sourceAmount - have;
         if (shortfall > 0) {
           if (!htgcIssuerSecret) {
@@ -200,6 +197,7 @@ Deno.serve(async (req) => {
           mintTx.sign(issuerKp);
           await server.submitTransaction(mintTx);
         }
+        htgcBalanceBeforeLeg1 = await loadRealHtgcBalance(server, wallet.stellar_address);
       } catch (mintErr: unknown) {
         const msg = (mintErr as { response?: { data?: unknown } })?.response?.data
           ? JSON.stringify((mintErr as { response: { data: unknown } }).response.data)
