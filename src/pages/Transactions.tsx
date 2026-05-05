@@ -54,7 +54,7 @@ export default function Transactions() {
       const [{ data: orders }, { data: payouts }, { data: yields }] = await Promise.all([
         supabase
           .from("orders")
-          .select("id, status, usdc_amount, htg_amount, reference_number, created_at, stellar_tx_hash")
+          .select("id, status, usdc_amount, htg_amount, reference_number, created_at, stellar_tx_hash, order_kind")
           .eq("customer_id", c.id)
           .gte("created_at", cutoff)
           .order("created_at", { ascending: false }),
