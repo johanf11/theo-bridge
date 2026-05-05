@@ -251,13 +251,12 @@ export default function Dashboard() {
           <div style={{ fontSize: 11, fontWeight: 600, color: "#1A7F37", marginTop: 6 }}>↑ Theo network</div>
         </div>
 
-        <div className="rounded-xl p-4 shadow-xs" style={{ background: "hsl(var(--theo-gold))" }}>
-          <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "rgba(51,53,154,0.55)" }}>Total HTG-C Balance</div>
+        <div className="rounded-xl p-4 shadow-xs" style={{ background: "hsl(var(--theo-cyan))" }}>
+          <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "rgba(15,29,84,0.50)" }}>Total HTG-C Balance</div>
           <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1.5px", color: "hsl(var(--theo-blue))" }}>
             {htgcTotal.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-            <span style={{ fontSize: 14, fontWeight: 700, marginLeft: 4 }}>HTG-C</span>
           </div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#1A7F37", marginTop: 6 }}>↑ Theo network</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-blue))", marginTop: 6, opacity: 0.6 }}>↑ Theo network</div>
         </div>
 
         {hasYield && (
@@ -277,10 +276,9 @@ export default function Dashboard() {
         )}
 
         <div className="rounded-xl p-4 shadow-xs bg-card border border-border">
-          <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>Converted this month</div>
+          <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>HTG Converted This Month</div>
           <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1.5px", color: "hsl(var(--theo-blue))" }}>
             {convertedThisMonth.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-            <span style={{ fontSize: 14, fontWeight: 700, marginLeft: 4 }}>HTG-C</span>
           </div>
           <div style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-mid))", marginTop: 6 }}>
             {new Date().toLocaleString("en-US", { month: "long" })}
