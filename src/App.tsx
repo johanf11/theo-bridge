@@ -17,6 +17,7 @@ import OrderStatus from "./pages/OrderStatus";
 import Kyb from "./pages/Kyb";
 import AdminKyb from "./pages/AdminKyb";
 import AdminConversions from "./pages/AdminConversions";
+import AdminTools from "./pages/AdminTools";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "@/components/theo/ProtectedRoute";
 
