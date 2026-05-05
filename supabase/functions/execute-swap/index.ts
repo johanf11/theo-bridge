@@ -218,6 +218,39 @@ Deno.serve(async (req) => {
       }
     }
 
+    // If swapping USDC → HTGC, the user wallet's HTGC trustline must be authorized by the
+    // issuer before the distributor can pay HTGC into it (HTGC issuer requires authorization).
+    if (direction === "usdc_to_htgc") {
+      const htgcIssuerSecret = Deno.env.get("STELLAR_HTGC_ISSUER_SECRET");
+      if (!htgcIssuerSecret) {
+        return json({ error: "STELLAR_HTGC_ISSUER_SECRET not configured — required to authorize user's HTGC trustline before payout." }, 500);
+      }
+      try {
+        const issuerKp = Keypair.fromSecret(htgcIssuerSecret);
+        if (issuerKp.publicKey() !== HTGC_ISSUER) {
+          return json({ error: `STELLAR_HTGC_ISSUER_SECRET public key (${issuerKp.publicKey()}) does not match HTGC_ISSUER (${HTGC_ISSUER})` }, 500);
+        }
+        const issuerAccount = await server.loadAccount(issuerKp.publicKey());
+        const authTx = new TransactionBuilder(issuerAccount, {
+          fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
+        })
+          .addOperation(Operation.setTrustLineFlags({
+            trustor: wallet.stellar_address,
+            asset: htgc,
+            flags: { authorized: true },
+          }))
+          .setTimeout(60)
+          .build();
+        authTx.sign(issuerKp);
+        await server.submitTransaction(authTx);
+      } catch (authErr: unknown) {
+        const msg = (authErr as { response?: { data?: unknown } })?.response?.data
+          ? JSON.stringify((authErr as { response: { data: unknown } }).response.data)
+          : (authErr as Error).message;
+        return json({ error: `HTGC trustline authorization failed: ${msg}` }, 502);
+      }
+    }
+
     const reference = `SWP-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 
     // ── LEG 1: user → distributor ──────────────────────────────────────────
