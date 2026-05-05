@@ -24,6 +24,9 @@ type UnifiedTx = {
   memo?: string | null;
   // yield / transfer
   wallet_label?: string;
+  // yield-only
+  deposited_at?: string;
+  net_apy?: number;
 };
 
 // Map payout statuses → the same style system StatusBadge uses
@@ -67,7 +70,7 @@ export default function Transactions() {
           .order("created_at", { ascending: false }),
         supabase
           .from("blend_positions")
-          .select("id, deposited_usdc, deposited_at, last_tx_hash, wallet_id")
+          .select("id, deposited_usdc, deposited_at, last_tx_hash, wallet_id, net_apy")
           .eq("customer_id", c.id)
           .gte("deposited_at", cutoff)
           .order("deposited_at", { ascending: false }),
@@ -124,6 +127,8 @@ export default function Transactions() {
           status: "EARNING",
           stellar_tx_hash: y.last_tx_hash ?? null,
           wallet_label: walletLabel.get(y.wallet_id) ?? "Wallet",
+          deposited_at: y.deposited_at,
+          net_apy: Number(y.net_apy ?? 0.07),
         })),
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
