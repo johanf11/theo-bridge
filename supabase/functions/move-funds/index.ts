@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
 
     const { data: dstWallet } = await admin
       .from("wallets")
-      .select("id, label, stellar_address")
+      .select("id, label, stellar_address, stellar_secret")
       .eq("id", destinationWalletId).eq("customer_id", customer.id).maybeSingle();
     if (!dstWallet) return json({ error: "Destination wallet not found" }, 404);
 
@@ -101,6 +101,43 @@ Deno.serve(async (req) => {
       paymentAsset = new Asset("HTGC", distributor.publicKey());
     } else {
       paymentAsset = new Asset("USDC", usdcIssuer);
+    }
+
+    // Auto-establish trustline on destination wallet if missing (we own its secret).
+    try {
+      const dstAccount = await server.loadAccount(dstWallet.stellar_address);
+      const code = paymentAsset.getCode();
+      const issuer = paymentAsset.getIssuer();
+      const hasTrust = dstAccount.balances.some((b: { asset_type: string; asset_code?: string; asset_issuer?: string }) =>
+        b.asset_type !== "native" && b.asset_code === code && b.asset_issuer === issuer
+      );
+      if (!hasTrust) {
+        if (!dstWallet.stellar_secret) {
+          await admin.from("payouts").update({
+            status: "FAILED",
+            failure_reason: `Destination wallet missing trustline for ${code} and no signing key to establish one`,
+          }).eq("id", payout.id);
+          return json({ error: `Destination wallet has no trustline for ${code}` }, 400);
+        }
+        const dstKp = Keypair.fromSecret(dstWallet.stellar_secret);
+        const trustTx = new TransactionBuilder(dstAccount, {
+          fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
+        })
+          .addOperation(Operation.changeTrust({ asset: paymentAsset }))
+          .setTimeout(60)
+          .build();
+        trustTx.sign(dstKp);
+        await server.submitTransaction(trustTx);
+      }
+    } catch (trustErr: unknown) {
+      const msg = (trustErr as { response?: { data?: unknown } })?.response?.data
+        ? JSON.stringify((trustErr as { response: { data: unknown } }).response.data)
+        : (trustErr as Error).message;
+      await admin.from("payouts").update({
+        status: "FAILED",
+        failure_reason: `Trustline setup failed: ${String(msg).slice(0, 900)}`,
+      }).eq("id", payout.id);
+      return json({ error: `Trustline setup failed: ${msg}` }, 502);
     }
 
     const txBuilder = new TransactionBuilder(sourceAccount, {
