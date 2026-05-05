@@ -86,7 +86,8 @@ Deno.serve(async (req) => {
     // Compute legs
     const distributor = Keypair.fromSecret(distributorSecret);
     const usdc = new Asset("USDC", usdcIssuer);
-    const htgc = new Asset("HTGC", distributor.publicKey());
+    const HTGC_ISSUER = "GDSRYZWTLQLBECKCL4TV7ZRGBZGBMSPD4V47B7Y7JSQVDJRSEXQTFCQT";
+    const htgc = new Asset("HTGC", HTGC_ISSUER);
 
     let sourceAsset: Asset;
     let destAsset: Asset;
