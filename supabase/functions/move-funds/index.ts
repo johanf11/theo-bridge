@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
 
     const { data: dstWallet } = await admin
       .from("wallets")
-      .select("id, label, stellar_address")
+      .select("id, label, stellar_address, stellar_secret")
       .eq("id", destinationWalletId).eq("customer_id", customer.id).maybeSingle();
     if (!dstWallet) return json({ error: "Destination wallet not found" }, 404);
 
