@@ -336,9 +336,11 @@ export default function Transactions() {
                     </td>
 
                     {/* Amount */}
-                    <td className="px-5 py-3" style={{ fontSize: 13, fontWeight: 700 }}>
+                    <td className="px-5 py-3" style={{ fontSize: 13, fontWeight: 700, color: tx.type === "yield_earned" ? "hsl(150 70% 25%)" : undefined }}>
                       {tx.type === "htgc_mint"
                         ? `${fmtHTGC(tx.htg_amount ?? 0)} HTG`
+                        : tx.type === "yield_earned"
+                        ? `+${fmtUSDC(tx.usdc_amount)}`
                         : fmtUSDC(tx.usdc_amount)}
                     </td>
 
