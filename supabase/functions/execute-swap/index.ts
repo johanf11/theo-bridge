@@ -35,6 +35,19 @@ const loadRealHtgcBalance = async (server: Horizon.Server, address: string) => {
   return realHtgcBalance(account.balances as HorizonBalance[]);
 };
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const waitForRealHtgcDebit = async (server: Horizon.Server, address: string, before: number, amount: number) => {
+  const minExpected = before - amount;
+  let latest = before;
+  for (let i = 0; i < 6; i++) {
+    latest = await loadRealHtgcBalance(server, address);
+    if (latest <= minExpected + 0.000001) return { ok: true, latest };
+    await sleep(750);
+  }
+  return { ok: false, latest };
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
