@@ -14,6 +14,14 @@ const corsHeaders = {
 };
 
 const HORIZON_URL = "https://horizon-testnet.stellar.org";
+const HTGC_ISSUER = "GDSRYZWTLQLBECKCL4TV7ZRGBZGBMSPD4V47B7Y7JSQVDJRSEXQTFCQT";
+
+type HorizonBalance = {
+  asset_type: string;
+  asset_code?: string;
+  asset_issuer?: string;
+  balance: string;
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -86,7 +94,6 @@ Deno.serve(async (req) => {
     // Compute legs
     const distributor = Keypair.fromSecret(distributorSecret);
     const usdc = new Asset("USDC", usdcIssuer);
-    const HTGC_ISSUER = "GDSRYZWTLQLBECKCL4TV7ZRGBZGBMSPD4V47B7Y7JSQVDJRSEXQTFCQT";
     const htgc = new Asset("HTGC", HTGC_ISSUER);
 
     let sourceAsset: Asset;
