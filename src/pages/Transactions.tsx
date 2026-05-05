@@ -5,6 +5,7 @@ import { StatusBadge } from "@/components/theo/StatusBadge";
 import { fmtUSDC, fmtHTG, fmtHTGC } from "@/lib/format";
 import { Download } from "lucide-react";
 import { useSearch } from "@/contexts/SearchContext";
+import { toast } from "sonner";
 
 type TxType = "conversion" | "htgc_mint" | "swap" | "withdraw" | "payout" | "yield" | "transfer";
 
