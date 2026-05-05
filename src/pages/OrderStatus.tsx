@@ -14,14 +14,23 @@ type Order = {
   failure_reason: string | null; created_at: string; order_kind?: string | null;
 };
 
-const STEPS = [
+const STEPS_USDC = [
   { key: "QUOTED", label: "Quote locked", sub: "Rate confirmed" },
   { key: "FUNDED", label: "Payment received", sub: "SPIH confirmed" },
   { key: "RELEASING", label: "Releasing USDC", sub: "Theo broadcast" },
   { key: "COMPLETED", label: "Complete", sub: "USDC in account" },
 ];
-function stepIndex(status: string) {
-  const i = STEPS.findIndex((s) => s.key === status);
+const STEPS_MINT = [
+  { key: "QUOTED", label: "Deposit reference", sub: "Order created" },
+  { key: "FUNDED", label: "Payment received", sub: "SPIH confirmed" },
+  { key: "RELEASING", label: "Minting HTG-C", sub: "Stellar broadcast" },
+  { key: "COMPLETED", label: "Complete", sub: "HTG-C in wallet" },
+];
+function getSteps(kind: string | null | undefined) {
+  return kind === "htgc_mint" ? STEPS_MINT : STEPS_USDC;
+}
+function stepIndex(status: string, steps: typeof STEPS_USDC) {
+  const i = steps.findIndex((s) => s.key === status);
   if (status === "FAILED" || status === "EXPIRED") return -1;
   return i;
 }
@@ -65,7 +74,8 @@ export default function OrderStatus() {
     return <AppLayout><div className="text-muted-foreground">Loading order…</div></AppLayout>;
   }
 
-  const idx = stepIndex(order.status);
+  const STEPS = getSteps(order.order_kind);
+  const idx = stepIndex(order.status, STEPS);
   const isTerminalFail = order.status === "FAILED" || order.status === "EXPIRED";
 
   const copy = (text: string, label: string) => {
@@ -253,7 +263,7 @@ export default function OrderStatus() {
           </div>
           <div>
             <div className="font-bold text-base" style={{ color: "hsl(var(--theo-blue))", letterSpacing: "-0.01em" }}>
-              {order.status === "FUNDED" ? "Payment received" : "Releasing USDC"}
+              {order.status === "FUNDED" ? "Payment received" : order.order_kind === "htgc_mint" ? "Minting HTG-C" : "Releasing USDC"}
             </div>
             <div className="text-sm mt-0.5" style={{ color: "hsl(var(--theo-mid))" }}>
               {order.status === "FUNDED"
@@ -337,7 +347,7 @@ export default function OrderStatus() {
                 </div>
                 <div className="pt-3 border-t border-border flex items-center gap-2" style={{ fontSize: 13, fontWeight: 600, color: "#1A7F37" }}>
                   <span style={{ height: 8, width: 8, borderRadius: 99, background: "#1A7F37", display: "inline-block" }} />
-                  Confirmed on Stellar mainnet
+                  Confirmed on Stellar testnet
                 </div>
               </div>
             </div>

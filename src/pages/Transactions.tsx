@@ -6,7 +6,7 @@ import { fmtUSDC, fmtHTG, fmtHTGC } from "@/lib/format";
 import { Download } from "lucide-react";
 import { useSearch } from "@/contexts/SearchContext";
 
-type TxType = "conversion" | "htgc_mint" | "swap" | "payout" | "yield" | "transfer";
+type TxType = "conversion" | "htgc_mint" | "swap" | "withdraw" | "payout" | "yield" | "transfer";
 
 type UnifiedTx = {
   id: string;
@@ -88,6 +88,7 @@ export default function Transactions() {
           const type: TxType =
             kind === "htgc_mint" ? "htgc_mint" :
             kind === "htgc_usdc_swap" ? "swap" :
+            kind === "htgc_withdraw" ? "withdraw" :
             "conversion";
           return {
             id: o.id,

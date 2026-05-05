@@ -8,6 +8,7 @@ import { fetchHorizonBalances } from "@/lib/balance";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useBlendPositions } from "@/hooks/useBlendPositions";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useRoles } from "@/lib/auth";
 import { TrendingUp, Zap, X, Loader2, ArrowDownToLine, ArrowUpFromLine, Info, ArrowLeftRight } from "lucide-react";
 
 type Wallet = {
@@ -39,6 +40,7 @@ const shortAddr = (a: string) => `${a.slice(0, 6)}...${a.slice(-4)}`;
 export default function Balance() {
   const navigate = useNavigate();
   const { can } = usePermissions();
+  const { isAdmin } = useRoles();
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [balances, setBalances] = useState<Record<string, number>>({});
   const [htgcBalances, setHtgcBalances] = useState<Record<string, number>>({});
@@ -208,6 +210,17 @@ export default function Balance() {
     const hash = (data as { hash?: string })?.hash ?? "";
     toast.success(`Withdrawn from Blend · ${hash.slice(0, 8)}…`);
     await Promise.all([loadWallets(), refreshBlend(), refreshTotal()]);
+  };
+
+  const handleRectifyHtgc = async (walletId: string) => {
+    const { data, error } = await supabase.functions.invoke("admin-rectify-htgc", { body: { walletId } });
+    if (error || (data as { error?: string })?.error) {
+      toast.error((data as { error?: string })?.error ?? error?.message ?? "Rectify failed");
+      return;
+    }
+    const steps = (data as { steps?: string[] })?.steps ?? [];
+    toast.success(steps.length ? steps[steps.length - 1].slice(0, 80) : "HTGC rectified");
+    await loadWallets();
   };
 
   const openMoveModal = (sourceId?: string) => {
@@ -629,6 +642,8 @@ export default function Balance() {
                   htgcBalance={htgcBalances[w.id] ?? 0}
                   blendPosition={blendPositions[w.id] ?? null}
                   canViewKeys={can("balance_view_keys")}
+                  isAdmin={isAdmin}
+                  onRectify={handleRectifyHtgc}
                 />
               ))}
             </tbody>
@@ -1038,11 +1053,13 @@ export default function Balance() {
 }
 
 function LedgerRow({
-  w, idx, balance, htgcBalance, blendPosition, canViewKeys,
+  w, idx, balance, htgcBalance, blendPosition, canViewKeys, isAdmin, onRectify,
 }: {
   w: Wallet; idx: number; balance: number; htgcBalance: number;
   blendPosition: BlendPosition | null;
   canViewKeys: boolean;
+  isAdmin: boolean;
+  onRectify: (walletId: string) => void;
 }) {
   const [show, setShow] = useState(false);
   return (
@@ -1068,14 +1085,30 @@ function LedgerRow({
         </div>
       </td>
       <td className="px-5 py-3">
-        {htgcBalance > 0 ? (
-          <div style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
-            {Math.round(htgcBalance).toLocaleString("en-US")}{" "}
-            <span style={{ fontSize: 11, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>HTG-C</span>
-          </div>
-        ) : (
-          <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>—</span>
-        )}
+        <div className="flex items-center gap-2">
+          {htgcBalance > 0 ? (
+            <div style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
+              {Math.round(htgcBalance).toLocaleString("en-US")}{" "}
+              <span style={{ fontSize: 11, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>HTG-C</span>
+            </div>
+          ) : (
+            <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>—</span>
+          )}
+          {isAdmin && (
+            <button
+              onClick={() => onRectify(w.id)}
+              title="Admin: burn phantom HTGC and mint real HTGC from issuer"
+              style={{
+                background: "transparent", border: "1px solid hsl(var(--theo-mid))",
+                color: "hsl(var(--theo-mid))", borderRadius: 4, padding: "1px 6px",
+                fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                opacity: 0.6,
+              }}
+            >
+              fix
+            </button>
+          )}
+        </div>
       </td>
       <td className="px-5 py-3">
         {blendPosition ? (

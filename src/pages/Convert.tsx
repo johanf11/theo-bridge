@@ -305,13 +305,24 @@ export default function Convert() {
   const handleWithdraw = async () => {
     const bank = bankAccounts.find((b) => b.id === selectedBank);
     if (!bank) { toast.error("Please select a destination bank account"); return; }
-    if (offAmountRaw < 100) { toast.error("Minimum withdrawal is $100 USDC"); return; }
+    if (offAmountRaw < 100) { toast.error("Minimum withdrawal is 100 HTG-C"); return; }
+    const wallet = walletOptions.find((w) => w.stellar_address === selectedWallet) ?? walletOptions[0];
+    if (!wallet) { toast.error("No wallet selected"); return; }
     setOffBusy(true);
-    // Stub — wire to withdraw edge function
-    await new Promise((r) => setTimeout(r, 1500));
-    setOffBusy(false);
-    setOffConfirm(false);
-    toast.success(`${offAmount} HTG-C burned — ${offAmountRaw.toLocaleString("en-US")} HTG will arrive at your bank in 1–2 business days`);
+    try {
+      const { data, error } = await supabase.functions.invoke("execute-withdraw", {
+        body: { wallet_id: wallet.id, amount: offAmountRaw, bank_account_id: selectedBank },
+      });
+      if (error || data?.error) {
+        toast.error(data?.error || error?.message || "Withdrawal failed");
+        return;
+      }
+      setOffConfirm(false);
+      toast.success(`${offAmount} HTG-C burned - ${offAmountRaw.toLocaleString("en-US")} HTG will arrive at your bank in 1-2 business days`);
+      navigate(`/orders/${data.orderId}`);
+    } finally {
+      setOffBusy(false);
+    }
   };
 
   const maskAccount = (num: string) =>
@@ -407,6 +418,7 @@ export default function Convert() {
         return;
       }
       toast.success("Swap completed");
+      if (selectedWallet) fetchHorizonBalances(selectedWallet).then(setWalletBalances);
       navigate(`/orders/${data.orderId}`);
     } finally {
       setSwapBusy(false);
