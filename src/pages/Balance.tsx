@@ -1051,13 +1051,11 @@ export default function Balance() {
 }
 
 function LedgerRow({
-  w, idx, balance, htgcBalance, blendPosition, canViewKeys, isAdmin, onRectify,
+  w, idx, balance, htgcBalance, blendPosition, canViewKeys,
 }: {
   w: Wallet; idx: number; balance: number; htgcBalance: number;
   blendPosition: BlendPosition | null;
   canViewKeys: boolean;
-  isAdmin: boolean;
-  onRectify: (walletId: string) => void;
 }) {
   const [show, setShow] = useState(false);
   return (
