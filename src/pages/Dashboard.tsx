@@ -115,6 +115,8 @@ export default function Dashboard() {
   const { user } = useAuth();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [txs, setTxs] = useState<UnifiedTx[]>([]);
+  const [convertedThisMonth, setConvertedThisMonth] = useState(0);
+  const [txCount30d, setTxCount30d] = useState(0);
   const { total: balance } = useCustomerBalance();
   const [chartPeriod, setChartPeriod] = useState("1M");
 
