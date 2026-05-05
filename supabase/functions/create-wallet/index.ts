@@ -61,8 +61,7 @@ Deno.serve(async (req) => {
     }
 
     const issuer = Deno.env.get("STELLAR_USDC_ISSUER");
-    const distributorSecret = Deno.env.get("STELLAR_DISTRIBUTOR_SECRET");
-    if (!issuer || !distributorSecret) {
+    if (!issuer) {
       return new Response(JSON.stringify({ error: "Stellar config missing" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
