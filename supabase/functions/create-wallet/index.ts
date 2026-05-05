@@ -9,9 +9,9 @@ import {
   Networks,
   BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
+import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
 
 const HORIZON_URL = "https://horizon-testnet.stellar.org";
-const HTGC_ISSUER = "GDSRYZWTLQLBECKCL4TV7ZRGBZGBMSPD4V47B7Y7JSQVDJRSEXQTFCQT";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
