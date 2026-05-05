@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/theo/Layout";
-import { RefreshCw, ExternalLink, ShieldCheck, Lock, Landmark, CircleDot } from "lucide-react";
+import { RefreshCw, ExternalLink, ShieldCheck, Lock, Landmark, CircleDot, DollarSign } from "lucide-react";
 
 // The distributor holds the HTG-C treasury — it receives minted tokens and
 // sends them to customers on deposit. Its balance = tokens still in reserve.
@@ -308,6 +308,102 @@ export default function Compliance() {
             badge="Active"
             description="In cases of confirmed fraud or a binding legal order, Theo can recover HTG-C from any wallet and return the corresponding HTG to the rightful owner. This is a last-resort control."
           />
+        </div>
+      </div>
+
+      {/* USDC section */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "hsl(var(--theo-mid))", marginBottom: 12 }}>
+          About USDC
+        </div>
+
+        {/* Explainer card */}
+        <div style={{
+          borderRadius: 14, overflow: "hidden",
+          border: "1.5px solid hsl(var(--theo-light))",
+          marginBottom: 10,
+        }}>
+          {/* Header strip */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 14,
+            padding: "16px 20px",
+            background: "#2775CA", // USDC brand blue
+          }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 99, flexShrink: 0,
+              background: "#fff",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <DollarSign style={{ width: 18, height: 18, color: "#2775CA", strokeWidth: 2.5 }} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 16, color: "#fff", letterSpacing: "-0.02em" }}>
+                USD Coin (USDC)
+              </div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.60)", marginTop: 2 }}>
+                Issued by Circle · regulated US dollar stablecoin
+              </div>
+            </div>
+            <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+              <a
+                href="https://www.circle.com/usdc"
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  background: "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,255,255,0.25)",
+                  color: "#fff", borderRadius: 7, padding: "6px 12px",
+                  fontSize: 11, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap",
+                }}
+              >
+                usdc.circle.com <ExternalLink style={{ width: 10, height: 10 }} />
+              </a>
+              <a
+                href="https://stellar.expert/explorer/testnet/asset/USDC-GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  background: "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,255,255,0.25)",
+                  color: "#fff", borderRadius: 7, padding: "6px 12px",
+                  fontSize: 11, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap",
+                }}
+              >
+                Stellar issuer <ExternalLink style={{ width: 10, height: 10 }} />
+              </a>
+            </div>
+          </div>
+
+          {/* Body */}
+          <div style={{ padding: "18px 20px", background: "#fff" }}>
+            <p style={{ fontSize: 13, color: "hsl(var(--theo-mid))", lineHeight: 1.7, margin: 0 }}>
+              USDC is a fully collateralized US dollar stablecoin. USDC is the bridge between dollars and
+              trading on cryptocurrency exchanges. The technology behind CENTRE makes it possible to exchange
+              value between people, businesses and financial institutions — just like email between mail
+              services and texts between SMS providers.
+            </p>
+
+            {/* Key facts row */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginTop: 16 }}>
+              {[
+                { label: "Backing", value: "1 : 1 USD", sub: "Held in regulated US banks" },
+                { label: "Issuer", value: "Circle", sub: "Centre Consortium" },
+                { label: "On Theo", value: "Stellar Testnet", sub: "GBBD47…FLA5" },
+              ].map(({ label, value, sub }) => (
+                <div key={label} style={{
+                  padding: "12px 14px", borderRadius: 10,
+                  background: "hsl(var(--theo-cream))",
+                  border: "1px solid hsl(var(--theo-light))",
+                }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "hsl(var(--theo-mid))", marginBottom: 4 }}>
+                    {label}
+                  </div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: "hsl(var(--theo-ink))" }}>{value}</div>
+                  <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 2 }}>{sub}</div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
