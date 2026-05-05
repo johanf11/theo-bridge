@@ -321,7 +321,8 @@ export default function Transactions() {
                           htgc_mint: { bg: "hsl(var(--theo-gold-soft))", fg: "#7A5F00", label: "HTG-C Mint" },
                           swap: { bg: "hsl(195 85% 92%)", fg: "hsl(200 80% 25%)", label: "Swap" },
                           payout: { bg: "hsl(var(--theo-blue-soft))", fg: "hsl(var(--theo-blue))", label: "Payout" },
-                          yield: { bg: "hsl(140 60% 92%)", fg: "hsl(150 70% 25%)", label: "Yield Sweep" },
+                          yield: { bg: "hsl(140 60% 92%)", fg: "hsl(150 70% 25%)", label: "Yield Deposit" },
+                          yield_earned: { bg: "hsl(140 60% 92%)", fg: "hsl(150 70% 25%)", label: "Yield Earned" },
                           transfer: { bg: "hsl(195 85% 92%)", fg: "hsl(200 80% 25%)", label: "Transfer" },
                           withdraw: { bg: "hsl(var(--theo-blue-soft))", fg: "hsl(var(--theo-blue))", label: "Withdraw" },
                         };
