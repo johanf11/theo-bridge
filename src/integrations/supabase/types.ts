@@ -643,7 +643,7 @@ export type Database = {
       job_status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED"
       job_type: "SPIH_RECONCILE" | "USDC_RELEASE" | "STELLAR_CONFIRM"
       kyb_status: "PENDING" | "APPROVED" | "REJECTED" | "UNDER_REVIEW"
-      order_kind: "usdc_conversion" | "htgc_mint"
+      order_kind: "usdc_conversion" | "htgc_mint" | "htgc_usdc_swap"
       order_status:
         | "CREATED"
         | "QUOTED"
@@ -792,7 +792,7 @@ export const Constants = {
       job_status: ["PENDING", "RUNNING", "COMPLETED", "FAILED"],
       job_type: ["SPIH_RECONCILE", "USDC_RELEASE", "STELLAR_CONFIRM"],
       kyb_status: ["PENDING", "APPROVED", "REJECTED", "UNDER_REVIEW"],
-      order_kind: ["usdc_conversion", "htgc_mint"],
+      order_kind: ["usdc_conversion", "htgc_mint", "htgc_usdc_swap"],
       order_status: [
         "CREATED",
         "QUOTED",

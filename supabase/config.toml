@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.blend-positions]
 verify_jwt = false
+
+[functions.execute-swap]
+verify_jwt = false

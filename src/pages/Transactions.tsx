@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { StatusBadge } from "@/components/theo/StatusBadge";
-import { fmtUSDC, fmtHTG } from "@/lib/format";
+import { fmtUSDC, fmtHTG, fmtHTGC } from "@/lib/format";
 import { Download } from "lucide-react";
 import { useSearch } from "@/contexts/SearchContext";
 
-type TxType = "conversion" | "payout" | "yield" | "transfer";
+type TxType = "conversion" | "htgc_mint" | "swap" | "payout" | "yield" | "transfer";
 
 type UnifiedTx = {
   id: string;
@@ -54,7 +54,7 @@ export default function Transactions() {
       const [{ data: orders }, { data: payouts }, { data: yields }] = await Promise.all([
         supabase
           .from("orders")
-          .select("id, status, usdc_amount, htg_amount, reference_number, created_at, stellar_tx_hash")
+          .select("id, status, usdc_amount, htg_amount, reference_number, created_at, stellar_tx_hash, order_kind")
           .eq("customer_id", c.id)
           .gte("created_at", cutoff)
           .order("created_at", { ascending: false }),
@@ -83,16 +83,23 @@ export default function Transactions() {
       const walletLabel = new Map((wRows ?? []).map((w) => [w.id, w.label ?? "Wallet"]));
 
       const merged: UnifiedTx[] = [
-        ...(orders ?? []).map((o) => ({
-          id: o.id,
-          type: "conversion" as TxType,
-          created_at: o.created_at,
-          usdc_amount: Number(o.usdc_amount),
-          status: o.status,
-          stellar_tx_hash: o.stellar_tx_hash,
-          htg_amount: Number(o.htg_amount),
-          reference_number: o.reference_number,
-        })),
+        ...(orders ?? []).map((o) => {
+          const kind = (o as { order_kind?: string }).order_kind;
+          const type: TxType =
+            kind === "htgc_mint" ? "htgc_mint" :
+            kind === "htgc_usdc_swap" ? "swap" :
+            "conversion";
+          return {
+            id: o.id,
+            type,
+            created_at: o.created_at,
+            usdc_amount: Number(o.usdc_amount ?? 0),
+            status: o.status,
+            stellar_tx_hash: o.stellar_tx_hash,
+            htg_amount: Number(o.htg_amount ?? 0),
+            reference_number: o.reference_number,
+          };
+        }),
         ...(payouts ?? []).map((p) => {
           const isTransfer = p.memo === "internal-transfer";
           return {
@@ -128,6 +135,8 @@ export default function Transactions() {
     const q = query.trim().toLowerCase();
 
     if (typeFilter === "Conversion" && tx.type !== "conversion") return false;
+    if (typeFilter === "HTG-C Mint" && tx.type !== "htgc_mint") return false;
+    if (typeFilter === "Swap" && tx.type !== "swap") return false;
     if (typeFilter === "Payout" && tx.type !== "payout") return false;
     if (typeFilter === "Yield" && tx.type !== "yield") return false;
     if (typeFilter === "Transfer" && tx.type !== "transfer") return false;
@@ -211,7 +220,7 @@ export default function Transactions() {
       {/* Filters */}
       <div className="flex gap-2 mb-4 items-center">
         <select style={selectStyle} value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
-          {["All types", "Conversion", "Payout", "Yield", "Transfer"].map(o => <option key={o}>{o}</option>)}
+          {["All types", "Conversion", "HTG-C Mint", "Swap", "Payout", "Yield", "Transfer"].map(o => <option key={o}>{o}</option>)}
         </select>
         <select style={selectStyle} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
           {["All statuses", "Settled", "Pending", "Failed"].map(o => <option key={o}>{o}</option>)}
@@ -269,6 +278,8 @@ export default function Transactions() {
                       {(() => {
                         const palette: Record<TxType, { bg: string; fg: string; label: string }> = {
                           conversion: { bg: "hsl(var(--theo-gold-soft))", fg: "#7A5F00", label: "Conversion" },
+                          htgc_mint: { bg: "hsl(var(--theo-gold-soft))", fg: "#7A5F00", label: "HTG-C Mint" },
+                          swap: { bg: "hsl(195 85% 92%)", fg: "hsl(200 80% 25%)", label: "Swap" },
                           payout: { bg: "hsl(var(--theo-blue-soft))", fg: "hsl(var(--theo-blue))", label: "Payout" },
                           yield: { bg: "hsl(140 60% 92%)", fg: "hsl(150 70% 25%)", label: "Yield Sweep" },
                           transfer: { bg: "hsl(195 85% 92%)", fg: "hsl(200 80% 25%)", label: "Transfer" },
@@ -284,13 +295,21 @@ export default function Transactions() {
 
                     {/* Amount */}
                     <td className="px-5 py-3" style={{ fontSize: 13, fontWeight: 700 }}>
-                      {fmtUSDC(tx.usdc_amount)}
+                      {tx.type === "htgc_mint"
+                        ? `${fmtHTGC(tx.htg_amount ?? 0)} HTG`
+                        : fmtUSDC(tx.usdc_amount)}
                     </td>
 
-                    {/* Details: HTG for conversions, recipient for payouts, wallet for yield, source→dest for transfer */}
+                    {/* Details: HTG for conversions, swap legs, recipient for payouts, wallet for yield, source→dest for transfer */}
                     <td className="px-5 py-3" style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>
                       {tx.type === "conversion" ? (
                         fmtHTG(tx.htg_amount ?? 0)
+                      ) : tx.type === "htgc_mint" ? (
+                        <span style={{ color: "hsl(var(--theo-ink))" }}>Minted {fmtHTGC(tx.htg_amount ?? 0)} HTG-C</span>
+                      ) : tx.type === "swap" ? (
+                        <span style={{ color: "hsl(var(--theo-ink))" }}>
+                          {fmtHTGC(tx.htg_amount ?? 0)} HTG-C ↔ {fmtUSDC(tx.usdc_amount)}
+                        </span>
                       ) : tx.type === "yield" ? (
                         <span style={{ color: "hsl(var(--theo-ink))" }}>From {tx.wallet_label} → Yield treasury</span>
                       ) : tx.type === "transfer" ? (

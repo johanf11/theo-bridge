@@ -395,12 +395,22 @@ export default function Convert() {
 
   const handleSwapSubmit = async () => {
     if (swapAmountRaw < 1) { toast.error("Enter an amount"); return; }
+    const wallet = walletOptions.find((w) => w.stellar_address === selectedWallet) ?? walletOptions[0];
+    if (!wallet) { toast.error("No wallet selected"); return; }
     setSwapBusy(true);
-    await new Promise((r) => setTimeout(r, 1400));
-    setSwapBusy(false);
-    const fromLabel = swapDir === "htgc_to_usdc" ? `${swapAmount} HTG-C` : `$${swapAmount} USDC`;
-    const toLabel = swapDir === "htgc_to_usdc" ? `$${swapAmountRaw && liveRate ? (swapAmountRaw / liveRate).toFixed(2) : "—"} USDC` : `${swapAmountRaw && liveRate ? Math.round(swapAmountRaw * liveRate).toLocaleString() : "—"} HTG-C`;
-    toast.success(`Swapped ${fromLabel} → ${toLabel}`);
+    try {
+      const { data, error } = await supabase.functions.invoke("execute-swap", {
+        body: { wallet_id: wallet.id, amount: swapAmountRaw, direction: swapDir },
+      });
+      if (error || data?.error) {
+        toast.error(data?.error || error?.message || "Swap failed");
+        return;
+      }
+      toast.success("Swap completed");
+      navigate(`/orders/${data.orderId}`);
+    } finally {
+      setSwapBusy(false);
+    }
   };
 
   const dirToggle = (active: boolean, onClick: () => void, label: string) => (
