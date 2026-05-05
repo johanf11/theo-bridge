@@ -225,7 +225,7 @@ export default function OrderStatus() {
                       const { error } = await supabase.functions.invoke("simulate-spih-payment", { body: { orderId: order.id } });
                       setSimulating(false);
                       if (error) toast.error(error.message);
-                      else toast.success("Payment simulated — releasing USDC");
+                      else toast.success("Payment simulated — releasing HTG-C");
                     }}
                     style={{
                       display: "flex", alignItems: "center", gap: 6,
