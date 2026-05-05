@@ -1,34 +1,43 @@
-# Deploy rectify + withdraw edge functions
+## Problem
 
-The frontend and edge function code are already in place from prior work:
+Two issues with the HTG-C ↔ USDC swap flow:
 
-- `supabase/functions/admin-rectify-htgc/index.ts` — burns phantom HTGC, opens real trustline, mints real HTGC from `STELLAR_HTGC_ISSUER_SECRET` (= `GDSRY…` = `HTGC_ISSUER`).
-- `supabase/functions/execute-withdraw/index.ts` — burns user HTGC back to the canonical issuer and records a `htgc_withdraw` order.
-- `src/pages/Balance.tsx` already renders the small **fix** button next to each wallet's HTG-C column (admin-only) and calls `supabase.functions.invoke("admin-rectify-htgc", { body: { walletId } })`.
+1. **UX bug** — the "Retry payout" button on `/transactions` is visible to any authenticated user (the `isAdmin` check works, but conceptually retrying a half-failed swap is an internal operations action, not a customer one). Customers should never see it.
+2. **Critical safety bug** — in `execute-swap`, if leg 1 succeeds (user → distributor) but leg 2 fails (distributor → user), the order is marked `FAILED` and the user's funds are left sitting in the distributor account. With real money this is catastrophic. The code already has a recovery path (`admin-refund-distributor`, `retry-swap-payout`) but it's manual.
 
-Nothing else needs to change in code — they just haven't been deployed yet to the Cloud backend.
+## Fix
 
-## Step
+### 1. Auto-refund leg 1 when leg 2 fails (`supabase/functions/execute-swap/index.ts`)
 
-Use `supabase--deploy_edge_functions` to deploy both functions:
+When the leg-2 try/catch catches an error, before persisting the order, attempt a compensating refund:
+- Reload distributor account, build a payment back to `wallet.stellar_address` for `sourceAmount` of `sourceAsset`, memo `reference` + `-RFND`, sign with distributor key, submit.
+- If refund succeeds → mark order `REFUNDED` (or keep `FAILED` with a clear `failure_reason: "Leg 2 failed: <err>. Auto-refunded leg 1 in tx <hash>"` and store the refund hash). User ends up net-zero on chain.
+- If refund itself fails → mark `FAILED`, set `failure_reason` to include both the leg-2 error AND the refund error, and surface a clear message so ops knows manual intervention is needed.
+- Wrap in its own try/catch so a refund exception never crashes the response.
 
-```text
-["admin-rectify-htgc", "execute-withdraw"]
-```
+Return shape on partial failure becomes `{ error, orderId, leg1Hash, refundHash?, refundFailed? }` so the UI can show "Swap failed — funds returned to wallet" instead of a scary "Swap partially failed".
 
-Both are already listed in the project's edge function directory; no `config.toml` changes are needed (`admin-rectify-htgc` validates the JWT in code via `getUser()` + `user_roles` admin check, and `execute-withdraw` does the same customer check pattern as `move-funds`).
+### 2. Improve client-side error message (`src/pages/Convert.tsx` or wherever swap result is handled)
 
-## After deploy
+When the swap response includes `refundHash`, show a non-alarming toast: "Swap couldn't complete — your funds were returned to your wallet." When refund also failed, show "Swap failed and funds are stuck — Theo support has been notified" (and optionally insert a row into a support/incidents table — out of scope for this pass; just log loudly).
 
-Confirm to the user:
-1. Go to **/balance**
-2. Click the small **fix** button next to the HTG-C column on the Operations row
-3. The function will burn the 25,000 phantom HTGC → open the real trustline → mint 25,000 real HTGC from `GDSRY…`
-4. Page reloads and shows 25,000 HTG-C
+### 3. Remove "Retry payout" button from customer UI (`src/pages/Transactions.tsx`)
 
-If anything fails, pull logs with `supabase--edge_function_logs` for `admin-rectify-htgc` to see the exact Horizon error.
+- Delete the retry button block (lines ~364-378), the `retryingId` state, the `handleRetry` function, and the `isAdmin` lookup if it has no other consumer on this page.
+- The `retry-swap-payout` edge function stays deployed for now (admin tooling) — it's just not surfaced anywhere in the customer app. When proxy-mode lands later, it can be wired into the admin/proxy view.
+
+### 4. Note on existing FAILED orders
+
+The current FAILED orders (e.g. SWP-4C9CE718) were created before auto-refund existed. They stay as-is — the 80K USDC has already been manually refunded. No data migration needed.
+
+## Files touched
+
+- `supabase/functions/execute-swap/index.ts` — add auto-refund block between leg-2 catch and order insert
+- `src/pages/Transactions.tsx` — remove retry button, related state, handler, and the now-unused admin lookup
+- `src/pages/Convert.tsx` (or the swap caller) — read `refundHash`/`refundFailed` from the response and adjust the toast
 
 ## Out of scope
 
-- No DB migrations needed (the `htgc_withdraw` enum value already exists since `execute-withdraw` was created earlier).
-- No frontend changes — the fix button already exists and is gated on `isAdmin`.
+- Proxy/impersonation mode for admins (future work, as you mentioned)
+- Moving the retry tool into a dedicated admin console
+- Database column for `REFUNDED` status (keeping `FAILED` + descriptive `failure_reason` keeps the existing enum intact)
