@@ -117,7 +117,7 @@ export default function Dashboard() {
   const [txs, setTxs] = useState<UnifiedTx[]>([]);
   const [convertedThisMonth, setConvertedThisMonth] = useState(0);
   const [txCount30d, setTxCount30d] = useState(0);
-  const { total: balance } = useCustomerBalance();
+  const { total: balance, htgcTotal } = useCustomerBalance();
   const [chartPeriod, setChartPeriod] = useState("1M");
 
   useEffect(() => {
@@ -246,6 +246,15 @@ export default function Dashboard() {
           <div style={{ fontSize: 11, fontWeight: 600, color: "#1A7F37", marginTop: 6 }}>↑ Theo network</div>
         </div>
 
+        <div className="rounded-xl p-4 shadow-xs" style={{ background: "hsl(var(--theo-gold))" }}>
+          <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "rgba(51,53,154,0.55)" }}>Total HTG-C Balance</div>
+          <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1.5px", color: "hsl(var(--theo-blue))" }}>
+            {htgcTotal.toLocaleString("fr-HT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            <span style={{ fontSize: 14, fontWeight: 700, marginLeft: 4 }}>HTG-C</span>
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#1A7F37", marginTop: 6 }}>↑ Theo network</div>
+        </div>
+
         <div className="rounded-xl p-4 shadow-xs bg-card border border-border">
           <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>Converted this month</div>
           <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1.5px", color: "hsl(var(--theo-blue))" }}>
@@ -261,12 +270,6 @@ export default function Dashboard() {
           <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>Transactions</div>
           <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1.5px", color: "hsl(var(--theo-blue))" }}>{txCount}</div>
           <div style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-mid))", marginTop: 6 }}>Last 30 days</div>
-        </div>
-
-        <div className="rounded-xl p-4 shadow-xs bg-card border border-border">
-          <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>Avg. Settlement</div>
-          <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1.5px", color: "hsl(var(--theo-blue))" }}>1.4 min</div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#1A7F37", marginTop: 6 }}>Stellar network</div>
         </div>
       </div>
 
