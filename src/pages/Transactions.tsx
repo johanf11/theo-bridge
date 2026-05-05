@@ -7,7 +7,7 @@ import { Download } from "lucide-react";
 import { useSearch } from "@/contexts/SearchContext";
 
 
-type TxType = "conversion" | "htgc_mint" | "swap" | "withdraw" | "payout" | "yield" | "transfer";
+type TxType = "conversion" | "htgc_mint" | "swap" | "withdraw" | "payout" | "yield" | "yield_earned" | "transfer";
 
 type UnifiedTx = {
   id: string;
@@ -126,17 +126,43 @@ export default function Transactions() {
             wallet_label: isTransfer ? (walletLabel.get(p.source_wallet_id ?? "") ?? "Wallet") : undefined,
           };
         }),
-        ...(yields ?? []).map((y) => ({
-          id: y.id,
-          type: "yield" as TxType,
-          created_at: y.deposited_at,
-          usdc_amount: Number(y.deposited_usdc),
-          status: "EARNING",
-          stellar_tx_hash: y.last_tx_hash ?? null,
-          wallet_label: walletLabel.get(y.wallet_id) ?? "Wallet",
-          deposited_at: y.deposited_at,
-          net_apy: Number(y.net_apy ?? 0.07),
-        })),
+        ...(yields ?? []).flatMap((y) => {
+          const principal = Number(y.deposited_usdc);
+          const apy = Number(y.net_apy ?? 0.07);
+          const depositedAt = new Date(y.deposited_at);
+          const elapsedSec = (Date.now() - depositedAt.getTime()) / 1000;
+          const accruedTotal = principal * (Math.exp(apy * (elapsedSec / (365 * 24 * 3600))) - 1);
+          const label = walletLabel.get(y.wallet_id) ?? "Wallet";
+
+          const rows: UnifiedTx[] = [{
+            id: y.id,
+            type: "yield" as TxType,
+            created_at: y.deposited_at,
+            usdc_amount: principal,
+            status: "EARNING",
+            stellar_tx_hash: y.last_tx_hash ?? null,
+            wallet_label: label,
+            deposited_at: y.deposited_at,
+            net_apy: apy,
+          }];
+
+          // Synthetic "Yield earned" line item — shows accrual since deposit, dated today.
+          // Only meaningful once at least a few cents have accrued.
+          if (accruedTotal >= 0.01) {
+            rows.push({
+              id: `${y.id}-earned`,
+              type: "yield_earned" as TxType,
+              created_at: new Date().toISOString(),
+              usdc_amount: accruedTotal,
+              status: "ACCRUING",
+              stellar_tx_hash: null,
+              wallet_label: label,
+              deposited_at: y.deposited_at,
+              net_apy: apy,
+            });
+          }
+          return rows;
+        }),
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       setAll(merged);
@@ -152,7 +178,7 @@ export default function Transactions() {
     if (typeFilter === "HTG-C Mint" && tx.type !== "htgc_mint") return false;
     if (typeFilter === "Swap" && tx.type !== "swap") return false;
     if (typeFilter === "Payout" && tx.type !== "payout") return false;
-    if (typeFilter === "Yield" && tx.type !== "yield") return false;
+    if (typeFilter === "Yield" && tx.type !== "yield" && tx.type !== "yield_earned") return false;
     if (typeFilter === "Transfer" && tx.type !== "transfer") return false;
 
     const statusLabel = tx.status.toLowerCase();
@@ -295,7 +321,8 @@ export default function Transactions() {
                           htgc_mint: { bg: "hsl(var(--theo-gold-soft))", fg: "#7A5F00", label: "HTG-C Mint" },
                           swap: { bg: "hsl(195 85% 92%)", fg: "hsl(200 80% 25%)", label: "Swap" },
                           payout: { bg: "hsl(var(--theo-blue-soft))", fg: "hsl(var(--theo-blue))", label: "Payout" },
-                          yield: { bg: "hsl(140 60% 92%)", fg: "hsl(150 70% 25%)", label: "Yield Sweep" },
+                          yield: { bg: "hsl(140 60% 92%)", fg: "hsl(150 70% 25%)", label: "Yield Deposit" },
+                          yield_earned: { bg: "hsl(140 60% 92%)", fg: "hsl(150 70% 25%)", label: "Yield Earned" },
                           transfer: { bg: "hsl(195 85% 92%)", fg: "hsl(200 80% 25%)", label: "Transfer" },
                           withdraw: { bg: "hsl(var(--theo-blue-soft))", fg: "hsl(var(--theo-blue))", label: "Withdraw" },
                         };
@@ -309,9 +336,11 @@ export default function Transactions() {
                     </td>
 
                     {/* Amount */}
-                    <td className="px-5 py-3" style={{ fontSize: 13, fontWeight: 700 }}>
+                    <td className="px-5 py-3" style={{ fontSize: 13, fontWeight: 700, color: tx.type === "yield_earned" ? "hsl(150 70% 25%)" : undefined }}>
                       {tx.type === "htgc_mint"
                         ? `${fmtHTGC(tx.htg_amount ?? 0)} HTG`
+                        : tx.type === "yield_earned"
+                        ? `+${fmtUSDC(tx.usdc_amount)}`
                         : fmtUSDC(tx.usdc_amount)}
                     </td>
 
@@ -341,6 +370,11 @@ export default function Transactions() {
                             </span>
                           );
                         })()
+                      ) : tx.type === "yield_earned" ? (
+                        <span style={{ color: "hsl(var(--theo-ink))" }}>
+                          Yield accrued on {tx.wallet_label}
+                          <span style={{ color: "hsl(var(--theo-mid))" }}> · since {new Date(tx.deposited_at ?? tx.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {((tx.net_apy ?? 0.07) * 100).toFixed(2)}% APY</span>
+                        </span>
                       ) : tx.type === "transfer" ? (
                         <span style={{ color: "hsl(var(--theo-ink))" }}>From {tx.wallet_label} → {tx.recipient_name}</span>
                       ) : (
