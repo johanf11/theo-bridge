@@ -1,6 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-
-export const HTGC_ISSUER = "GDSRYZWTLQLBECKCL4TV7ZRGBZGBMSPD4V47B7Y7JSQVDJRSEXQTFCQT";
+import { HTGC_ISSUER } from "../../supabase/functions/_shared/stellar-assets";
 
 /** Fetch live USDC balance for a Stellar address from Horizon testnet. */
 export async function fetchHorizonUsdcBalance(address: string): Promise<number> {
