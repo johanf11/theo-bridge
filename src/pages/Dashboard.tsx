@@ -258,7 +258,7 @@ export default function Dashboard() {
         <div className="rounded-xl p-4 shadow-xs bg-card border border-border">
           <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>Converted this month</div>
           <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1.5px", color: "hsl(var(--theo-blue))" }}>
-            {convertedThisMonth.toLocaleString("fr-HT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            {convertedThisMonth.toLocaleString("en-US", { maximumFractionDigits: 0 })}
             <span style={{ fontSize: 14, fontWeight: 700, marginLeft: 4 }}>HTG-C</span>
           </div>
           <div style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-mid))", marginTop: 6 }}>
