@@ -166,6 +166,11 @@ Deno.serve(async (req) => {
           const mintTx = new TransactionBuilder(issuerAccount, {
             fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
           })
+            .addOperation(Operation.setTrustLineFlags({
+              trustor: wallet.stellar_address,
+              asset: htgc,
+              flags: { authorized: true },
+            }))
             .addOperation(Operation.payment({
               destination: wallet.stellar_address,
               asset: htgc,
