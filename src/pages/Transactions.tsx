@@ -83,16 +83,23 @@ export default function Transactions() {
       const walletLabel = new Map((wRows ?? []).map((w) => [w.id, w.label ?? "Wallet"]));
 
       const merged: UnifiedTx[] = [
-        ...(orders ?? []).map((o) => ({
-          id: o.id,
-          type: "conversion" as TxType,
-          created_at: o.created_at,
-          usdc_amount: Number(o.usdc_amount),
-          status: o.status,
-          stellar_tx_hash: o.stellar_tx_hash,
-          htg_amount: Number(o.htg_amount),
-          reference_number: o.reference_number,
-        })),
+        ...(orders ?? []).map((o) => {
+          const kind = (o as { order_kind?: string }).order_kind;
+          const type: TxType =
+            kind === "htgc_mint" ? "htgc_mint" :
+            kind === "htgc_usdc_swap" ? "swap" :
+            "conversion";
+          return {
+            id: o.id,
+            type,
+            created_at: o.created_at,
+            usdc_amount: Number(o.usdc_amount ?? 0),
+            status: o.status,
+            stellar_tx_hash: o.stellar_tx_hash,
+            htg_amount: Number(o.htg_amount ?? 0),
+            reference_number: o.reference_number,
+          };
+        }),
         ...(payouts ?? []).map((p) => {
           const isTransfer = p.memo === "internal-transfer";
           return {
