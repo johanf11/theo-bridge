@@ -278,6 +278,8 @@ export default function Transactions() {
                       {(() => {
                         const palette: Record<TxType, { bg: string; fg: string; label: string }> = {
                           conversion: { bg: "hsl(var(--theo-gold-soft))", fg: "#7A5F00", label: "Conversion" },
+                          htgc_mint: { bg: "hsl(var(--theo-gold-soft))", fg: "#7A5F00", label: "HTG-C Mint" },
+                          swap: { bg: "hsl(195 85% 92%)", fg: "hsl(200 80% 25%)", label: "Swap" },
                           payout: { bg: "hsl(var(--theo-blue-soft))", fg: "hsl(var(--theo-blue))", label: "Payout" },
                           yield: { bg: "hsl(140 60% 92%)", fg: "hsl(150 70% 25%)", label: "Yield Sweep" },
                           transfer: { bg: "hsl(195 85% 92%)", fg: "hsl(200 80% 25%)", label: "Transfer" },
@@ -293,13 +295,21 @@ export default function Transactions() {
 
                     {/* Amount */}
                     <td className="px-5 py-3" style={{ fontSize: 13, fontWeight: 700 }}>
-                      {fmtUSDC(tx.usdc_amount)}
+                      {tx.type === "htgc_mint"
+                        ? `${fmtHTGC(tx.htg_amount ?? 0)} HTG`
+                        : fmtUSDC(tx.usdc_amount)}
                     </td>
 
-                    {/* Details: HTG for conversions, recipient for payouts, wallet for yield, source→dest for transfer */}
+                    {/* Details: HTG for conversions, swap legs, recipient for payouts, wallet for yield, source→dest for transfer */}
                     <td className="px-5 py-3" style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>
                       {tx.type === "conversion" ? (
                         fmtHTG(tx.htg_amount ?? 0)
+                      ) : tx.type === "htgc_mint" ? (
+                        <span style={{ color: "hsl(var(--theo-ink))" }}>Minted {fmtHTGC(tx.htg_amount ?? 0)} HTG-C</span>
+                      ) : tx.type === "swap" ? (
+                        <span style={{ color: "hsl(var(--theo-ink))" }}>
+                          {fmtHTGC(tx.htg_amount ?? 0)} HTG-C ↔ {fmtUSDC(tx.usdc_amount)}
+                        </span>
                       ) : tx.type === "yield" ? (
                         <span style={{ color: "hsl(var(--theo-ink))" }}>From {tx.wallet_label} → Yield treasury</span>
                       ) : tx.type === "transfer" ? (
