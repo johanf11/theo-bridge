@@ -333,9 +333,9 @@ export default function Transactions() {
                           const accrued = principal * (Math.exp(apy * (elapsedSec / (365 * 24 * 3600))) - 1);
                           return (
                             <span style={{ color: "hsl(var(--theo-ink))" }}>
-                              From {tx.wallet_label} → Yield treasury
+                              Deposited {fmtUSDC(principal)} from {tx.wallet_label}
                               <span style={{ color: "hsl(150 70% 25%)", fontWeight: 700, marginLeft: 6 }}>
-                                +{fmtUSDC(accrued)} earned
+                                · Earned +{fmtUSDC(accrued)}
                               </span>
                               <span style={{ color: "hsl(var(--theo-mid))" }}> · {(apy * 100).toFixed(2)}% APY</span>
                             </span>
