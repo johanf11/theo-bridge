@@ -1,43 +1,44 @@
 ## Problem
 
-Two issues with the HTG-C ↔ USDC swap flow:
+Yield positions accrue continuously (computed from `deposited_at` × `net_apy`), but accrued earnings are only visible on the **Balance** page inside the Yield panel. On **Transactions**, the yield row only shows the original deposit amount with status "EARNING" — there is no indication that earnings have grown. On **Dashboard**, yield is not surfaced at all.
 
-1. **UX bug** — the "Retry payout" button on `/transactions` is visible to any authenticated user (the `isAdmin` check works, but conceptually retrying a half-failed swap is an internal operations action, not a customer one). Customers should never see it.
-2. **Critical safety bug** — in `execute-swap`, if leg 1 succeeds (user → distributor) but leg 2 fails (distributor → user), the order is marked `FAILED` and the user's funds are left sitting in the distributor account. With real money this is catastrophic. The code already has a recovery path (`admin-refund-distributor`, `retry-swap-payout`) but it's manual.
+After a day of accrual, the user reasonably expects to see "you earned $X" somewhere prominent.
 
-## Fix
+## Plan
 
-### 1. Auto-refund leg 1 when leg 2 fails (`supabase/functions/execute-swap/index.ts`)
+### 1. Transactions page — show accrued earnings on each yield row
 
-When the leg-2 try/catch catches an error, before persisting the order, attempt a compensating refund:
-- Reload distributor account, build a payment back to `wallet.stellar_address` for `sourceAmount` of `sourceAsset`, memo `reference` + `-RFND`, sign with distributor key, submit.
-- If refund succeeds → mark order `REFUNDED` (or keep `FAILED` with a clear `failure_reason: "Leg 2 failed: <err>. Auto-refunded leg 1 in tx <hash>"` and store the refund hash). User ends up net-zero on chain.
-- If refund itself fails → mark `FAILED`, set `failure_reason` to include both the leg-2 error AND the refund error, and surface a clear message so ops knows manual intervention is needed.
-- Wrap in its own try/catch so a refund exception never crashes the response.
+In `src/pages/Transactions.tsx`, enrich the yield rows built from `blend_positions`:
 
-Return shape on partial failure becomes `{ error, orderId, leg1Hash, refundHash?, refundFailed? }` so the UI can show "Swap failed — funds returned to wallet" instead of a scary "Swap partially failed".
+- Compute `accrued = deposited * (e^(net_apy * years) - 1)` using `deposited_at` and `net_apy` (same formula already used in `useBlendPositions` and `blend-positions` edge function — keep this consistent).
+- Add `accrued` and `net_apy` to the merged transaction row.
+- Update the **Details** column for `tx.type === "yield"` to read:
+  `From {wallet} → Yield treasury · +{fmtUSDC(accrued)} earned ({netApy*100}% APY)`
+- Update the status pill from "EARNING" to a live value like `+$0.42 earned` so the table communicates the gain at a glance. Keep the green "Yield Sweep" type chip.
+- Tick the page once per minute (lightweight `setInterval`) so accrued numbers update without a refresh, matching the existing live-tick pattern in `useBlendPositions`.
 
-### 2. Improve client-side error message (`src/pages/Convert.tsx` or wherever swap result is handled)
+### 2. Dashboard — add a compact "Yield earned" stat
 
-When the swap response includes `refundHash`, show a non-alarming toast: "Swap couldn't complete — your funds were returned to your wallet." When refund also failed, show "Swap failed and funds are stuck — Theo support has been notified" (and optionally insert a row into a support/incidents table — out of scope for this pass; just log loudly).
+In `src/pages/Dashboard.tsx`, add a small KPI card next to the existing balance/activity stats:
 
-### 3. Remove "Retry payout" button from customer UI (`src/pages/Transactions.tsx`)
+- Use the existing `useBlendPositions` hook (already returns live-accrued positions and APY).
+- Show two numbers:
+  - **Total earning**: sum of `deposited + accrued` across positions
+  - **Earned so far**: sum of `accrued` (highlighted in green/cyan, with `+` prefix)
+  - Subtitle: `{netApy*100}% net APY · since {earliest depositedAt, formatted}`
+- Click-through navigates to `/balance` Yield panel.
+- If user has no positions, hide the card (don't push the "earn yield" CTA here — that already lives on Balance).
 
-- Delete the retry button block (lines ~364-378), the `retryingId` state, the `handleRetry` function, and the `isAdmin` lookup if it has no other consumer on this page.
-- The `retry-swap-payout` edge function stays deployed for now (admin tooling) — it's just not surfaced anywhere in the customer app. When proxy-mode lands later, it can be wired into the admin/proxy view.
+### 3. No backend changes
 
-### 4. Note on existing FAILED orders
-
-The current FAILED orders (e.g. SWP-4C9CE718) were created before auto-refund existed. They stay as-is — the 80K USDC has already been manually refunded. No data migration needed.
+`blend-positions` already returns `deposited_at`, `net_apy`, and `last_synced_at`. All accrual math is client-side and consistent with the existing implementation. No migrations, no edge function changes.
 
 ## Files touched
 
-- `supabase/functions/execute-swap/index.ts` — add auto-refund block between leg-2 catch and order insert
-- `src/pages/Transactions.tsx` — remove retry button, related state, handler, and the now-unused admin lookup
-- `src/pages/Convert.tsx` (or the swap caller) — read `refundHash`/`refundFailed` from the response and adjust the toast
+- `src/pages/Transactions.tsx` — enrich yield rows with live accrued amount + APY in details column and status pill; add 60s tick.
+- `src/pages/Dashboard.tsx` — add "Yield earned" KPI card backed by `useBlendPositions`.
 
 ## Out of scope
 
-- Proxy/impersonation mode for admins (future work, as you mentioned)
-- Moving the retry tool into a dedicated admin console
-- Database column for `REFUNDED` status (keeping `FAILED` + descriptive `failure_reason` keeps the existing enum intact)
+- Changing accrual model (still continuous compounding at `net_apy`).
+- New transaction types for "yield accrual events" — accrual is continuous, not discrete, so we display it as a live number rather than synthesizing fake transactions.

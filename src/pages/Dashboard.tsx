@@ -4,6 +4,7 @@ import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtUSDC, fmtHTG } from "@/lib/format";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
+import { useBlendPositions } from "@/hooks/useBlendPositions";
 import { useAuth } from "@/lib/auth";
 import { Plus } from "lucide-react";
 
@@ -118,6 +119,10 @@ export default function Dashboard() {
   const [convertedThisMonth, setConvertedThisMonth] = useState(0);
   const [txCount30d, setTxCount30d] = useState(0);
   const { total: balance, htgcTotal } = useCustomerBalance();
+  const { positions: yieldPositions, netApy } = useBlendPositions();
+  const totalEarning = yieldPositions.reduce((s, p) => s + p.deposited + p.accrued, 0);
+  const totalAccrued = yieldPositions.reduce((s, p) => s + p.accrued, 0);
+  const hasYield = yieldPositions.length > 0;
   const [chartPeriod, setChartPeriod] = useState("1M");
 
   useEffect(() => {
@@ -237,7 +242,22 @@ export default function Dashboard() {
       <div className="mb-4" style={{ width: 28, height: 3, background: "hsl(var(--theo-gold))", borderRadius: 2, marginTop: 8 }} />
 
       {/* Stat cards */}
-      <div className="grid grid-cols-4 gap-3.5 mb-4">
+      <div className={`grid ${hasYield ? "grid-cols-5" : "grid-cols-4"} gap-3.5 mb-4`}>
+        {hasYield && (
+          <Link
+            to="/balance"
+            className="rounded-xl p-4 shadow-xs bg-card border border-border transition-colors hover:border-[hsl(var(--theo-cyan))]"
+            style={{ textDecoration: "none" }}
+          >
+            <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>Yield Earned</div>
+            <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1.5px", color: "hsl(150 70% 25%)" }}>
+              +${totalAccrued.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-mid))", marginTop: 6 }}>
+              ${totalEarning.toLocaleString("en-US", { maximumFractionDigits: 2 })} earning · {(netApy * 100).toFixed(2)}% APY
+            </div>
+          </Link>
+        )}
         <div className="rounded-xl p-4 shadow-xs" style={{ background: "hsl(var(--theo-gold))" }}>
           <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "rgba(51,53,154,0.55)" }}>Total USDC Balance</div>
           <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1.5px", color: "hsl(var(--theo-blue))" }}>

@@ -24,6 +24,9 @@ type UnifiedTx = {
   memo?: string | null;
   // yield / transfer
   wallet_label?: string;
+  // yield-only
+  deposited_at?: string;
+  net_apy?: number;
 };
 
 // Map payout statuses → the same style system StatusBadge uses
@@ -43,6 +46,13 @@ export default function Transactions() {
   const [typeFilter, setTypeFilter] = useState("All types");
   const [statusFilter, setStatusFilter] = useState("All statuses");
   const [dateFilter, setDateFilter] = useState("Last 30 days");
+
+  // Tick once a minute so accrued yield numbers stay live without refetching.
+  const [, setNowTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setNowTick((t) => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -67,7 +77,7 @@ export default function Transactions() {
           .order("created_at", { ascending: false }),
         supabase
           .from("blend_positions")
-          .select("id, deposited_usdc, deposited_at, last_tx_hash, wallet_id")
+          .select("id, deposited_usdc, deposited_at, last_tx_hash, wallet_id, net_apy")
           .eq("customer_id", c.id)
           .gte("deposited_at", cutoff)
           .order("deposited_at", { ascending: false }),
@@ -124,6 +134,8 @@ export default function Transactions() {
           status: "EARNING",
           stellar_tx_hash: y.last_tx_hash ?? null,
           wallet_label: walletLabel.get(y.wallet_id) ?? "Wallet",
+          deposited_at: y.deposited_at,
+          net_apy: Number(y.net_apy ?? 0.07),
         })),
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
@@ -314,7 +326,21 @@ export default function Transactions() {
                           {fmtHTGC(tx.htg_amount ?? 0)} HTG-C ↔ {fmtUSDC(tx.usdc_amount)}
                         </span>
                       ) : tx.type === "yield" ? (
-                        <span style={{ color: "hsl(var(--theo-ink))" }}>From {tx.wallet_label} → Yield treasury</span>
+                        (() => {
+                          const principal = tx.usdc_amount;
+                          const apy = tx.net_apy ?? 0.07;
+                          const elapsedSec = (Date.now() - new Date(tx.deposited_at ?? tx.created_at).getTime()) / 1000;
+                          const accrued = principal * (Math.exp(apy * (elapsedSec / (365 * 24 * 3600))) - 1);
+                          return (
+                            <span style={{ color: "hsl(var(--theo-ink))" }}>
+                              From {tx.wallet_label} → Yield treasury
+                              <span style={{ color: "hsl(150 70% 25%)", fontWeight: 700, marginLeft: 6 }}>
+                                +{fmtUSDC(accrued)} earned
+                              </span>
+                              <span style={{ color: "hsl(var(--theo-mid))" }}> · {(apy * 100).toFixed(2)}% APY</span>
+                            </span>
+                          );
+                        })()
                       ) : tx.type === "transfer" ? (
                         <span style={{ color: "hsl(var(--theo-ink))" }}>From {tx.wallet_label} → {tx.recipient_name}</span>
                       ) : (
