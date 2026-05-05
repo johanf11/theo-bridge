@@ -971,7 +971,7 @@ export default function Balance() {
               >
                 {moving
                   ? <><Loader2 size={13} className="animate-spin" /> Moving…</>
-                  : <><ArrowLeftRight size={13} /> Move {moveAmountNum > 0 ? `$${fmt(moveAmountNum)}` : ""} →</>}
+                  : <><ArrowLeftRight size={13} /> Move {moveAmountNum > 0 ? fmtMoveAmount(moveAmountNum) : ""} →</>}
               </button>
             </div>
           </div>
