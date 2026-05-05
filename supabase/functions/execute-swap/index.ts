@@ -23,6 +23,18 @@ type HorizonBalance = {
   balance: string;
 };
 
+const realHtgcBalance = (balances: HorizonBalance[]) => {
+  const bal = balances.find((b) =>
+    b.asset_type !== "native" && b.asset_code === "HTGC" && b.asset_issuer === HTGC_ISSUER
+  );
+  return bal ? Number(bal.balance) : 0;
+};
+
+const loadRealHtgcBalance = async (server: Horizon.Server, address: string) => {
+  const account = await server.loadAccount(address);
+  return realHtgcBalance(account.balances as HorizonBalance[]);
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
