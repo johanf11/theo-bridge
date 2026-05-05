@@ -7,7 +7,7 @@ import { Download } from "lucide-react";
 import { useSearch } from "@/contexts/SearchContext";
 
 
-type TxType = "conversion" | "htgc_mint" | "swap" | "withdraw" | "payout" | "yield" | "transfer";
+type TxType = "conversion" | "htgc_mint" | "swap" | "withdraw" | "payout" | "yield" | "yield_earned" | "transfer";
 
 type UnifiedTx = {
   id: string;
