@@ -115,21 +115,24 @@ Deno.serve(async (req) => {
     const server = new Horizon.Server(HORIZON_URL);
     const userKp = Keypair.fromSecret(wallet.stellar_secret);
 
-    // Ensure user wallet has trustline for destAsset (so leg 2 succeeds).
+    // Ensure user wallet has trustlines for both source (leg 1) and destination (leg 2) assets.
     try {
       const userAccount = await server.loadAccount(wallet.stellar_address);
-      const code = destAsset.getCode();
-      const issuer = destAsset.getIssuer();
-      const hasTrust = userAccount.balances.some((b: { asset_type: string; asset_code?: string; asset_issuer?: string }) =>
-        b.asset_type !== "native" && b.asset_code === code && b.asset_issuer === issuer
-      );
-      if (!hasTrust) {
-        const trustTx = new TransactionBuilder(userAccount, {
+      const needsTrust = (a: Asset) => {
+        if (a.isNative()) return false;
+        const code = a.getCode();
+        const issuer = a.getIssuer();
+        return !userAccount.balances.some((b: { asset_type: string; asset_code?: string; asset_issuer?: string }) =>
+          b.asset_type !== "native" && b.asset_code === code && b.asset_issuer === issuer
+        );
+      };
+      const toTrust = [sourceAsset, destAsset].filter(needsTrust);
+      if (toTrust.length > 0) {
+        const builder = new TransactionBuilder(userAccount, {
           fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
-        })
-          .addOperation(Operation.changeTrust({ asset: destAsset }))
-          .setTimeout(60)
-          .build();
+        });
+        for (const a of toTrust) builder.addOperation(Operation.changeTrust({ asset: a }));
+        const trustTx = builder.setTimeout(60).build();
         trustTx.sign(userKp);
         await server.submitTransaction(trustTx);
       }
