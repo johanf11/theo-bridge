@@ -86,7 +86,6 @@ Deno.serve(async (req) => {
     // Build & submit Stellar payment for the chosen asset.
     const server = new Horizon.Server(HORIZON_URL);
     const sourceKp = Keypair.fromSecret(srcWallet.stellar_secret);
-    const sourceAccount = await server.loadAccount(sourceKp.publicKey());
 
     let paymentAsset: Asset;
     if (assetCode === "HTGC") {
@@ -95,83 +94,28 @@ Deno.serve(async (req) => {
       paymentAsset = new Asset("USDC", usdcIssuer);
     }
 
-    // Auto-establish trustline on destination wallet if missing (we own its secret).
-    try {
-      const dstAccount = await server.loadAccount(dstWallet.stellar_address);
-      const code = paymentAsset.getCode();
-      const issuer = paymentAsset.getIssuer();
-      const hasTrust = dstAccount.balances.some((b: { asset_type: string; asset_code?: string; asset_issuer?: string }) =>
-        b.asset_type !== "native" && b.asset_code === code && b.asset_issuer === issuer
-      );
-      if (!hasTrust) {
-        if (!dstWallet.stellar_secret) {
-          await admin.from("payouts").update({
-            status: "FAILED",
-            failure_reason: `Destination wallet missing trustline for ${code} and no signing key to establish one`,
-          }).eq("id", payout.id);
-          return json({ error: `Destination wallet has no trustline for ${code}` }, 400);
-        }
-        const dstKp = Keypair.fromSecret(dstWallet.stellar_secret);
-        const trustTx = new TransactionBuilder(dstAccount, {
-          fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
-        })
-          .addOperation(Operation.changeTrust({ asset: paymentAsset }))
-          .setTimeout(60)
-          .build();
-        trustTx.sign(dstKp);
-        await server.submitTransaction(trustTx);
+    // Self-heal both wallets (trustlines + HTGC authorization). Idempotent —
+    // does nothing if everything is already in the correct state.
+    const htgcIssuerSecret = Deno.env.get("STELLAR_HTGC_ISSUER_SECRET") ?? undefined;
+    for (const w of [
+      { label: "source", address: srcWallet.stellar_address, secret: srcWallet.stellar_secret },
+      { label: "destination", address: dstWallet.stellar_address, secret: dstWallet.stellar_secret },
+    ]) {
+      if (!w.secret) continue; // external wallet — can't heal, payment will fail loudly if untrusted
+      const ready = await ensureWalletReady({
+        server, address: w.address, secret: w.secret,
+        usdcIssuer, htgcIssuerSecret,
+      });
+      if (!ready.ok) {
+        await admin.from("payouts").update({
+          status: "FAILED",
+          failure_reason: `${w.label} wallet not ready: ${ready.error.slice(0, 800)}`,
+        }).eq("id", payout.id);
+        return json({ error: `${w.label} wallet not ready: ${ready.error}` }, 502);
       }
-    } catch (trustErr: unknown) {
-      const msg = (trustErr as { response?: { data?: unknown } })?.response?.data
-        ? JSON.stringify((trustErr as { response: { data: unknown } }).response.data)
-        : (trustErr as Error).message;
-      await admin.from("payouts").update({
-        status: "FAILED",
-        failure_reason: `Trustline setup failed: ${String(msg).slice(0, 900)}`,
-      }).eq("id", payout.id);
-      return json({ error: `Trustline setup failed: ${msg}` }, 502);
     }
 
-    // HTGC issuer requires AUTH_REQUIRED — authorize destination's trustline
-    // before the distributor/source can pay HTGC into it.
-    if (assetCode === "HTGC") {
-      const htgcIssuerSecret = Deno.env.get("STELLAR_HTGC_ISSUER_SECRET");
-      if (!htgcIssuerSecret) {
-        await admin.from("payouts").update({
-          status: "FAILED",
-          failure_reason: "STELLAR_HTGC_ISSUER_SECRET not configured — required to authorize HTGC trustline before transfer.",
-        }).eq("id", payout.id);
-        return json({ error: "STELLAR_HTGC_ISSUER_SECRET not configured" }, 500);
-      }
-      try {
-        const issuerKp = Keypair.fromSecret(htgcIssuerSecret);
-        if (issuerKp.publicKey() !== HTGC_ISSUER) {
-          return json({ error: `STELLAR_HTGC_ISSUER_SECRET public key (${issuerKp.publicKey()}) does not match HTGC_ISSUER (${HTGC_ISSUER})` }, 500);
-        }
-        const issuerAccount = await server.loadAccount(issuerKp.publicKey());
-        const authTx = new TransactionBuilder(issuerAccount, {
-          fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
-        })
-          .addOperation(Operation.setTrustLineFlags({
-            trustor: dstWallet.stellar_address,
-            asset: paymentAsset,
-            flags: { authorized: true },
-          }))
-          .setTimeout(60)
-          .build();
-        authTx.sign(issuerKp);
-        await server.submitTransaction(authTx);
-      } catch (authErr: unknown) {
-        const msg = (authErr as { response?: { data?: unknown } })?.response?.data
-          ? JSON.stringify((authErr as { response: { data: unknown } }).response.data)
-          : (authErr as Error).message;
-        await admin.from("payouts").update({
-          status: "FAILED",
-          failure_reason: `HTGC trustline authorization failed: ${String(msg).slice(0, 900)}`,
-        }).eq("id", payout.id);
-        return json({ error: `HTGC trustline authorization failed: ${msg}` }, 502);
-      }
-    }
+    const sourceAccount = await server.loadAccount(sourceKp.publicKey());
 
     const txBuilder = new TransactionBuilder(sourceAccount, {
       fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
