@@ -809,6 +809,39 @@ export default function Balance() {
               </button>
             </div>
 
+            {/* Asset toggle */}
+            <div className="mb-3">
+              <div className="font-bold uppercase mb-1.5" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>
+                Asset
+              </div>
+              <div
+                className="grid grid-cols-2 rounded-lg overflow-hidden"
+                style={{ border: "1px solid hsl(var(--border))", padding: 3, gap: 3, background: "hsl(var(--theo-blue-soft))" }}
+              >
+                {(["USDC", "HTGC"] as const).map((a) => {
+                  const active = moveAsset === a;
+                  const aLabel = a === "HTGC" ? "HTG-C" : "USDC";
+                  return (
+                    <button
+                      key={a}
+                      type="button"
+                      onClick={() => { setMoveAsset(a); setMoveAmount(""); }}
+                      disabled={moving}
+                      style={{
+                        background: active ? "hsl(var(--theo-blue))" : "transparent",
+                        color: active ? "#fff" : "hsl(var(--theo-blue))",
+                        border: "none", borderRadius: 7,
+                        padding: "8px 0", fontSize: 12, fontWeight: 700,
+                        cursor: moving ? "wait" : "pointer", fontFamily: "inherit",
+                      }}
+                    >
+                      {aLabel}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* From */}
             <label className="block mb-3">
               <div className="font-bold uppercase mb-1.5" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>
@@ -823,7 +856,7 @@ export default function Balance() {
               >
                 {wallets.map((w) => (
                   <option key={w.id} value={w.id}>
-                    {w.label ?? "Wallet"} · ${fmt(balances[w.id] ?? 0)} available
+                    {w.label ?? "Wallet"} · {fmt(moveAssetBalances[w.id] ?? 0)} {moveAssetLabel} available
                   </option>
                 ))}
               </select>
@@ -843,7 +876,7 @@ export default function Balance() {
               >
                 {wallets.filter((w) => w.id !== moveSourceId).map((w) => (
                   <option key={w.id} value={w.id}>
-                    {w.label ?? "Wallet"} · ${fmt(balances[w.id] ?? 0)} balance
+                    {w.label ?? "Wallet"} · {fmt(moveAssetBalances[w.id] ?? 0)} {moveAssetLabel} balance
                   </option>
                 ))}
               </select>
@@ -864,11 +897,13 @@ export default function Balance() {
                     fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
                   }}
                 >
-                  Max ${fmt(moveSourceBalance)}
+                  Max {fmtMoveAmount(moveSourceBalance)}
                 </button>
               </div>
               <div className="flex items-center bg-card border border-border rounded-lg" style={{ padding: "0 12px" }}>
-                <span style={{ fontSize: 16, fontWeight: 700, color: "hsl(var(--theo-mid))", marginRight: 6 }}>$</span>
+                {moveAsset === "USDC" && (
+                  <span style={{ fontSize: 16, fontWeight: 700, color: "hsl(var(--theo-mid))", marginRight: 6 }}>$</span>
+                )}
                 <input
                   type="number"
                   inputMode="decimal"
@@ -881,7 +916,7 @@ export default function Balance() {
                   className="flex-1 bg-transparent outline-none"
                   style={{ padding: "10px 0", fontSize: 18, fontWeight: 700, fontFamily: "inherit", color: "hsl(var(--theo-ink))" }}
                 />
-                <span style={{ fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>USDC</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>{moveAssetLabel}</span>
               </div>
               {moveAmountNum > moveSourceBalance && (
                 <div style={{ fontSize: 11, color: "hsl(0 70% 45%)", marginTop: 4 }}>
