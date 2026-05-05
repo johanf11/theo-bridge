@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.execute-swap]
 verify_jwt = false
+
+[functions.retry-swap-payout]
+verify_jwt = false
