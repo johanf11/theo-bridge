@@ -6,6 +6,7 @@ import {
   Asset, Horizon, Keypair, Memo, Networks,
   Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
+import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,7 +16,6 @@ const corsHeaders = {
 
 const HORIZON_URL = "https://horizon-testnet.stellar.org";
 const INTERNAL_MEMO_TAG = "internal-transfer";
-const HTGC_ISSUER = "GDSRYZWTLQLBECKCL4TV7ZRGBZGBMSPD4V47B7Y7JSQVDJRSEXQTFCQT";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
