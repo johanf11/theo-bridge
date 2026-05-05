@@ -47,6 +47,13 @@ export default function Transactions() {
   const [statusFilter, setStatusFilter] = useState("All statuses");
   const [dateFilter, setDateFilter] = useState("Last 30 days");
 
+  // Tick once a minute so accrued yield numbers stay live without refetching.
+  const [, setNowTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setNowTick((t) => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   useEffect(() => {
     (async () => {
       setLoading(true);
