@@ -25,38 +25,113 @@ type UnifiedTx = {
   created_at: string;
 };
 
-const CHART_DATA: Record<string, { vals: number[]; labels: string[]; active: number }> = {
-  "7D": { vals: [45, 60, 38, 72, 55, 80, 65], labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], active: 5 },
-  "1M": {
-    vals: [20,35,28,45,38,52,42,60,55,48,62,58,70,65,72,68,80,75,85,78,90,82,88,95,87,92,98,88,94,100],
-    labels: Array.from({ length: 30 }, (_, i) => String(i + 1)),
-    active: 25,
-  },
-  "6M": { vals: [40, 55, 48, 62, 70, 85], labels: ["Nov", "Dec", "Jan", "Feb", "Mar", "Apr"], active: 5 },
-  "1Y": { vals: [30,35,42,38,50,45,55,60,52,65,70,85], labels: ["M","A","M","J","J","A","S","O","N","D","J","F"], active: 11 },
-};
+function buildBuckets(period: string): { start: Date; label: string }[] {
+  const now = new Date();
+  if (period === "7D") {
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(now);
+      d.setDate(d.getDate() - (6 - i));
+      d.setHours(0, 0, 0, 0);
+      return { start: d, label: d.toLocaleDateString("en-US", { weekday: "short" }).slice(0, 2) };
+    });
+  }
+  if (period === "1M") {
+    return Array.from({ length: 30 }, (_, i) => {
+      const d = new Date(now);
+      d.setDate(d.getDate() - (29 - i));
+      d.setHours(0, 0, 0, 0);
+      return { start: d, label: String(d.getDate()) };
+    });
+  }
+  if (period === "6M") {
+    return Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+      return { start: d, label: d.toLocaleDateString("en-US", { month: "short" }) };
+    });
+  }
+  // 1Y — 12 months
+  return Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (11 - i), 1);
+    return { start: d, label: d.toLocaleDateString("en-US", { month: "short" }).slice(0, 1) };
+  });
+}
 
-function BarChart({ period }: { period: string }) {
-  const d = CHART_DATA[period];
-  const max = Math.max(...d.vals);
+function BarChart({ period, customerId }: { period: string; customerId?: string }) {
+  const [vals, setVals] = useState<number[]>([]);
+  const [labels, setLabels] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      const buckets = buildBuckets(period);
+      const since = buckets[0].start.toISOString();
+
+      let q = supabase
+        .from("orders")
+        .select("completed_at, usdc_gross, usdc_amount")
+        .eq("status", "COMPLETED")
+        .eq("order_kind", "usdc_conversion")
+        .gte("completed_at", since);
+      if (customerId) q = q.eq("customer_id", customerId);
+
+      const { data } = await q;
+      const rows = data ?? [];
+
+      const isMonthly = period === "6M" || period === "1Y";
+      const totals = buckets.map((b, i) => {
+        const next = buckets[i + 1]?.start ?? new Date(Date.now() + 86400000);
+        return rows
+          .filter(r => {
+            if (!r.completed_at) return false;
+            const t = new Date(r.completed_at);
+            if (isMonthly) {
+              return t.getFullYear() === b.start.getFullYear() && t.getMonth() === b.start.getMonth();
+            }
+            return t >= b.start && t < next;
+          })
+          .reduce((s, r) => s + Number(r.usdc_gross ?? r.usdc_amount ?? 0), 0);
+      });
+
+      setVals(totals);
+      setLabels(buckets.map(b => b.label));
+      setLoading(false);
+    }
+    load();
+  }, [period, customerId]);
+
+  if (loading) {
+    return <div style={{ height: 140, display: "flex", alignItems: "center", justifyContent: "center", color: "hsl(var(--theo-mid))", fontSize: 12 }}>Loading…</div>;
+  }
+
+  const max = Math.max(...vals, 1);
+  const today = new Date();
+  const todayIdx = (() => {
+    const buckets = buildBuckets(period);
+    if (period === "7D" || period === "1M") {
+      return buckets.findIndex(b => b.start.toDateString() === today.toDateString());
+    }
+    return buckets.findIndex(b => b.start.getFullYear() === today.getFullYear() && b.start.getMonth() === today.getMonth());
+  })();
+
   return (
     <div>
       <div className="flex items-end gap-1.5" style={{ height: 120 }}>
-        {d.vals.map((v, i) => (
+        {vals.map((v, i) => (
           <div key={i} className="flex-1 flex flex-col items-center justify-end h-full">
             <div
               className="w-full rounded-t-[5px] transition-all duration-200"
               style={{
                 height: `${Math.round((v / max) * 100)}%`,
-                minHeight: 4,
-                background: i === d.active ? "hsl(var(--theo-gold))" : "hsl(var(--theo-blue-chip))",
+                minHeight: v > 0 ? 4 : 0,
+                background: i === todayIdx ? "hsl(var(--theo-gold))" : "hsl(var(--theo-blue-chip))",
               }}
             />
           </div>
         ))}
       </div>
       <div className="flex gap-1.5 mt-1.5">
-        {d.labels.map((l, i) => (
+        {labels.map((l, i) => (
           <div key={i} className="flex-1 text-center" style={{ fontSize: 9, color: "hsl(var(--theo-mid))", fontWeight: 500 }}>
             {l}
           </div>
@@ -318,7 +393,7 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
-          <BarChart period={chartPeriod} />
+          <BarChart period={chartPeriod} customerId={customer?.id} />
         </div>
 
         <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
