@@ -585,18 +585,76 @@ export default function Convert() {
               )}
 
               {htgReceiveMode === "htgc" ? (
-                <div style={{ marginBottom: 14 }}>
-                  <label style={labelStyle}>HTG to deposit</label>
-                  <div style={{ position: "relative" }}>
-                    <input
-                      style={{ ...inputStyle, paddingRight: 56 }}
-                      type="text" inputMode="numeric"
-                      value={htgAmount}
-                      onChange={handleHtgInput}
-                      placeholder="0"
-                    />
-                    <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>HTG</span>
+                /* Two-field HTG → HTG-C widget (1:1) */
+                <div style={{ marginBottom: 14, position: "relative" }}>
+                  <div className="rounded-xl" style={{ border: "1px solid hsl(var(--theo-blue-chip))", background: "white", overflow: "hidden" }}>
+                    {/* You send · HTG */}
+                    <div style={{ padding: "12px 14px" }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: "hsl(var(--theo-mid))", marginBottom: 6 }}>
+                        You send
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={htgAmount}
+                          onChange={handleHtgInput}
+                          placeholder="0"
+                          style={{
+                            flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent",
+                            fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em",
+                            color: "hsl(var(--theo-blue))",
+                            fontFamily: "inherit", padding: 0,
+                          }}
+                        />
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>HTG</span>
+                      </div>
+                    </div>
+
+                    <div style={{ height: 1, background: "hsl(var(--theo-blue-chip))" }} />
+
+                    {/* You receive · HTG-C (1:1) */}
+                    <div style={{ padding: "12px 14px" }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: "hsl(var(--theo-mid))", marginBottom: 6 }}>
+                        You receive
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={htgAmount}
+                          onChange={handleHtgInput}
+                          placeholder="0"
+                          style={{
+                            flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent",
+                            fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em",
+                            color: "hsl(var(--theo-mid))",
+                            fontFamily: "inherit", padding: 0,
+                          }}
+                        />
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>HTG-C</span>
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Flip button — visual only */}
+                  <button
+                    type="button"
+                    aria-disabled="true"
+                    tabIndex={-1}
+                    onClick={(e) => e.preventDefault()}
+                    style={{
+                      position: "absolute", top: "50%", left: "50%",
+                      transform: "translate(-50%, -50%)",
+                      width: 32, height: 32, borderRadius: 999,
+                      background: "white",
+                      border: "1px solid hsl(var(--theo-blue-chip))",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      cursor: "default", padding: 0,
+                    }}
+                  >
+                    <ArrowUpDown style={{ width: 14, height: 14, color: "hsl(var(--theo-blue))" }} />
+                  </button>
                 </div>
               ) : (
                 /* Coinbase-style two-field HTG ↔ USDC widget */
