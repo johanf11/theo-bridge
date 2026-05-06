@@ -19,6 +19,7 @@ import AdminKyb from "./pages/AdminKyb";
 import AdminConversions from "./pages/AdminConversions";
 import AdminTools from "./pages/AdminTools";
 import Compliance from "./pages/Compliance";
+import Billing from "./pages/Billing";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "@/components/theo/ProtectedRoute";
 
