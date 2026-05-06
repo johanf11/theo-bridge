@@ -36,6 +36,10 @@ export default function Convert() {
   const [htgAmount, setHtgAmount] = useState("50,000");
   const [htgAmountRaw, setHtgAmountRaw] = useState(50000);
   const [htgBusy, setHtgBusy] = useState(false);
+  // Two-field widget (HTG → USDC mode): mirrored USDC net side
+  const [htgUsdcNetRaw, setHtgUsdcNetRaw] = useState(0);
+  const [htgUsdcNetDisplay, setHtgUsdcNetDisplay] = useState("");
+  const [htgLastEdited, setHtgLastEdited] = useState<"htg" | "usdc">("htg");
   // Tab 2: HTG-C ↔ USDC
   const [swapDir, setSwapDir] = useState<"htgc_to_usdc" | "usdc_to_htgc">("htgc_to_usdc");
   const [swapAmount, setSwapAmount] = useState("5,000");
