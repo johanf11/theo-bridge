@@ -209,11 +209,14 @@ export type Database = {
       orders: {
         Row: {
           completed_at: string | null
+          corridor_bps: number | null
           created_at: string
           customer_id: string
           destination_stellar_address: string | null
           destination_wallet_address: string | null
           failure_reason: string | null
+          fee_bps: number | null
+          fee_usdc: number | null
           forward_premium: number
           funded_at: string | null
           htg_amount: number
@@ -227,16 +230,22 @@ export type Database = {
           spot_rate: number | null
           status: Database["public"]["Enums"]["order_status"]
           stellar_tx_hash: string | null
+          theo_fee_bps: number | null
+          theo_fee_usdc: number | null
           updated_at: string
           usdc_amount: number | null
+          usdc_gross: number | null
         }
         Insert: {
           completed_at?: string | null
+          corridor_bps?: number | null
           created_at?: string
           customer_id: string
           destination_stellar_address?: string | null
           destination_wallet_address?: string | null
           failure_reason?: string | null
+          fee_bps?: number | null
+          fee_usdc?: number | null
           forward_premium?: number
           funded_at?: string | null
           htg_amount: number
@@ -250,16 +259,22 @@ export type Database = {
           spot_rate?: number | null
           status?: Database["public"]["Enums"]["order_status"]
           stellar_tx_hash?: string | null
+          theo_fee_bps?: number | null
+          theo_fee_usdc?: number | null
           updated_at?: string
           usdc_amount?: number | null
+          usdc_gross?: number | null
         }
         Update: {
           completed_at?: string | null
+          corridor_bps?: number | null
           created_at?: string
           customer_id?: string
           destination_stellar_address?: string | null
           destination_wallet_address?: string | null
           failure_reason?: string | null
+          fee_bps?: number | null
+          fee_usdc?: number | null
           forward_premium?: number
           funded_at?: string | null
           htg_amount?: number
@@ -273,8 +288,11 @@ export type Database = {
           spot_rate?: number | null
           status?: Database["public"]["Enums"]["order_status"]
           stellar_tx_hash?: string | null
+          theo_fee_bps?: number | null
+          theo_fee_usdc?: number | null
           updated_at?: string
           usdc_amount?: number | null
+          usdc_gross?: number | null
         }
         Relationships: [
           {
