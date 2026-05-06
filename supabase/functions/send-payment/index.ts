@@ -3,6 +3,8 @@ import {
   Asset, Horizon, Keypair, Memo, Networks,
   Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
+import { signWithSecret } from "../_shared/stellar-signer.ts";
+import { assertWithinLimits } from "../_shared/tx-limits.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -55,6 +57,8 @@ Deno.serve(async (req) => {
     if (!recipientName?.trim()) return json({ error: "recipientName required" }, 400);
     const parsedAmount = parseFloat(amount);
     if (!parsedAmount || parsedAmount <= 0) return json({ error: "Valid amount required" }, 400);
+    try { assertWithinLimits(parsedAmount, "Payout amount"); }
+    catch (e) { return json({ error: (e as Error).message }, 400); }
 
     // Load source wallet (must belong to this customer)
     const { data: wallet } = await admin
@@ -104,7 +108,7 @@ Deno.serve(async (req) => {
     }
 
     const tx = txBuilder.setTimeout(60).build();
-    tx.sign(sourceKp);
+    signWithSecret(tx, wallet.stellar_secret);
 
     let hash: string;
     try {

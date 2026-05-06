@@ -2,9 +2,10 @@
 // Returns principal + accrued net yield (computed from elapsed time × net APY).
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import {
-  Asset, Horizon, Keypair, Memo, Networks,
+  Asset, Horizon, Memo, Networks,
   Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
+import { distributorKeypair, signWithDistributor } from "../_shared/stellar-signer.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,8 +29,7 @@ Deno.serve(async (req) => {
     const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
     const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const usdcIssuer = Deno.env.get("STELLAR_USDC_ISSUER");
-    const treasurySecret = Deno.env.get("STELLAR_DISTRIBUTOR_SECRET");
-    if (!usdcIssuer || !treasurySecret) return json({ error: "Stellar treasury not configured" }, 500);
+    if (!usdcIssuer) return json({ error: "STELLAR_USDC_ISSUER not configured" }, 500);
 
     const userClient = createClient(url, anon, { global: { headers: { Authorization: authHeader } } });
     const { data: { user } } = await userClient.auth.getUser();
@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
 
     // On-chain: treasury → customer wallet.
     const server = new Horizon.Server(HORIZON_URL);
-    const treasuryKp = Keypair.fromSecret(treasurySecret);
+    const treasuryKp = distributorKeypair();
     const treasuryAccount = await server.loadAccount(treasuryKp.publicKey());
     const usdc = new Asset("USDC", usdcIssuer);
 
@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
       }))
       .addMemo(Memo.text("theo-yield-withdraw"))
       .setTimeout(60).build();
-    tx.sign(treasuryKp);
+    signWithDistributor(tx);
 
     let hash: string;
     try {

@@ -8,6 +8,7 @@ import {
   Asset, Horizon, Keypair, Networks, Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
+import { signWithSecret } from "../_shared/stellar-signer.ts";
 
 const HORIZON_URL = "https://horizon-testnet.stellar.org";
 
@@ -33,10 +34,7 @@ Deno.serve(async (req) => {
     const url = Deno.env.get("SUPABASE_URL")!;
     const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
     const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const distributorSecret = Deno.env.get("STELLAR_DISTRIBUTOR_SECRET");
     const htgcIssuerSecret = Deno.env.get("STELLAR_HTGC_ISSUER_SECRET");
-
-    if (!distributorSecret) return json({ error: "STELLAR_DISTRIBUTOR_SECRET not configured" }, 500);
     if (!htgcIssuerSecret) return json({ error: "STELLAR_HTGC_ISSUER_SECRET not configured" }, 500);
 
     const userClient = createClient(url, anon, { global: { headers: { Authorization: authHeader } } });
@@ -65,7 +63,6 @@ Deno.serve(async (req) => {
       return json({ error: `STELLAR_HTGC_ISSUER_SECRET public key (${issuerKp.publicKey()}) does not match HTGC_ISSUER (${HTGC_ISSUER})` }, 500);
     }
 
-    const distributorKp = Keypair.fromSecret(distributorSecret);
     const walletKp = Keypair.fromSecret(wallet.stellar_secret);
     const server = new Horizon.Server(HORIZON_URL);
 
@@ -108,7 +105,7 @@ Deno.serve(async (req) => {
         }))
         .setTimeout(60)
         .build();
-      burnTx.sign(walletKp);
+      signWithSecret(burnTx, wallet.stellar_secret);
       const r = await server.submitTransaction(burnTx);
       burnHash = (r as { hash: string }).hash;
       steps.push(`Burned ${phantomBalance} phantom HTGC (issuer ${phantomIssuer}) — tx ${burnHash}`);
@@ -125,7 +122,7 @@ Deno.serve(async (req) => {
           .addOperation(Operation.changeTrust({ asset: phantomAsset, limit: "0" }))
           .setTimeout(60)
           .build();
-        closeTx.sign(walletKp);
+        signWithSecret(closeTx, wallet.stellar_secret);
         await server.submitTransaction(closeTx);
         steps.push(`Closed phantom HTGC trustline (issuer ${phantomIssuer})`);
       } catch (e: unknown) {
@@ -147,7 +144,7 @@ Deno.serve(async (req) => {
         .addOperation(Operation.changeTrust({ asset: realHtgcAsset }))
         .setTimeout(60)
         .build();
-      trustTx.sign(walletKp);
+      signWithSecret(trustTx, wallet.stellar_secret);
       await server.submitTransaction(trustTx);
       steps.push("Opened real HTGC trustline");
     }

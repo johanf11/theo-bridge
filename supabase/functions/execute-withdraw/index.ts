@@ -5,6 +5,7 @@ import {
   Asset, Horizon, Keypair, Memo, Networks, Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
+import { signWithSecret } from "../_shared/stellar-signer.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -103,7 +104,7 @@ Deno.serve(async (req) => {
         .addMemo(Memo.text(reference.slice(0, 28)))
         .setTimeout(60)
         .build();
-      tx.sign(userKp);
+      signWithSecret(tx, wallet.stellar_secret);
       const result = await server.submitTransaction(tx);
       burnHash = (result as { hash: string }).hash;
     } catch (e: unknown) {

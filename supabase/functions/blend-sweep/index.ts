@@ -5,6 +5,8 @@ import {
   Asset, Horizon, Keypair, Memo, Networks,
   Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
+import { distributorPublicKey, signWithSecret } from "../_shared/stellar-signer.ts";
+import { assertWithinLimits } from "../_shared/tx-limits.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -39,11 +41,11 @@ Deno.serve(async (req) => {
     const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
     const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const usdcIssuer = Deno.env.get("STELLAR_USDC_ISSUER");
-    const treasurySecret = Deno.env.get("STELLAR_DISTRIBUTOR_SECRET");
     if (!usdcIssuer) return json({ error: "STELLAR_USDC_ISSUER not configured" }, 500);
-    if (!treasurySecret) return json({ error: "STELLAR_DISTRIBUTOR_SECRET not configured" }, 500);
 
-    const treasuryAddress = Keypair.fromSecret(treasurySecret).publicKey();
+    let treasuryAddress: string;
+    try { treasuryAddress = distributorPublicKey(); }
+    catch (e) { return json({ error: (e as Error).message }, 500); }
 
     const userClient = createClient(url, anon, { global: { headers: { Authorization: authHeader } } });
     const { data: { user }, error: ue } = await userClient.auth.getUser();
@@ -59,6 +61,8 @@ Deno.serve(async (req) => {
     if (!sourceWalletId) return json({ error: "sourceWalletId required" }, 400);
     const parsedAmount = parseFloat(amount);
     if (!parsedAmount || parsedAmount <= 0) return json({ error: "Valid amount required" }, 400);
+    try { assertWithinLimits(parsedAmount, "Sweep amount"); }
+    catch (e) { return json({ error: (e as Error).message }, 400); }
 
     const { data: wallet } = await admin
       .from("wallets")
@@ -82,7 +86,7 @@ Deno.serve(async (req) => {
       .addMemo(Memo.text("theo-yield-sweep"))
       .setTimeout(60)
       .build();
-    tx.sign(sourceKp);
+    signWithSecret(tx, wallet.stellar_secret);
 
     let hash: string;
     try {

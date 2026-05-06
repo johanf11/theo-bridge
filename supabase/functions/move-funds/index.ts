@@ -8,6 +8,8 @@ import {
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
 import { ensureWalletReady } from "../_shared/ensure-wallet-ready.ts";
+import { signWithSecret } from "../_shared/stellar-signer.ts";
+import { assertWithinLimits } from "../_shared/tx-limits.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -52,6 +54,8 @@ Deno.serve(async (req) => {
     if (sourceWalletId === destinationWalletId) return json({ error: "Source and destination must differ" }, 400);
     const parsedAmount = parseFloat(amount);
     if (!parsedAmount || parsedAmount <= 0) return json({ error: "Valid amount required" }, 400);
+    try { assertWithinLimits(parsedAmount, "Transfer amount"); }
+    catch (e) { return json({ error: (e as Error).message }, 400); }
 
     // Both wallets must belong to this customer.
     const { data: srcWallet } = await admin
@@ -130,7 +134,7 @@ Deno.serve(async (req) => {
     else txBuilder.addMemo(Memo.text("theo-transfer"));
 
     const tx = txBuilder.setTimeout(60).build();
-    tx.sign(sourceKp);
+    signWithSecret(tx, srcWallet.stellar_secret);
 
     let hash: string;
     try {
