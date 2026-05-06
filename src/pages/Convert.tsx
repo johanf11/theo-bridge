@@ -924,8 +924,8 @@ export default function Convert() {
                         <span style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-blue))" }}>{fmtFee(swapAmountRaw * (swapDir === "htgc_to_usdc" ? 1 / (liveRate ?? 130) : 1) * corridorBps / 10_000)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>Theo service ({feeBps / 100}%)</span>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-blue))" }}>{fmtFee(swapAmountRaw * (swapDir === "htgc_to_usdc" ? 1 / (liveRate ?? 130) : 1) * feeBps / 10_000)}</span>
+                        <span style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>Theo fee (2.0% all-in)</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-blue))" }}>{fmtFee(swapAmountRaw * (swapDir === "htgc_to_usdc" ? 1 / (liveRate ?? 130) : 1) * totalBps / 10_000)}</span>
                       </div>
                     </div>
                   )}
