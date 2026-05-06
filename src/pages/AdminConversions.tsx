@@ -99,15 +99,21 @@ export default function AdminConversions() {
 
   const confirmReceipt = async (order: Order) => {
     setBusyId(order.id);
-    const { error } = await supabase.functions.invoke("simulate-spih-payment", {
+    const { data, error } = await supabase.functions.invoke("simulate-spih-payment", {
       body: { orderId: order.id },
     });
     setBusyId(null);
-    if (error) {
-      toast.error(error.message ?? "Failed to confirm receipt");
+    const apiErr = (data as { error?: string } | null)?.error;
+    if (error || apiErr) {
+      const msg = apiErr ?? error?.message ?? "Failed to confirm receipt";
+      if (msg.includes("not in QUOTED")) {
+        toast.info("Order already moved past QUOTED — refreshing.");
+        load();
+      } else {
+        toast.error(msg);
+      }
     } else {
       toast.success(`Payment confirmed — releasing ${fmtUSDC(order.usdc_amount)} USDC`);
-      // Optimistically update
       setOrders((prev) =>
         prev.map((o) => o.id === order.id ? { ...o, status: "RELEASING" as OrderStatus } : o)
       );
