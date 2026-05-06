@@ -47,11 +47,13 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-function fmtHTG(n: number) {
-  return `G ${n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+function fmtHTG(n: number | null | undefined) {
+  const v = Number(n ?? 0);
+  return `G ${v.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
-function fmtUSDC(n: number) {
-  return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function fmtUSDC(n: number | null | undefined) {
+  const v = Number(n ?? 0);
+  return `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export default function AdminConversions() {
