@@ -13,7 +13,8 @@ const corsHeaders = {
 // Margin is now captured via customer fee_bps, not rate inflation.
 const FORWARD_PREMIUM = 0;
 const MARGIN = 0;
-const MAX_USDC = 50000;
+const MAX_USDC_NET = 50000;   // max USDC the customer receives (net of fees)
+const MAX_USDC     = 52000;   // gross ceiling — covers up to ~3.8% fee on 50K net
 const QUOTE_TTL_MIN = 15;
 
 function generateReference(): string {
@@ -63,7 +64,7 @@ Deno.serve(async (req) => {
       usdc = Number(body.usdc_amount);
       if (!Number.isFinite(usdc) || usdc <= 0 || usdc > MAX_USDC) {
         return new Response(
-          JSON.stringify({ error: `usdc_amount must be between 0 and ${MAX_USDC}` }),
+          JSON.stringify({ error: `Enter an amount between 1,000 and ${MAX_USDC_NET.toLocaleString()} USDC` }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
@@ -138,6 +139,12 @@ Deno.serve(async (req) => {
       feeUsdc      = Math.round(usdcGross * (totalBps / 10_000) * 1e7) / 1e7;
       theoFeeUsdc  = Math.round(usdcGross * (theoBps  / 10_000) * 1e7) / 1e7;
       usdcNet      = Math.round((usdcGross - feeUsdc) * 1e7) / 1e7;
+      if (usdcNet > MAX_USDC_NET) {
+        return new Response(
+          JSON.stringify({ error: `Enter an amount between 1,000 and ${MAX_USDC_NET.toLocaleString()} USDC` }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
       htgRequired  = Math.round(usdcNet * customerRate * 100) / 100;
     } else {
       // HTG-C mint: 1:1, no rate, no fee
