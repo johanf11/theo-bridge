@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
     let spot: number | null = null;
 
     // Fee computation (usdc_conversion only)
-    const theoBps    = (customer as { fee_bps?: number | null }).fee_bps      ?? 150;
+    const theoBps    = (customer as { fee_bps?: number | null }).fee_bps      ?? 130;
     const corrBps    = (customer as { corridor_bps?: number | null }).corridor_bps ?? 70;
     const totalBps   = theoBps + corrBps;
     let usdcGross: number | null = null;
