@@ -196,7 +196,7 @@ export default function Convert() {
   // Sync the non-edited side when liveRate or fee bps change
   useEffect(() => {
     if (!liveRate || liveRate <= 0) return;
-    const f = ((profile?.fee_bps ?? 150) + (profile?.corridor_bps ?? 70)) / 10_000;
+    const f = ((profile?.fee_bps ?? 130) + (profile?.corridor_bps ?? 70)) / 10_000;
     if (htgLastEdited === "htg") {
       const gross = htgAmountRaw / liveRate;
       const net = gross * (1 - f);
@@ -225,7 +225,7 @@ export default function Convert() {
   const canQuote = profile?.kyb_status === "APPROVED" && !profileLoading && !rateLoading;
 
   // Fee breakdown — bps applied to USDC notional
-  const feeBps      = profile?.fee_bps      ?? 150; // Theo margin
+  const feeBps      = profile?.fee_bps      ?? 130; // Theo net margin
   const corridorBps = profile?.corridor_bps ?? 70;  // MoneyGram corridor
   const totalBps    = feeBps + corridorBps;
   const feeUSDC     = usdcRaw * (totalBps / 10_000);
@@ -924,8 +924,8 @@ export default function Convert() {
                         <span style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-blue))" }}>{fmtFee(swapAmountRaw * (swapDir === "htgc_to_usdc" ? 1 / (liveRate ?? 130) : 1) * corridorBps / 10_000)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>Theo service ({feeBps / 100}%)</span>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-blue))" }}>{fmtFee(swapAmountRaw * (swapDir === "htgc_to_usdc" ? 1 / (liveRate ?? 130) : 1) * feeBps / 10_000)}</span>
+                        <span style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>Theo fee (2.0% all-in)</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-blue))" }}>{fmtFee(swapAmountRaw * (swapDir === "htgc_to_usdc" ? 1 / (liveRate ?? 130) : 1) * totalBps / 10_000)}</span>
                       </div>
                     </div>
                   )}
