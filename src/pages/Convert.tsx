@@ -416,9 +416,12 @@ export default function Convert() {
     if (htgReceiveMode === "usdc") {
       if (!canQuote) { toast.error("KYB approval required to convert to USDC"); return; }
       if (!liveRate) { toast.error("Rate unavailable, try again shortly"); return; }
-      const usdcEquiv = Math.floor(htgAmountRaw / liveRate);
-      if (usdcEquiv > 50000) {
-        toast.error("Maximum deposit is $50,000 USDC equivalent per order");
+      const f = totalBps / 10_000;
+      const denom = 1 - f;
+      const usdcGross = denom > 0 ? htgUsdcNetRaw / denom : 0;
+      const usdcGrossRounded = Math.round(usdcGross * 1e7) / 1e7;
+      if (usdcGrossRounded < 1000 || usdcGrossRounded > 50000) {
+        toast.error("Enter an amount between 1,000 and 50,000 USDC");
         return;
       }
       setHtgBusy(true);
@@ -426,7 +429,7 @@ export default function Convert() {
         const { data, error } = await supabase.functions.invoke("create-quote", {
           body: {
             order_kind: "usdc_conversion",
-            usdc_amount: usdcEquiv,
+            usdc_amount: usdcGrossRounded,
             destination_wallet_address: selectedWallet,
           },
         });
