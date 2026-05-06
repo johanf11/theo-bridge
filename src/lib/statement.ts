@@ -1,14 +1,15 @@
 import jsPDF from "jspdf";
 import { toast } from "sonner";
 
-// ── Brand colours ─────────────────────────────────────────────────────────────
-const NAVY  = [51,  53,  154] as const;
-const GOLD  = [253, 207,   0] as const;
-const INK   = [26,  26,   58] as const;
-const MID   = [107, 107, 138] as const;
-const CREAM = [247, 247, 251] as const;
-const WHITE = [255, 255, 255] as const;
-const GREEN = [26,  127,  55] as const;
+// ── Colours — restrained financial palette ────────────────────────────────────
+const NAVY   = [51,  53,  154] as const;   // brand accent only
+const GOLD   = [253, 207,   0] as const;   // thin rule only
+const INK    = [26,  26,   58] as const;   // body text
+const MID    = [120, 120, 148] as const;   // labels / secondary
+const LIGHT  = [220, 220, 232] as const;   // borders
+const STRIPE = [249, 249, 252] as const;   // very subtle row band
+const WHITE  = [255, 255, 255] as const;
+const GREEN  = [34,  136,  72] as const;   // settled badge
 
 const ROWS_PER_PAGE = 18;
 
@@ -97,54 +98,72 @@ function _drawPage(
   totalPages: number,
   PW: number, PH: number, L: number, R: number, W: number,
 ) {
-  // ── Navy header bar ───────────────────────────────────────────────────────
+  // ── Header — white background, thin navy top bar, clean text ────────────
+  // 3 px navy top rule
   fill(doc, NAVY);
-  doc.rect(0, 0, PW, 28, "F");
+  doc.rect(0, 0, PW, 3, "F");
 
-  // Gold "T" badge
+  // White header area
+  fill(doc, WHITE);
+  doc.rect(0, 3, PW, 22, "F");
+
+  // Small gold "T" badge (compact)
   fill(doc, GOLD);
-  doc.rect(L, 7, 10, 10, "F");
+  doc.rect(L, 7, 8, 8, "F");
   ink(doc, NAVY);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.text("T", L + 5, 14, { align: "center" });
+  doc.setFontSize(7);
+  doc.text("T", L + 4, 12.5, { align: "center" });
 
-  // "Theo for Business"
-  ink(doc, WHITE);
+  // "Theo" wordmark
+  ink(doc, NAVY);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.text("Theo", L + 14, 13);
+  doc.setFontSize(10);
+  doc.text("Theo", L + 11, 12);
   ink(doc, MID);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7);
-  doc.text("FOR BUSINESS", L + 14, 18);
+  doc.setFontSize(6.5);
+  doc.text("FOR BUSINESS", L + 11, 16.5);
 
-  // Title — centre
-  ink(doc, GOLD);
+  // Title — left-aligned after logo
+  ink(doc, INK);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
-  doc.text("BILLING STATEMENT", PW / 2, 12, { align: "center" });
+  doc.text("Billing Statement", L + 42, 12);
   ink(doc, MID);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
-  doc.text(data.periodLabel, PW / 2, 18, { align: "center" });
+  doc.text(data.periodLabel, L + 42, 17);
 
-  // Right — generated date + page
+  // Right — generated date, customer, page
   ink(doc, MID);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7);
   const genStr = "Generated " + new Date(data.generatedAt).toLocaleString("en-US", {
     month: "short", day: "numeric", year: "numeric",
   });
-  doc.text(genStr, R, 13, { align: "right" });
-  if (data.customerName) doc.text(data.customerName, R, 19, { align: "right" });
-  if (totalPages > 1) doc.text(`Page ${page + 1} of ${totalPages}`, R, 25, { align: "right" });
+  doc.text(genStr, R, 10, { align: "right" });
+  if (data.customerName) {
+    ink(doc, INK);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.text(data.customerName, R, 16, { align: "right" });
+  }
+  if (totalPages > 1) {
+    ink(doc, MID);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.5);
+    doc.text(`Page ${page + 1} of ${totalPages}`, R, 22, { align: "right" });
+  }
 
-  // Gold rule
+  // Thin gold rule under header
   fill(doc, GOLD);
-  doc.rect(0, 28, PW, 2, "F");
+  doc.rect(0, 25, PW, 1.5, "F");
+  // Very light grey separator line below gold rule
+  fill(doc, LIGHT);
+  doc.rect(0, 26.5, PW, 0.5, "F");
 
-  let y = 35;
+  let y = 31;
 
   // ── Summary strip (only on first page) ───────────────────────────────────
   if (page === 0) {
@@ -160,30 +179,33 @@ function _drawPage(
     const TW = W / tiles.length;
     tiles.forEach((t, i) => {
       const tx = L + i * TW;
-      // alternating fill
-      fill(doc, i % 2 === 0 ? WHITE : CREAM);
-      stroke(doc, [220, 220, 235]);
-      doc.rect(tx, y, TW, 18, "FD");
+      // All white, just light border separators
+      fill(doc, WHITE);
+      stroke(doc, LIGHT);
+      doc.rect(tx, y, TW, 17, "FD");
 
       ink(doc, MID);
-      doc.setFont("helvetica", "bold");
+      doc.setFont("helvetica", "normal");
       doc.setFontSize(6);
-      doc.text(t.label, tx + 4, y + 5);
+      doc.text(t.label, tx + 4, y + 4.5);
 
-      ink(doc, NAVY);
+      ink(doc, INK);
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.text(t.value, tx + 4, y + 13);
+      doc.setFontSize(10);
+      doc.text(t.value, tx + 4, y + 11.5);
 
       if (t.sub) {
         ink(doc, MID);
         doc.setFont("helvetica", "normal");
         doc.setFontSize(6);
-        doc.text(t.sub, tx + 4, y + 17);
+        doc.text(t.sub, tx + 4, y + 15.5);
       }
     });
 
-    y += 22;
+    // Thin separator below summary
+    fill(doc, LIGHT);
+    doc.rect(L, y + 17, W, 0.5, "F");
+    y += 21;
   }
 
   // ── Table ─────────────────────────────────────────────────────────────────
@@ -200,19 +222,20 @@ function _drawPage(
     { label: "Status",        w: 22,  align: "left" },
   ];
 
-  // Header row
-  fill(doc, NAVY);
-  doc.rect(L, y, W, 8, "F");
+  // Table header row — light grey background, dark labels
+  fill(doc, STRIPE);
+  stroke(doc, LIGHT);
+  doc.rect(L, y, W, 7.5, "FD");
   let cx = L;
   COLS.forEach(col => {
-    ink(doc, GOLD);
+    ink(doc, MID);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(6.5);
+    doc.setFontSize(6);
     const tx = col.align === "right" ? cx + col.w - 3 : cx + 3;
-    doc.text(col.label, tx, y + 5.5, { align: col.align });
+    doc.text(col.label.toUpperCase(), tx, y + 5, { align: col.align });
     cx += col.w;
   });
-  y += 8;
+  y += 7.5;
 
   // Data rows for this page
   const ROW_H = 7.8;
@@ -220,8 +243,8 @@ function _drawPage(
   const pageRows = data.rows.slice(startIdx, startIdx + ROWS_PER_PAGE);
 
   pageRows.forEach((row, i) => {
-    fill(doc, i % 2 === 0 ? WHITE : CREAM);
-    stroke(doc, [230, 230, 240]);
+    fill(doc, i % 2 === 0 ? WHITE : STRIPE);
+    stroke(doc, LIGHT);
     doc.rect(L, y, W, ROW_H, "FD");
 
     const vals: string[] = [
@@ -250,13 +273,20 @@ function _drawPage(
     y += ROW_H;
   });
 
-  // Totals row (last page only, after last data row)
+  // Totals row (last page only) — light with top border emphasis
   if (page === totalPages - 1) {
+    // Double top rule to signal totals
+    fill(doc, LIGHT);
+    doc.rect(L, y, W, 0.75, "F");
     fill(doc, NAVY);
-    doc.rect(L, y, W, ROW_H, "F");
+    doc.rect(L, y + 1, W, 0.5, "F");
+
+    fill(doc, [240, 241, 250]);
+    stroke(doc, LIGHT);
+    doc.rect(L, y + 1.5, W, ROW_H, "FD");
 
     const totVals: string[] = [
-      "", "TOTAL",
+      `${data.rows.length} orders`, "Total",
       `$${fmtN(data.totals.gross)}`,
       `$${fmtN(data.totals.net)}`,
       `${data.totals.avgRate.toFixed(2)}%`,
@@ -269,33 +299,27 @@ function _drawPage(
     cx = L;
     totVals.forEach((val, ci) => {
       const col = COLS[ci];
-      ink(doc, ci === 1 ? GOLD : WHITE);
+      ink(doc, ci === 0 ? MID : NAVY);
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(7);
+      doc.setFontSize(ci === 0 ? 6 : 7.5);
       const tx = col.align === "right" ? cx + col.w - 3 : cx + 3;
-      if (val) doc.text(val, tx, y + 5.2, { align: col.align });
+      if (val) doc.text(val, tx, y + 1.5 + 5.5, { align: col.align });
       cx += col.w;
     });
 
-    y += ROW_H + 4;
+    y += ROW_H + 6;
   }
 
-  // ── Footer ─────────────────────────────────────────────────────────────────
-  fill(doc, GOLD);
-  doc.rect(0, PH - 14, PW, 2, "F");
-  fill(doc, NAVY);
-  doc.rect(0, PH - 12, PW, 12, "F");
-
-  ink(doc, WHITE);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(7);
-  doc.text("Theo for Business", L, PH - 4);
+  // ── Footer — minimal: thin rule + small grey text ─────────────────────────
+  fill(doc, LIGHT);
+  doc.rect(0, PH - 10, PW, 0.5, "F");
 
   ink(doc, MID);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.5);
+  doc.text("Theo for Business  ·  theofinance.com  ·  support@theofinance.com", L, PH - 4);
   doc.text(
-    "Theo fee (2.00%) all-inclusive · Corridor cost (0.70%) passed through at cost · Statements in UTC · support@theofinance.com",
+    "Theo fee (2.00%) all-inclusive · Corridor (0.70%) passed through at cost · UTC",
     R, PH - 4, { align: "right" },
   );
 }
