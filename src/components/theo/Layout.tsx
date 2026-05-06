@@ -467,6 +467,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "rgba(255,255,255,0.35)", padding: "10px 6px 4px" }}>
             Account
           </div>
+          <NavItem to="/billing" label="Billing" icon={Receipt} />
           <NavItem to="/settings" label="Settings" icon={Settings} />
           {isAdmin && (
             <>
