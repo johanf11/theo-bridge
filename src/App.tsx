@@ -18,6 +18,8 @@ import Kyb from "./pages/Kyb";
 import AdminKyb from "./pages/AdminKyb";
 import AdminConversions from "./pages/AdminConversions";
 import AdminTools from "./pages/AdminTools";
+import Compliance from "./pages/Compliance";
+import Billing from "./pages/Billing";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "@/components/theo/ProtectedRoute";
 
@@ -45,6 +47,8 @@ const App = () => (
           <Route path="/admin/kyb" element={<ProtectedRoute adminOnly><AdminKyb /></ProtectedRoute>} />
           <Route path="/admin/conversions" element={<ProtectedRoute adminOnly><AdminConversions /></ProtectedRoute>} />
           <Route path="/admin/tools" element={<ProtectedRoute adminOnly><AdminTools /></ProtectedRoute>} />
+          <Route path="/compliance" element={<ProtectedRoute><Compliance /></ProtectedRoute>} />
+          <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

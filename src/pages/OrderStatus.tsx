@@ -4,14 +4,17 @@ import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { useRoles } from "@/lib/auth";
 import { fmtHTG, fmtRate, fmtUSDC } from "@/lib/format";
-import { Copy, ExternalLink, CheckCircle2, Clock, Loader2, CreditCard, AlertTriangle, Hourglass, Check } from "lucide-react";
+import { Copy, ExternalLink, CheckCircle2, Clock, Loader2, CreditCard, AlertTriangle, Hourglass, Check, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { generateReceipt } from "@/lib/receipt";
 
 type Order = {
   id: string; status: string; htg_amount: number; usdc_amount: number; rate: number;
   reference_number: string; quote_expires_at: string; stellar_tx_hash: string | null;
   failure_reason: string | null; created_at: string; order_kind?: string | null;
+  wallet_id?: string | null;
+  usdc_gross?: number | null; fee_usdc?: number | null; fee_bps?: number | null;
 };
 
 const STEPS_USDC = [
@@ -38,6 +41,7 @@ function stepIndex(status: string, steps: typeof STEPS_USDC) {
 export default function OrderStatus() {
   const { id } = useParams();
   const [order, setOrder] = useState<Order | null>(null);
+  const [walletLabel, setWalletLabel] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
   const [simulating, setSimulating] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
@@ -62,6 +66,17 @@ export default function OrderStatus() {
     return () => { supabase.removeChannel(ch); clearInterval(poll); clearInterval(tick); };
   }, [id]);
 
+  // Fetch wallet label whenever wallet_id is known
+  useEffect(() => {
+    if (!order?.wallet_id) return;
+    supabase
+      .from("wallets")
+      .select("label")
+      .eq("id", order.wallet_id)
+      .maybeSingle()
+      .then(({ data }) => setWalletLabel(data?.label ?? null));
+  }, [order?.wallet_id]);
+
   const remaining = useMemo(() => {
     if (!order) return 0;
     return Math.max(0, new Date(order.quote_expires_at).getTime() - now);
@@ -82,6 +97,8 @@ export default function OrderStatus() {
     navigator.clipboard.writeText(text).then(() => toast.success(`${label} copied`));
   };
 
+  const settledTo = walletLabel ?? "your wallet";
+
   return (
     <AppLayout>
       {/* Header */}
@@ -92,9 +109,9 @@ export default function OrderStatus() {
         <div className="flex items-start justify-between gap-4 mt-3">
           <div>
             <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground mb-2">
-              Conversion order
+              {order.order_kind === "htgc_mint" ? "Deposit order" : "Conversion order"}
             </div>
-            <h1 className="font-display text-3xl md:text-4xl font-extrabold text-theo-blue tracking-tight">
+            <h1 className="text-3xl md:text-4xl font-extrabold text-theo-blue tracking-tight">
               Order <span className="ml-2">{order.reference_number}</span>
             </h1>
             <div className="h-[3px] w-10 bg-theo-gold mt-3" />
@@ -161,23 +178,27 @@ export default function OrderStatus() {
         </div>
       </div>
 
-      {/* Quote details — gold highlight on USDC */}
+      {/* Quote details */}
       <div className="grid md:grid-cols-3 gap-4 mb-6">
         <div className="rounded-2xl bg-theo-gold p-5">
-          <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-theo-blue/80">USDC</div>
-          <div className="font-display text-3xl font-extrabold text-theo-blue mt-2 tracking-tight">
-            {fmtUSDC(Number(order.usdc_amount))}
+          <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-theo-blue/80">
+            {order.order_kind === "htgc_mint" ? "HTG-C" : "USDC"}
+          </div>
+          <div className="text-3xl font-extrabold text-theo-blue mt-2 tracking-tight">
+            {order.order_kind === "htgc_mint"
+              ? `${new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(order.htg_amount))} HTG-C`
+              : fmtUSDC(Number(order.usdc_amount))}
           </div>
         </div>
         <div className="rounded-2xl bg-card border p-5">
           <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">HTG due</div>
-          <div className="font-display text-3xl font-extrabold text-theo-blue mt-2 tracking-tight">
+          <div className="text-3xl font-extrabold text-theo-blue mt-2 tracking-tight">
             {fmtHTG(Number(order.htg_amount))}
           </div>
         </div>
         <div className="rounded-2xl bg-card border p-5">
           <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Rate</div>
-          <div className="font-display text-3xl font-extrabold text-theo-blue mt-2 tracking-tight">
+          <div className="text-3xl font-extrabold text-theo-blue mt-2 tracking-tight">
             {fmtRate(Number(order.rate))}
           </div>
         </div>
@@ -187,7 +208,7 @@ export default function OrderStatus() {
       {order.status === "QUOTED" && (
         <div className="rounded-2xl border bg-theo-blue-soft/60 mb-6 overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
-            <div className="flex items-center gap-2 font-display text-lg font-bold text-theo-blue">
+            <div className="flex items-center gap-2 text-lg font-bold text-theo-blue">
               <CreditCard className="h-4 w-4" /> Pay via SPIH
             </div>
             <div className={cn(
@@ -277,53 +298,106 @@ export default function OrderStatus() {
       {/* COMPLETED */}
       {order.status === "COMPLETED" && (
         <>
-          {/* Navy completion banner */}
-          <div className="rounded-2xl mb-4 p-6 flex items-center gap-5" style={{ background: "hsl(var(--theo-blue))" }}>
-            <div className="h-12 w-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(255,255,255,0.08)", border: "1.5px solid rgba(255,255,255,0.18)" }}>
-              <Check className="h-6 w-6" style={{ color: "hsl(var(--theo-gold))" }} />
+          {/* Completion banner */}
+          <div className="rounded-2xl mb-4 overflow-hidden" style={{ border: "1.5px solid hsl(var(--theo-blue))" }}>
+            {/* Top: amount + actions */}
+            <div className="flex items-center gap-5 px-6 py-5" style={{ background: "hsl(var(--theo-blue))" }}>
+              <div
+                className="h-11 w-11 rounded-xl flex items-center justify-center shrink-0"
+                style={{ background: "rgba(255,255,255,0.10)", border: "1.5px solid rgba(255,255,255,0.18)" }}
+              >
+                <Check className="h-5 w-5" style={{ color: "hsl(var(--theo-gold))" }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] font-bold uppercase tracking-[0.18em] mb-1" style={{ color: "hsl(var(--theo-gold))" }}>
+                  {order.order_kind === "htgc_mint" ? "Deposit complete" : "Conversion complete"}
+                </div>
+                <div className="font-extrabold text-2xl tracking-tight" style={{ color: "#fff", letterSpacing: "-0.02em" }}>
+                  {order.order_kind === "htgc_mint"
+                    ? `${new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(order.htg_amount))} HTG-C delivered`
+                    : `${fmtUSDC(Number(order.usdc_amount))} delivered`}
+                </div>
+              </div>
+              {/* Actions — right-aligned */}
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => generateReceipt({
+                    kind: (order.order_kind ?? "conversion") as Parameters<typeof generateReceipt>[0]["kind"],
+                    referenceNumber: order.reference_number,
+                    createdAt: order.created_at,
+                    htgAmount: Number(order.htg_amount),
+                    usdcAmount: Number(order.usdc_amount),
+                    usdcGross: order.usdc_gross != null ? Number(order.usdc_gross) : undefined,
+                    feeUsdc: order.fee_usdc != null ? Number(order.fee_usdc) : undefined,
+                    feeBps: order.fee_bps != null ? Number(order.fee_bps) : undefined,
+                    rate: Number(order.rate),
+                    stellarTxHash: order.stellar_tx_hash,
+                    status: order.status,
+                  })}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    background: "rgba(255,255,255,0.10)",
+                    border: "1.5px solid rgba(255,255,255,0.22)",
+                    color: "#fff", borderRadius: 8, padding: "8px 14px",
+                    fontSize: 12, fontWeight: 700, fontFamily: "inherit",
+                    cursor: "pointer", whiteSpace: "nowrap",
+                  }}
+                >
+                  <FileDown style={{ width: 13, height: 13 }} />
+                  Receipt
+                </button>
+                <Link
+                  to="/balance"
+                  style={{
+                    display: "flex", alignItems: "center", gap: 5,
+                    background: "hsl(var(--theo-gold))", color: "hsl(var(--theo-blue))",
+                    borderRadius: 8, padding: "8px 16px", fontSize: 12,
+                    fontWeight: 700, fontFamily: "inherit", textDecoration: "none",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  View balance →
+                </Link>
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[11px] font-bold uppercase tracking-[0.18em] mb-1" style={{ color: "hsl(var(--theo-gold))" }}>
-                {order.order_kind === "htgc_mint" ? "Deposit complete" : "Conversion complete"}
-              </div>
-              <div className="font-extrabold text-2xl md:text-3xl tracking-tight" style={{ color: "#fff", letterSpacing: "-0.02em" }}>
-                {order.order_kind === "htgc_mint"
-                  ? `${new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(order.htg_amount))} HTG-C delivered`
-                  : `${fmtUSDC(Number(order.usdc_amount))} delivered`}
-              </div>
-              <div className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.6)" }}>
-                Settled to your Primary — Operations wallet · Stellar network
-              </div>
-            </div>
-            <Link
-              to="/balance"
-              style={{
-                background: "hsl(var(--theo-gold))", color: "hsl(var(--theo-blue))",
-                borderRadius: 8, padding: "9px 18px", fontSize: 13,
-                fontWeight: 700, fontFamily: "inherit", textDecoration: "none",
-                whiteSpace: "nowrap", flexShrink: 0,
-              }}
+
+            {/* Bottom: settled-to details bar */}
+            <div
+              className="flex items-center gap-3 px-6 py-3 border-t"
+              style={{ background: "hsl(var(--theo-cream))", borderColor: "hsl(var(--theo-light))" }}
             >
-              View balance →
-            </Link>
+              <div
+                style={{
+                  width: 6, height: 6, borderRadius: 99, background: "#1A7F37", flexShrink: 0,
+                }}
+              />
+              <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>
+                Settled to{" "}
+                <span style={{ fontWeight: 700, color: "hsl(var(--theo-ink))" }}>{settledTo}</span>
+                {" · "}Stellar network
+              </span>
+            </div>
           </div>
 
+          {/* Stellar TX */}
           {order.stellar_tx_hash && (
             <div className="rounded-xl border border-border bg-card mb-6 overflow-hidden">
-              <div className="px-5 py-4 border-b border-border" style={{ background: "hsl(var(--theo-cream))" }}>
+              <div className="px-5 py-3 border-b border-border" style={{ background: "hsl(var(--theo-cream))" }}>
                 <div className="text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: "hsl(var(--theo-mid))" }}>
                   Stellar transaction
                 </div>
               </div>
               <div className="px-5 py-4 space-y-3">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <code className="text-xs md:text-sm font-mono break-all" style={{ color: "hsl(var(--theo-ink))" }}>{order.stellar_tx_hash}</code>
+                  <code className="text-xs md:text-sm font-mono break-all" style={{ color: "hsl(var(--theo-ink))" }}>
+                    {order.stellar_tx_hash}
+                  </code>
                   <div className="flex items-center gap-2 shrink-0">
                     <button
                       onClick={() => copy(order.stellar_tx_hash!, "Transaction hash")}
                       style={{
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        height: 32, width: 32, background: "transparent",
+                        height: 30, width: 30, background: "transparent",
                         border: "1.5px solid hsl(var(--border))", borderRadius: 6,
                         color: "hsl(var(--theo-mid))", cursor: "pointer",
                       }}
@@ -336,7 +410,8 @@ export default function OrderStatus() {
                       rel="noreferrer"
                       style={{
                         display: "flex", alignItems: "center", gap: 4,
-                        background: "hsl(var(--theo-cyan-soft))", border: "1.5px solid hsl(var(--theo-cyan) / 0.3)",
+                        background: "hsl(var(--theo-cyan-soft))",
+                        border: "1.5px solid hsl(var(--theo-cyan) / 0.3)",
                         color: "hsl(var(--theo-blue))", borderRadius: 6, padding: "5px 10px",
                         fontSize: 12, fontWeight: 600, fontFamily: "inherit", textDecoration: "none",
                       }}

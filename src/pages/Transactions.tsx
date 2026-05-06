@@ -3,8 +3,9 @@ import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { StatusBadge } from "@/components/theo/StatusBadge";
 import { fmtUSDC, fmtHTG, fmtHTGC } from "@/lib/format";
-import { Download } from "lucide-react";
+import { Download, FileDown } from "lucide-react";
 import { useSearch } from "@/contexts/SearchContext";
+import { generateReceipt, type ReceiptData } from "@/lib/receipt";
 
 
 type TxType = "conversion" | "htgc_mint" | "swap" | "withdraw" | "payout" | "yield" | "yield_earned" | "transfer";
@@ -405,18 +406,53 @@ export default function Transactions() {
 
                     {/* Receipt / TX hash */}
                     <td className="px-5 py-3" style={{ fontFamily: "monospace", fontSize: 12 }}>
-                      {tx.stellar_tx_hash ? (
-                        <a
-                          href={`https://stellar.expert/explorer/testnet/tx/${tx.stellar_tx_hash}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{ color: "hsl(var(--theo-cyan))", fontWeight: 600 }}
-                        >
-                          {tx.stellar_tx_hash.slice(0, 8)}…{tx.stellar_tx_hash.slice(-4)}
-                        </a>
-                      ) : (
-                        <span style={{ color: "hsl(var(--theo-mid))" }}>—</span>
-                      )}
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        {tx.stellar_tx_hash ? (
+                          <a
+                            href={`https://stellar.expert/explorer/testnet/tx/${tx.stellar_tx_hash}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: "hsl(var(--theo-cyan))", fontWeight: 600 }}
+                          >
+                            {tx.stellar_tx_hash.slice(0, 8)}…{tx.stellar_tx_hash.slice(-4)}
+                          </a>
+                        ) : (
+                          <span style={{ color: "hsl(var(--theo-mid))" }}>—</span>
+                        )}
+                        {tx.status === "COMPLETED" || tx.status === "EARNED" || tx.status === "EARNING" ? (
+                          <button
+                            title="Download PDF receipt"
+                            onClick={() => {
+                              const rd: ReceiptData = {
+                                kind: tx.type as ReceiptData["kind"],
+                                referenceNumber: tx.reference_number,
+                                createdAt: tx.created_at,
+                                htgAmount: tx.htg_amount,
+                                usdcAmount: tx.usdc_amount,
+                                stellarTxHash: tx.stellar_tx_hash,
+                                status: tx.status,
+                                recipientName: tx.recipient_name,
+                                memo: tx.memo,
+                                walletLabel: tx.wallet_label,
+                                netApy: tx.net_apy,
+                                depositedAt: tx.deposited_at,
+                                accruedAmount: tx.type === "yield_earned" ? tx.usdc_amount : undefined,
+                              };
+                              generateReceipt(rd);
+                            }}
+                            style={{
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              width: 26, height: 26, borderRadius: 5,
+                              background: "transparent",
+                              border: "1.5px solid hsl(var(--theo-light))",
+                              color: "hsl(var(--theo-blue))",
+                              cursor: "pointer", flexShrink: 0,
+                            }}
+                          >
+                            <FileDown style={{ width: 12, height: 12, strokeWidth: 2 }} />
+                          </button>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 );

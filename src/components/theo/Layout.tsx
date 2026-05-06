@@ -4,7 +4,7 @@ import { useAuth, useRoles } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import {
   LayoutGrid, ArrowLeftRight, ArrowRightLeft, Wallet, SendHorizonal,
-  Settings, LogOut, ShieldCheck, Search, Wrench,
+  Settings, LogOut, ShieldCheck, Search, Wrench, BookLock, DollarSign, Receipt,
 } from "lucide-react";
 import { useSearch } from "@/contexts/SearchContext";
 
@@ -14,6 +14,7 @@ const mainNav = [
   { to: "/balance", label: "Balance", icon: Wallet, keywords: ["balance", "wallet", "account", "funds"] },
   { to: "/payout", label: "Payout", icon: SendHorizonal, keywords: ["payout", "send", "payment", "transfer"] },
   { to: "/convert", label: "On / Off Ramp", icon: ArrowRightLeft, keywords: ["convert", "on ramp", "off ramp", "buy", "exchange"] },
+  { to: "/compliance", label: "Compliance", icon: BookLock, keywords: ["compliance", "audit", "flags", "htgc", "issuer", "regulatory"] },
   { to: "/settings", label: "Settings", icon: Settings, keywords: ["settings", "profile", "account"] },
 ];
 
@@ -466,6 +467,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "rgba(255,255,255,0.35)", padding: "10px 6px 4px" }}>
             Account
           </div>
+          <NavItem to="/billing" label="Billing" icon={Receipt} />
           <NavItem to="/settings" label="Settings" icon={Settings} />
           {isAdmin && (
             <>
@@ -473,7 +475,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 Admin
               </div>
               <NavItem to="/admin/kyb" label="KYB Review" icon={ShieldCheck} />
-              <NavItem to="/admin/conversions" label="Conversions" icon={ArrowLeftRight} />
+              <NavItem to="/admin/conversions" label="Orders" icon={ArrowLeftRight} />
               <NavItem to="/admin/tools" label="Tools" icon={Wrench} />
             </>
           )}
