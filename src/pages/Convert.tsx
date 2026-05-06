@@ -719,22 +719,39 @@ export default function Convert() {
                   </>
                 ) : (
                   <>
-                    <div className="flex justify-between mb-1.5">
-                      <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>You receive (≈)</span>
-                      <span style={{ fontSize: 15, fontWeight: 800, color: "hsl(var(--theo-blue))" }}>
-                        {liveRate && htgAmountRaw > 0 ? `$${(htgAmountRaw / liveRate).toLocaleString("en-US", { maximumFractionDigits: 2 })} USDC` : "—"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between mb-1.5">
-                      <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Rate</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
-                        {liveRate ? `${liveRate.toFixed(2)} HTG / USDC` : "—"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Quote lock</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>15 minutes</span>
-                    </div>
+                    {(() => {
+                      const f = totalBps / 10_000;
+                      const denom = 1 - f;
+                      const grossUsdc = denom > 0 ? htgUsdcNetRaw / denom : 0;
+                      const feeOnly = grossUsdc - htgUsdcNetRaw;
+                      const feePct = (totalBps / 100).toFixed(2);
+                      return (
+                        <>
+                          <div className="flex justify-between mb-1.5">
+                            <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Rate</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
+                              {liveRate ? `${liveRate.toFixed(2)} HTG / USDC` : "—"}
+                            </span>
+                          </div>
+                          <div className="flex justify-between mb-1.5">
+                            <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Theo fee ({feePct}%)</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
+                              {feeOnly > 0 ? `− $${feeOnly.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC` : "—"}
+                            </span>
+                          </div>
+                          <div className="flex justify-between mb-1.5">
+                            <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>You receive net</span>
+                            <span style={{ fontSize: 15, fontWeight: 800, color: "hsl(var(--theo-blue))" }}>
+                              {htgUsdcNetRaw > 0 ? `$${htgUsdcNetRaw.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC` : "—"}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Quote lock</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>15 minutes</span>
+                          </div>
+                        </>
+                      );
+                    })()}
                     <div className="flex items-center gap-1.5 mt-2.5 pt-2.5" style={{ borderTop: "1px solid hsl(var(--theo-blue-chip))" }}>
                       <div className="rounded-full" style={{ width: 6, height: 6, background: "hsl(var(--theo-cyan))" }} />
                       <span style={{ fontSize: 11, color: "hsl(var(--theo-blue))", fontWeight: 600 }}>
