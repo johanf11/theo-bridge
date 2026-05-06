@@ -193,6 +193,26 @@ export default function Convert() {
     return () => clearInterval(id);
   }, []);
 
+  // Sync the non-edited side when liveRate or fee bps change
+  useEffect(() => {
+    if (!liveRate || liveRate <= 0) return;
+    const f = ((profile?.fee_bps ?? 150) + (profile?.corridor_bps ?? 70)) / 10_000;
+    if (htgLastEdited === "htg") {
+      const gross = htgAmountRaw / liveRate;
+      const net = gross * (1 - f);
+      setHtgUsdcNetRaw(net);
+      setHtgUsdcNetDisplay(net > 0 ? net.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "");
+    } else {
+      const denom = 1 - f;
+      const gross = denom > 0 ? htgUsdcNetRaw / denom : 0;
+      const htg = gross * liveRate;
+      setHtgAmountRaw(htg);
+      setHtgAmount(htg > 0 ? Math.round(htg).toLocaleString("en-US") : "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveRate, profile?.fee_bps, profile?.corridor_bps]);
+
+
   const handleUsdcInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.replace(/[^\d]/g, "");
     const num = parseInt(raw, 10) || 0;
