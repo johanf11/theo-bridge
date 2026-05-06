@@ -105,7 +105,7 @@ export default function Billing() {
 
       const { data } = await q;
       if (!cancelled) {
-        setOrders((data ?? []) as BillingOrder[]);
+        setOrders((data ?? []) as unknown as BillingOrder[]);
         setLoading(false);
       }
     })();
