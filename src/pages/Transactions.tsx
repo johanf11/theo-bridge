@@ -7,7 +7,7 @@ import { Download } from "lucide-react";
 import { useSearch } from "@/contexts/SearchContext";
 
 
-type TxType = "conversion" | "htgc_mint" | "swap" | "withdraw" | "payout" | "yield" | "yield_earned" | "transfer";
+type TxType = "conversion" | "htgc_mint" | "swap" | "withdraw" | "payout" | "bridge" | "yield" | "yield_earned" | "transfer";
 
 type UnifiedTx = {
   id: string;
@@ -19,9 +19,10 @@ type UnifiedTx = {
   // conversion-only
   htg_amount?: number;
   reference_number?: string;
-  // payout / transfer
+  // payout / transfer / bridge
   recipient_name?: string;
   memo?: string | null;
+  destination_chain?: string | null;
   // yield / transfer
   wallet_label?: string;
   // yield-only
@@ -34,6 +35,7 @@ const PAYOUT_STATUS_MAP: Record<string, string> = {
   COMPLETED: "COMPLETED",
   PENDING: "PENDING",
   FAILED: "FAILED",
+  BRIDGING: "BRIDGING",
 };
 
 export default function Transactions() {
@@ -71,7 +73,7 @@ export default function Transactions() {
           .order("created_at", { ascending: false }),
         supabase
           .from("payouts")
-          .select("id, recipient_name, amount_usdc, status, memo, stellar_tx_hash, created_at, source_wallet_id")
+          .select("id, recipient_name, amount_usdc, status, memo, stellar_tx_hash, created_at, source_wallet_id, destination_chain")
           .eq("customer_id", c.id)
           .gte("created_at", cutoff)
           .order("created_at", { ascending: false }),
@@ -114,15 +116,18 @@ export default function Transactions() {
         }),
         ...(payouts ?? []).map((p) => {
           const isTransfer = p.memo === "internal-transfer";
+          const isBridge = !!p.destination_chain;
+          const type: TxType = isTransfer ? "transfer" : isBridge ? "bridge" : "payout";
           return {
             id: p.id,
-            type: (isTransfer ? "transfer" : "payout") as TxType,
+            type,
             created_at: p.created_at,
             usdc_amount: Number(p.amount_usdc),
             status: PAYOUT_STATUS_MAP[p.status] ?? p.status,
             stellar_tx_hash: p.stellar_tx_hash ?? null,
             recipient_name: p.recipient_name,
-            memo: isTransfer ? null : p.memo,
+            memo: isTransfer ? null : isBridge ? null : p.memo,
+            destination_chain: p.destination_chain ?? null,
             wallet_label: isTransfer ? (walletLabel.get(p.source_wallet_id ?? "") ?? "Wallet") : undefined,
           };
         }),
@@ -178,6 +183,7 @@ export default function Transactions() {
     if (typeFilter === "HTG-C Mint" && tx.type !== "htgc_mint") return false;
     if (typeFilter === "Swap" && tx.type !== "swap") return false;
     if (typeFilter === "Payout" && tx.type !== "payout") return false;
+    if (typeFilter === "Bridge" && tx.type !== "bridge") return false;
     if (typeFilter === "Yield" && tx.type !== "yield" && tx.type !== "yield_earned") return false;
     if (typeFilter === "Transfer" && tx.type !== "transfer") return false;
 
@@ -260,7 +266,7 @@ export default function Transactions() {
       {/* Filters */}
       <div className="flex gap-2 mb-4 items-center">
         <select style={selectStyle} value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
-          {["All types", "Conversion", "HTG-C Mint", "Swap", "Payout", "Yield", "Transfer"].map(o => <option key={o}>{o}</option>)}
+          {["All types", "Conversion", "HTG-C Mint", "Swap", "Payout", "Bridge", "Yield", "Transfer"].map(o => <option key={o}>{o}</option>)}
         </select>
         <select style={selectStyle} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
           {["All statuses", "Settled", "Pending", "Failed"].map(o => <option key={o}>{o}</option>)}
@@ -317,14 +323,15 @@ export default function Transactions() {
                     <td className="px-5 py-3">
                       {(() => {
                         const palette: Record<TxType, { bg: string; fg: string; label: string }> = {
-                          conversion: { bg: "hsl(var(--theo-gold-soft))", fg: "#7A5F00", label: "Conversion" },
-                          htgc_mint: { bg: "hsl(var(--theo-gold-soft))", fg: "#7A5F00", label: "HTG-C Mint" },
-                          swap: { bg: "hsl(195 85% 92%)", fg: "hsl(200 80% 25%)", label: "Swap" },
-                          payout: { bg: "hsl(var(--theo-blue-soft))", fg: "hsl(var(--theo-blue))", label: "Payout" },
-                          yield: { bg: "hsl(140 60% 92%)", fg: "hsl(150 70% 25%)", label: "Yield Deposit" },
-                          yield_earned: { bg: "hsl(140 60% 92%)", fg: "hsl(150 70% 25%)", label: "Yield Earned" },
-                          transfer: { bg: "hsl(195 85% 92%)", fg: "hsl(200 80% 25%)", label: "Transfer" },
-                          withdraw: { bg: "hsl(var(--theo-blue-soft))", fg: "hsl(var(--theo-blue))", label: "Withdraw" },
+                          conversion:   { bg: "hsl(var(--theo-gold-soft))", fg: "#7A5F00",              label: "Conversion" },
+                          htgc_mint:    { bg: "hsl(var(--theo-gold-soft))", fg: "#7A5F00",              label: "HTG-C Mint" },
+                          swap:         { bg: "hsl(195 85% 92%)",           fg: "hsl(200 80% 25%)",     label: "Swap" },
+                          payout:       { bg: "hsl(var(--theo-blue-soft))", fg: "hsl(var(--theo-blue))", label: "Payout" },
+                          bridge:       { bg: "hsl(280 80% 92%)",           fg: "hsl(280 80% 35%)",     label: "Bridge" },
+                          yield:        { bg: "hsl(140 60% 92%)",           fg: "hsl(150 70% 25%)",     label: "Yield Deposit" },
+                          yield_earned: { bg: "hsl(140 60% 92%)",           fg: "hsl(150 70% 25%)",     label: "Yield Earned" },
+                          transfer:     { bg: "hsl(195 85% 92%)",           fg: "hsl(200 80% 25%)",     label: "Transfer" },
+                          withdraw:     { bg: "hsl(var(--theo-blue-soft))", fg: "hsl(var(--theo-blue))", label: "Withdraw" },
                         };
                         const p = palette[tx.type];
                         return (
@@ -375,6 +382,11 @@ export default function Transactions() {
                           Yield accrued on {tx.wallet_label}
                           <span style={{ color: "hsl(var(--theo-mid))" }}> · since {new Date(tx.deposited_at ?? tx.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {((tx.net_apy ?? 0.07) * 100).toFixed(2)}% APY</span>
                         </span>
+                      ) : tx.type === "bridge" ? (
+                        <span style={{ color: "hsl(var(--theo-ink))" }}>
+                          {tx.recipient_name}
+                          <span style={{ color: "hsl(var(--theo-mid))" }}> → {tx.destination_chain === "solana" ? "Solana" : "Base"} via Allbridge</span>
+                        </span>
                       ) : tx.type === "transfer" ? (
                         <span style={{ color: "hsl(var(--theo-ink))" }}>From {tx.wallet_label} → {tx.recipient_name}</span>
                       ) : (
@@ -384,10 +396,17 @@ export default function Transactions() {
 
                     {/* Network */}
                     <td className="px-5 py-3">
-                      <div className="flex items-center gap-1.5">
-                        <div className="rounded-full" style={{ width: 8, height: 8, background: "hsl(var(--theo-cyan))", flexShrink: 0 }} />
-                        <span style={{ fontSize: 13 }}>Theo</span>
-                      </div>
+                      {tx.type === "bridge" ? (
+                        <div className="flex items-center gap-1.5">
+                          <div className="rounded-full" style={{ width: 8, height: 8, background: tx.destination_chain === "solana" ? "#9945FF" : "#0052FF", flexShrink: 0 }} />
+                          <span style={{ fontSize: 13 }}>{tx.destination_chain === "solana" ? "Solana" : "Base"}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <div className="rounded-full" style={{ width: 8, height: 8, background: "hsl(var(--theo-cyan))", flexShrink: 0 }} />
+                          <span style={{ fontSize: 13 }}>Theo</span>
+                        </div>
+                      )}
                     </td>
 
                     {/* Status */}

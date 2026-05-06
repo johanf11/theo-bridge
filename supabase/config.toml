@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.retry-swap-payout]
 verify_jwt = false
+
+[functions.bridge-payout]
+verify_jwt = false
