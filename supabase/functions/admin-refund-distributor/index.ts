@@ -3,9 +3,11 @@
 // a failed swap leg-2.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import {
-  Asset, Horizon, Keypair, Memo, Networks,
+  Asset, Horizon, Memo, Networks,
   Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
+import { distributorKeypair, signWithDistributor } from "../_shared/stellar-signer.ts";
+import { assertWithinLimits } from "../_shared/tx-limits.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,9 +28,7 @@ Deno.serve(async (req) => {
     const url = Deno.env.get("SUPABASE_URL")!;
     const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
     const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const distributorSecret = Deno.env.get("STELLAR_DISTRIBUTOR_SECRET");
     const usdcIssuer = Deno.env.get("STELLAR_USDC_ISSUER");
-    if (!distributorSecret) return json({ error: "STELLAR_DISTRIBUTOR_SECRET not configured" }, 500);
     if (!usdcIssuer) return json({ error: "STELLAR_USDC_ISSUER not configured" }, 500);
 
     const userClient = createClient(url, anon, { global: { headers: { Authorization: authHeader } } });
@@ -45,9 +45,11 @@ Deno.serve(async (req) => {
     if (!destinationAddress || !destinationAddress.startsWith("G")) return json({ error: "destinationAddress required" }, 400);
     const amt = parseFloat(String(amount));
     if (!amt || amt <= 0) return json({ error: "Valid amount required" }, 400);
+    try { assertWithinLimits(amt, "Refund amount"); }
+    catch (e) { return json({ error: (e as Error).message }, 400); }
 
     const server = new Horizon.Server(HORIZON_URL);
-    const kp = Keypair.fromSecret(distributorSecret);
+    const kp = distributorKeypair();
     const account = await server.loadAccount(kp.publicKey());
 
     const usdc = new Asset("USDC", usdcIssuer);
@@ -63,7 +65,7 @@ Deno.serve(async (req) => {
       .addMemo(Memo.text((memo ?? "refund").slice(0, 28)))
       .setTimeout(60)
       .build();
-    tx.sign(kp);
+    signWithDistributor(tx);
     const res = await server.submitTransaction(tx);
 
     return json({ success: true, txHash: res.hash, amount: amt, destination: destinationAddress });

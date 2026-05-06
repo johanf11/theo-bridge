@@ -5,6 +5,8 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import {
   Asset, Horizon, Keypair, Memo, Networks, Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
+import { distributorKeypair, signWithDistributor } from "../_shared/stellar-signer.ts";
+import { assertWithinLimits } from "../_shared/tx-limits.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -31,10 +33,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const distributorSecret = Deno.env.get("STELLAR_DISTRIBUTOR_SECRET");
     const usdcIssuer = Deno.env.get("STELLAR_USDC_ISSUER");
+    if (!usdcIssuer) throw new Error("STELLAR_USDC_ISSUER not configured");
     const issuerSecret = Deno.env.get("STELLAR_HTGC_ISSUER_SECRET"); // also controls USDC on testnet
-    if (!distributorSecret || !usdcIssuer) throw new Error("Stellar secrets not configured");
+
 
     // Lock: FUNDED -> RELEASING
     const { data: locked, error: lockErr } = await admin
@@ -53,7 +55,7 @@ Deno.serve(async (req) => {
 
     // Build & submit Stellar payment
     const server = new Horizon.Server(HORIZON);
-    const distributor = Keypair.fromSecret(distributorSecret);
+    const distributor = distributorKeypair();
 
     // Resolve destination: order-level override first, then customer's primary wallet
     let dest = (locked.destination_stellar_address ?? locked.destination_wallet_address) as string | null;
@@ -68,15 +70,19 @@ Deno.serve(async (req) => {
     }
     if (!dest || !dest.startsWith("G")) throw new Error("No Stellar destination wallet for this order");
     if (dest === distributor.publicKey()) throw new Error("Destination cannot be the distributor account");
+
+    const usdcAmount = Number(locked.usdc_amount);
+    assertWithinLimits(usdcAmount, "USDC release");
+
     const sourceAccount = await server.loadAccount(distributor.publicKey());
     const usdc = new Asset("USDC", usdcIssuer);
-    const amount = Number(locked.usdc_amount).toFixed(7);
 
     // Auto-top-up: if distributor USDC balance < order amount, mint shortfall from issuer
     const usdcBal = (sourceAccount.balances as Array<{ asset_code?: string; asset_issuer?: string; balance: string }>)
       .find((b) => b.asset_code === "USDC" && b.asset_issuer === usdcIssuer);
     const currentBal = parseFloat(usdcBal?.balance ?? "0");
-    const needed = parseFloat(amount);
+    const needed = usdcAmount;
+    
     if (currentBal < needed) {
       if (!issuerSecret) throw new Error("Distributor USDC insufficient and STELLAR_HTGC_ISSUER_SECRET not set");
       const topUp = (needed - currentBal + 1000).toFixed(7); // shortfall + 1 000 USDC buffer
@@ -98,11 +104,11 @@ Deno.serve(async (req) => {
       fee: BASE_FEE,
       networkPassphrase: Networks.TESTNET,
     })
-      .addOperation(Operation.payment({ destination: dest, asset: usdc, amount }))
+      .addOperation(Operation.payment({ destination: dest, asset: usdc, amount: usdcAmount.toFixed(7) }))
       .addMemo(Memo.text(locked.reference_number.slice(0, 28)))
       .setTimeout(60)
       .build();
-    tx.sign(distributor);
+    signWithDistributor(tx);
 
     const result = await server.submitTransaction(tx);
     const hash = (result as { hash: string }).hash;

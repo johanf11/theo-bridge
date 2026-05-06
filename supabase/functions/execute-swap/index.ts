@@ -6,6 +6,8 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import {
   Asset, Horizon, Keypair, Memo, Networks, Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
+import { distributorPublicKey, signWithDistributor, signWithSecret } from "../_shared/stellar-signer.ts";
+import { assertWithinLimits } from "../_shared/tx-limits.ts";
 import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
 import { ensureWalletReady } from "../_shared/ensure-wallet-ready.ts";
 
@@ -64,9 +66,7 @@ Deno.serve(async (req) => {
     const url = Deno.env.get("SUPABASE_URL")!;
     const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
     const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const distributorSecret = Deno.env.get("STELLAR_DISTRIBUTOR_SECRET");
     const usdcIssuer = Deno.env.get("STELLAR_USDC_ISSUER");
-    if (!distributorSecret) return json({ error: "STELLAR_DISTRIBUTOR_SECRET not configured" }, 500);
     if (!usdcIssuer) return json({ error: "STELLAR_USDC_ISSUER not configured" }, 500);
 
     // Auth — verify caller
@@ -95,6 +95,8 @@ Deno.serve(async (req) => {
     }
     const parsedAmount = Number(amount);
     if (!parsedAmount || parsedAmount <= 0) return json({ error: "Valid amount required" }, 400);
+    try { assertWithinLimits(parsedAmount, "Swap amount"); }
+    catch (e) { return json({ error: (e as Error).message }, 400); }
 
     // Wallet (must belong to caller, must have signing key)
     const { data: wallet } = await admin
@@ -116,8 +118,8 @@ Deno.serve(async (req) => {
     const rate = Number(rateRow?.spot_rate);
     if (!rate || rate <= 0) return json({ error: "No spot rate available" }, 500);
 
-    // Compute legs
-    const distributor = Keypair.fromSecret(distributorSecret);
+    // Compute legs — use helper so STELLAR_DISTRIBUTOR_SECRET stays in stellar-signer.ts
+    const distPubkey = distributorPublicKey();
     const usdc = new Asset("USDC", usdcIssuer);
     const htgc = new Asset("HTGC", HTGC_ISSUER);
 
@@ -203,14 +205,14 @@ Deno.serve(async (req) => {
         fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
       })
         .addOperation(Operation.payment({
-          destination: distributor.publicKey(),
+          destination: distPubkey,
           asset: sourceAsset,
           amount: sourceAmount.toFixed(7),
         }))
         .addMemo(Memo.text(reference.slice(0, 28)))
         .setTimeout(60)
         .build();
-      tx1.sign(userKp);
+      signWithSecret(tx1, wallet.stellar_secret);
       const r1 = await server.submitTransaction(tx1);
       leg1Hash = (r1 as { hash: string }).hash;
     } catch (e: unknown) {
@@ -238,7 +240,7 @@ Deno.serve(async (req) => {
     let leg2Hash: string | null = null;
     let leg2Error: string | null = null;
     try {
-      const distAccount = await server.loadAccount(distributor.publicKey());
+      const distAccount = await server.loadAccount(distPubkey);
       const tx2 = new TransactionBuilder(distAccount, {
         fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
       })
@@ -250,7 +252,7 @@ Deno.serve(async (req) => {
         .addMemo(Memo.text(reference.slice(0, 28)))
         .setTimeout(60)
         .build();
-      tx2.sign(distributor);
+      signWithDistributor(tx2);
       const r2 = await server.submitTransaction(tx2);
       leg2Hash = (r2 as { hash: string }).hash;
     } catch (e: unknown) {
@@ -264,7 +266,7 @@ Deno.serve(async (req) => {
     let refundError: string | null = null;
     if (leg2Hash === null) {
       try {
-        const distAccount = await server.loadAccount(distributor.publicKey());
+        const distAccount = await server.loadAccount(distPubkey);
         const refundMemo = `${reference}-RFND`.slice(0, 28);
         const txR = new TransactionBuilder(distAccount, {
           fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
@@ -277,7 +279,7 @@ Deno.serve(async (req) => {
           .addMemo(Memo.text(refundMemo))
           .setTimeout(60)
           .build();
-        txR.sign(distributor);
+        signWithDistributor(txR);
         const rR = await server.submitTransaction(txR);
         refundHash = (rR as { hash: string }).hash;
         console.log(`Auto-refund OK ${reference}: ${refundHash}`);

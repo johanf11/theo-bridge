@@ -6,6 +6,7 @@ import {
   Asset, Horizon, Keypair, Memo, Networks, Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
+import { distributorPublicKey, signWithDistributor } from "../_shared/stellar-signer.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -31,10 +32,8 @@ Deno.serve(async (req) => {
     const url = Deno.env.get("SUPABASE_URL")!;
     const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
     const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const distributorSecret = Deno.env.get("STELLAR_DISTRIBUTOR_SECRET");
     const usdcIssuer = Deno.env.get("STELLAR_USDC_ISSUER");
     const htgcIssuerSecret = Deno.env.get("STELLAR_HTGC_ISSUER_SECRET");
-    if (!distributorSecret) return json({ error: "STELLAR_DISTRIBUTOR_SECRET not configured" }, 500);
     if (!usdcIssuer) return json({ error: "STELLAR_USDC_ISSUER not configured" }, 500);
 
     // Auth: caller must be admin OR the order owner
@@ -82,7 +81,7 @@ Deno.serve(async (req) => {
     if (!leg1Hash) return json({ error: "Order has no leg 1 tx hash to verify" }, 400);
 
     const server = new Horizon.Server(HORIZON_URL);
-    const distributor = Keypair.fromSecret(distributorSecret);
+    const distPubkey = distributorPublicKey();
     const usdc = new Asset("USDC", usdcIssuer);
     const htgc = new Asset("HTGC", HTGC_ISSUER);
 
@@ -99,7 +98,7 @@ Deno.serve(async (req) => {
       return json({ error: "Leg 1 transaction has no payment operation — cannot verify" }, 502);
     }
     const leg1 = leg1Ops[0];
-    if (leg1.to !== distributor.publicKey()) {
+    if (leg1.to !== distPubkey) {
       return json({ error: `Leg 1 destination ${leg1.to} is not the distributor — refusing to retry` }, 400);
     }
     const userAddress = leg1.from;
@@ -154,7 +153,7 @@ Deno.serve(async (req) => {
     const memo = (order.reference_number ?? "RETRY").slice(0, 28);
     let leg2Hash: string;
     try {
-      const distAccount = await server.loadAccount(distributor.publicKey());
+      const distAccount = await server.loadAccount(distPubkey);
       const tx2 = new TransactionBuilder(distAccount, {
         fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
       })
@@ -166,7 +165,7 @@ Deno.serve(async (req) => {
         .addMemo(Memo.text(memo))
         .setTimeout(60)
         .build();
-      tx2.sign(distributor);
+      signWithDistributor(tx2);
       const r2 = await server.submitTransaction(tx2);
       leg2Hash = (r2 as { hash: string }).hash;
     } catch (e: unknown) {
