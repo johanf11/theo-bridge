@@ -10,6 +10,8 @@ const CREAM = [247, 247, 251] as const;
 const WHITE = [255, 255, 255] as const;
 const GREEN = [26,  127,  55] as const;
 
+const ROWS_PER_PAGE = 18;
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 export type StatementRow = {
   completedAt: string;
@@ -77,7 +79,6 @@ function _buildPdf(data: StatementData): void {
   const R  = PW - 14;
   const W  = R - L;
 
-  const ROWS_PER_PAGE = 18;
   const totalPages = Math.max(1, Math.ceil(data.rows.length / ROWS_PER_PAGE));
 
   for (let page = 0; page < totalPages; page++) {
