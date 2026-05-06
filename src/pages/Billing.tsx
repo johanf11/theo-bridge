@@ -349,17 +349,17 @@ export default function Billing() {
                       );
                     })}
                     {/* Totals row */}
-                    <tr style={{ background: "hsl(var(--theo-blue))" }}>
-                      <td style={{ ...tdStyle, color: "hsl(var(--theo-gold))", fontWeight: 800, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", borderBottom: "none" }}>
+                    <tr style={{ background: "#eef0f8", borderTop: "2px solid hsl(var(--theo-light))" }}>
+                      <td style={{ ...tdStyle, color: "hsl(var(--theo-mid))", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", borderBottom: "none" }}>
                         {orders.length} orders
                       </td>
-                      <td style={{ ...tdStyle, color: "hsl(var(--theo-gold))", fontWeight: 800, fontSize: 11, borderBottom: "none" }}>Total</td>
-                      <td style={{ ...tdR, ...MONO, color: "#fff", fontWeight: 800, borderBottom: "none" }}>${fmtUsd(totals.gross)}</td>
-                      <td style={{ ...tdR, ...MONO, color: "#fff", fontWeight: 800, borderBottom: "none" }}>${fmtUsd(totals.net)}</td>
-                      <td style={{ ...tdR, ...MONO, color: "rgba(255,255,255,0.6)", borderBottom: "none" }}>{totals.avgRate.toFixed(2)}%</td>
-                      <td style={{ ...tdR, ...MONO, color: "#fff", fontWeight: 700, borderBottom: "none" }}>${fmtUsd(totals.theoFee)}</td>
-                      <td style={{ ...tdR, ...MONO, color: "rgba(255,255,255,0.7)", borderBottom: "none" }}>${fmtUsd(totals.corridor)}</td>
-                      <td style={{ ...tdR, ...MONO, color: "hsl(var(--theo-gold))", fontWeight: 800, borderBottom: "none" }}>${fmtUsd(totals.fee)}</td>
+                      <td style={{ ...tdStyle, color: "hsl(var(--theo-blue))", fontWeight: 800, fontSize: 12, borderBottom: "none" }}>Total</td>
+                      <td style={{ ...tdR, ...MONO, color: "hsl(var(--theo-ink))", fontWeight: 800, borderBottom: "none" }}>${fmtUsd(totals.gross)}</td>
+                      <td style={{ ...tdR, ...MONO, color: "hsl(var(--theo-ink))", fontWeight: 800, borderBottom: "none" }}>${fmtUsd(totals.net)}</td>
+                      <td style={{ ...tdR, ...MONO, color: "hsl(var(--theo-mid))", borderBottom: "none" }}>{totals.avgRate.toFixed(2)}%</td>
+                      <td style={{ ...tdR, ...MONO, color: "hsl(var(--theo-ink))", fontWeight: 700, borderBottom: "none" }}>${fmtUsd(totals.theoFee)}</td>
+                      <td style={{ ...tdR, ...MONO, color: "hsl(var(--theo-mid))", borderBottom: "none" }}>${fmtUsd(totals.corridor)}</td>
+                      <td style={{ ...tdR, ...MONO, color: "hsl(var(--theo-blue))", fontWeight: 800, borderBottom: "none" }}>${fmtUsd(totals.fee)}</td>
                       <td style={{ ...tdStyle, borderBottom: "none" }} />
                     </tr>
                   </>
