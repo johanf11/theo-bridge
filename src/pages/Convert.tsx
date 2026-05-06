@@ -340,12 +340,47 @@ export default function Convert() {
     marginBottom: -1, transition: "all 130ms", whiteSpace: "nowrap",
   });
 
+  // Two-field widget math helpers (HTG → USDC mode)
+  const fmtUsdcStr = (n: number) =>
+    n > 0 ? n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "";
+  const fmtHtgStr = (n: number) =>
+    n > 0 ? Math.round(n).toLocaleString("en-US") : "";
+
   const handleHtgInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.replace(/[^\d]/g, "");
     const num = parseInt(raw, 10) || 0;
     setHtgAmountRaw(num);
     setHtgAmount(num ? num.toLocaleString("en-US") : "");
+    setHtgLastEdited("htg");
+    if (htgReceiveMode === "usdc" && liveRate && liveRate > 0) {
+      const f = totalBps / 10_000;
+      const gross = num / liveRate;
+      const net = gross * (1 - f);
+      setHtgUsdcNetRaw(net);
+      setHtgUsdcNetDisplay(fmtUsdcStr(net));
+    }
   };
+
+  const handleHtgUsdcInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Allow digits and a single decimal point
+    const cleaned = e.target.value.replace(/[^\d.]/g, "");
+    const parts = cleaned.split(".");
+    const normalized = parts.length > 1 ? `${parts[0]}.${parts.slice(1).join("").slice(0, 2)}` : parts[0];
+    const num = parseFloat(normalized) || 0;
+    setHtgUsdcNetRaw(num);
+    // Keep raw text while typing (so user can type "0." etc.) but show comma-formatted on blank/zero
+    setHtgUsdcNetDisplay(normalized);
+    setHtgLastEdited("usdc");
+    if (liveRate && liveRate > 0) {
+      const f = totalBps / 10_000;
+      const denom = 1 - f;
+      const gross = denom > 0 ? num / denom : 0;
+      const htg = gross * liveRate;
+      setHtgAmountRaw(htg);
+      setHtgAmount(fmtHtgStr(htg));
+    }
+  };
+
 
   const handleSwapInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.replace(/[^\d]/g, "");
