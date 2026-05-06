@@ -16,7 +16,10 @@ export type ReceiptData = {
   referenceNumber?: string;
   createdAt: string;
   htgAmount?: number;
-  usdcAmount?: number;
+  usdcAmount?: number;   // net USDC received (after fee)
+  usdcGross?: number;    // pre-fee USDC notional
+  feeUsdc?: number;      // total fee in USDC
+  feeBps?: number;       // total fee in basis points
   rate?: number;
   stellarTxHash?: string | null;
   status?: string;
@@ -171,14 +174,16 @@ function _buildPdf(data: ReceiptData): void {
 
   // Secondary amount (right side)
   const secLabel = (() => {
-    if (data.kind === "conversion") return "HTG SENT";
+    if (data.kind === "conversion") return data.feeUsdc != null ? "THEO FEE" : "HTG SENT";
     if (data.kind === "htgc_mint") return "HTG-C MINTED";
     if (data.kind === "swap") return "HTG-C BURNED";
     if (data.kind === "yield") return "NET APY";
     return null;
   })();
   const secValue = (() => {
-    if (data.kind === "conversion") return `${fmtN(data.htgAmount ?? 0)} HTG`;
+    if (data.kind === "conversion") return data.feeUsdc != null
+      ? `${fmtN(data.feeUsdc)} USDC`
+      : `${fmtN(data.htgAmount ?? 0)} HTG`;
     if (data.kind === "htgc_mint") return `${fmtN(data.htgAmount ?? 0, 0)} HTG-C`;
     if (data.kind === "swap") return `${fmtN(data.htgAmount ?? 0, 0)} HTG-C`;
     if (data.kind === "yield") return `${((data.netApy ?? 0.07) * 100).toFixed(2)}%`;
@@ -202,9 +207,15 @@ function _buildPdf(data: ReceiptData): void {
   rows.push(["Status", data.status ?? "COMPLETED"]);
 
   if (data.kind === "conversion") {
-    if (data.rate)        rows.push(["Exchange Rate", `${fmtN(data.rate, 2)} HTG / USDC`]);
-    if (data.htgAmount)   rows.push(["HTG Sent", `${fmtN(data.htgAmount)} HTG`]);
-    if (data.usdcAmount)  rows.push(["USDC Received", `${fmtN(data.usdcAmount)} USDC`]);
+    if (data.rate)       rows.push(["Exchange Rate", `${fmtN(data.rate, 2)} HTG / USDC`]);
+    if (data.htgAmount)  rows.push(["HTG Sent", `${fmtN(data.htgAmount)} HTG`]);
+    if (data.usdcGross != null)
+                         rows.push(["USDC (gross)", `${fmtN(data.usdcGross)} USDC`]);
+    if (data.feeUsdc != null) {
+      const bpsLabel = data.feeBps != null ? ` (${(data.feeBps / 100).toFixed(2)}%)` : "";
+      rows.push(["Theo Fee" + bpsLabel, `${fmtN(data.feeUsdc)} USDC`]);
+    }
+    if (data.usdcAmount) rows.push(["USDC Received", `${fmtN(data.usdcAmount)} USDC`]);
   }
   if (data.kind === "htgc_mint") {
     if (data.htgAmount) {

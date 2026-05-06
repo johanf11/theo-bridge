@@ -14,6 +14,7 @@ type Order = {
   reference_number: string; quote_expires_at: string; stellar_tx_hash: string | null;
   failure_reason: string | null; created_at: string; order_kind?: string | null;
   wallet_id?: string | null;
+  usdc_gross?: number | null; fee_usdc?: number | null; fee_bps?: number | null;
 };
 
 const STEPS_USDC = [
@@ -326,6 +327,9 @@ export default function OrderStatus() {
                     createdAt: order.created_at,
                     htgAmount: Number(order.htg_amount),
                     usdcAmount: Number(order.usdc_amount),
+                    usdcGross: order.usdc_gross != null ? Number(order.usdc_gross) : undefined,
+                    feeUsdc: order.fee_usdc != null ? Number(order.fee_usdc) : undefined,
+                    feeBps: order.fee_bps != null ? Number(order.fee_bps) : undefined,
                     rate: Number(order.rate),
                     stellarTxHash: order.stellar_tx_hash,
                     status: order.status,

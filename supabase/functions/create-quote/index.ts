@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
     // Find customer
     const { data: customer, error: custErr } = await admin
       .from("customers")
-      .select("id, kyb_status")
+      .select("id, kyb_status, fee_bps, corridor_bps")
       .eq("user_id", userId)
       .maybeSingle();
     if (custErr) throw custErr;
@@ -115,6 +115,15 @@ Deno.serve(async (req) => {
     let customerRate: number | null = null;
     let spot: number | null = null;
 
+    // Fee computation (usdc_conversion only)
+    const theoBps    = (customer as { fee_bps?: number | null }).fee_bps      ?? 150;
+    const corrBps    = (customer as { corridor_bps?: number | null }).corridor_bps ?? 70;
+    const totalBps   = theoBps + corrBps;
+    let usdcGross: number | null = null;
+    let feeUsdc: number | null = null;
+    let theoFeeUsdc: number | null = null;
+    let usdcNet = usdc; // what the customer receives (net of fees)
+
     if (orderKind === "usdc_conversion") {
       const { data: rate } = await admin
         .from("rate_snapshots")
@@ -124,9 +133,14 @@ Deno.serve(async (req) => {
         .maybeSingle();
       spot = Number(rate?.spot_rate ?? 130);
       customerRate = spot + FORWARD_PREMIUM + MARGIN;
-      htgRequired = Math.round(usdc * customerRate * 100) / 100;
+      // usdc_amount from the client is the gross amount; net = gross - fee
+      usdcGross    = usdc;
+      feeUsdc      = Math.round(usdcGross * (totalBps / 10_000) * 1e7) / 1e7;
+      theoFeeUsdc  = Math.round(usdcGross * (theoBps  / 10_000) * 1e7) / 1e7;
+      usdcNet      = Math.round((usdcGross - feeUsdc) * 1e7) / 1e7;
+      htgRequired  = Math.round(usdcNet * customerRate * 100) / 100;
     } else {
-      // HTG-C mint: 1:1, no rate
+      // HTG-C mint: 1:1, no rate, no fee
       htgRequired = Math.round(htgMint * 100) / 100;
     }
 
@@ -143,9 +157,15 @@ Deno.serve(async (req) => {
       order_kind: orderKind,
     };
     if (orderKind === "usdc_conversion") {
-      insertPayload.usdc_amount = usdc;
-      insertPayload.rate = customerRate;
-      insertPayload.spot_rate = spot;
+      insertPayload.usdc_amount  = usdcNet;
+      insertPayload.usdc_gross   = usdcGross;
+      insertPayload.fee_bps      = totalBps;
+      insertPayload.theo_fee_bps = theoBps;
+      insertPayload.corridor_bps = corrBps;
+      insertPayload.fee_usdc     = feeUsdc;
+      insertPayload.theo_fee_usdc = theoFeeUsdc;
+      insertPayload.rate         = customerRate;
+      insertPayload.spot_rate    = spot;
     }
 
     const { data: order, error: insErr } = await admin
@@ -159,7 +179,11 @@ Deno.serve(async (req) => {
       JSON.stringify({
         quote_id: order.id,
         htg_required: htgRequired,
-        usdc_amount: usdc,
+        usdc_amount: usdcNet,
+        usdc_gross: usdcGross,
+        fee_usdc: feeUsdc,
+        fee_bps: totalBps,
+        theo_fee_bps: theoBps,
         rate: customerRate,
         spot_rate: spot,
         reference_number: referenceNumber,
