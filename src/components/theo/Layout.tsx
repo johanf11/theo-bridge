@@ -4,7 +4,7 @@ import { useAuth, useRoles } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import {
   LayoutGrid, ArrowLeftRight, ArrowRightLeft, Wallet, SendHorizonal,
-  Settings, LogOut, ShieldCheck, Search, Wrench, BookLock, DollarSign,
+  Settings, LogOut, ShieldCheck, Search, Wrench, BookLock, DollarSign, Receipt,
 } from "lucide-react";
 import { useSearch } from "@/contexts/SearchContext";
 
@@ -467,6 +467,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "rgba(255,255,255,0.35)", padding: "10px 6px 4px" }}>
             Account
           </div>
+          <NavItem to="/billing" label="Billing" icon={Receipt} />
           <NavItem to="/settings" label="Settings" icon={Settings} />
           {isAdmin && (
             <>
