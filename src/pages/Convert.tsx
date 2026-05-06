@@ -565,8 +565,8 @@ export default function Convert() {
               <div style={{ marginBottom: 14 }}>
                 <label style={labelStyle}>You receive</label>
                 <div className="flex items-center gap-2">
-                  {dirToggle(htgReceiveMode === "htgc", () => setHtgReceiveMode("htgc"), "HTG-C · 1:1 mint")}
                   {dirToggle(htgReceiveMode === "usdc", () => setHtgReceiveMode("usdc"), "USDC · auto-convert")}
+                  {dirToggle(htgReceiveMode === "htgc", () => setHtgReceiveMode("htgc"), "HTG-C · 1:1 mint")}
                 </div>
               </div>
 
