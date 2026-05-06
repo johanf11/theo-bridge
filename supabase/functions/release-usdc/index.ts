@@ -1,4 +1,6 @@
 // Release USDC on Stellar testnet. FUNDED -> RELEASING -> COMPLETED|FAILED.
+// If the distributor's USDC balance is below the order amount, the issuer
+// automatically mints the shortfall to the distributor first.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import {
   Asset, Horizon, Keypair, Memo, Networks, Operation, TransactionBuilder, BASE_FEE,
@@ -31,6 +33,7 @@ Deno.serve(async (req) => {
 
     const distributorSecret = Deno.env.get("STELLAR_DISTRIBUTOR_SECRET");
     const usdcIssuer = Deno.env.get("STELLAR_USDC_ISSUER");
+    const issuerSecret = Deno.env.get("STELLAR_HTGC_ISSUER_SECRET"); // also controls USDC on testnet
     if (!distributorSecret || !usdcIssuer) throw new Error("Stellar secrets not configured");
 
     // Lock: FUNDED -> RELEASING
@@ -68,6 +71,28 @@ Deno.serve(async (req) => {
     const sourceAccount = await server.loadAccount(distributor.publicKey());
     const usdc = new Asset("USDC", usdcIssuer);
     const amount = Number(locked.usdc_amount).toFixed(7);
+
+    // Auto-top-up: if distributor USDC balance < order amount, mint shortfall from issuer
+    const usdcBal = (sourceAccount.balances as Array<{ asset_code?: string; asset_issuer?: string; balance: string }>)
+      .find((b) => b.asset_code === "USDC" && b.asset_issuer === usdcIssuer);
+    const currentBal = parseFloat(usdcBal?.balance ?? "0");
+    const needed = parseFloat(amount);
+    if (currentBal < needed) {
+      if (!issuerSecret) throw new Error("Distributor USDC insufficient and STELLAR_HTGC_ISSUER_SECRET not set");
+      const topUp = (needed - currentBal + 1000).toFixed(7); // shortfall + 1 000 USDC buffer
+      const issuerKp = Keypair.fromSecret(issuerSecret);
+      const issuerAcct = await server.loadAccount(issuerKp.publicKey());
+      const mintTx = new TransactionBuilder(issuerAcct, { fee: BASE_FEE, networkPassphrase: Networks.TESTNET })
+        .addOperation(Operation.payment({ destination: distributor.publicKey(), asset: usdc, amount: topUp }))
+        .setTimeout(60)
+        .build();
+      mintTx.sign(issuerKp);
+      await server.submitTransaction(mintTx);
+      console.log(`Auto-minted ${topUp} USDC to distributor (was ${currentBal}, needed ${needed})`);
+      // Reload distributor account so sequence number is fresh for the next tx
+      const refreshed = await server.loadAccount(distributor.publicKey());
+      Object.assign(sourceAccount, refreshed);
+    }
 
     const tx = new TransactionBuilder(sourceAccount, {
       fee: BASE_FEE,

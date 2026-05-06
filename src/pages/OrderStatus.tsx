@@ -110,7 +110,7 @@ export default function OrderStatus() {
             <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground mb-2">
               {order.order_kind === "htgc_mint" ? "Deposit order" : "Conversion order"}
             </div>
-            <h1 className="font-display text-3xl md:text-4xl font-extrabold text-theo-blue tracking-tight">
+            <h1 className="text-3xl md:text-4xl font-extrabold text-theo-blue tracking-tight">
               Order <span className="ml-2">{order.reference_number}</span>
             </h1>
             <div className="h-[3px] w-10 bg-theo-gold mt-3" />
@@ -183,7 +183,7 @@ export default function OrderStatus() {
           <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-theo-blue/80">
             {order.order_kind === "htgc_mint" ? "HTG-C" : "USDC"}
           </div>
-          <div className="font-display text-3xl font-extrabold text-theo-blue mt-2 tracking-tight">
+          <div className="text-3xl font-extrabold text-theo-blue mt-2 tracking-tight">
             {order.order_kind === "htgc_mint"
               ? `${new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(order.htg_amount))} HTG-C`
               : fmtUSDC(Number(order.usdc_amount))}
@@ -191,13 +191,13 @@ export default function OrderStatus() {
         </div>
         <div className="rounded-2xl bg-card border p-5">
           <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">HTG due</div>
-          <div className="font-display text-3xl font-extrabold text-theo-blue mt-2 tracking-tight">
+          <div className="text-3xl font-extrabold text-theo-blue mt-2 tracking-tight">
             {fmtHTG(Number(order.htg_amount))}
           </div>
         </div>
         <div className="rounded-2xl bg-card border p-5">
           <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Rate</div>
-          <div className="font-display text-3xl font-extrabold text-theo-blue mt-2 tracking-tight">
+          <div className="text-3xl font-extrabold text-theo-blue mt-2 tracking-tight">
             {fmtRate(Number(order.rate))}
           </div>
         </div>
@@ -207,7 +207,7 @@ export default function OrderStatus() {
       {order.status === "QUOTED" && (
         <div className="rounded-2xl border bg-theo-blue-soft/60 mb-6 overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
-            <div className="flex items-center gap-2 font-display text-lg font-bold text-theo-blue">
+            <div className="flex items-center gap-2 text-lg font-bold text-theo-blue">
               <CreditCard className="h-4 w-4" /> Pay via SPIH
             </div>
             <div className={cn(
