@@ -196,7 +196,7 @@ export default function Convert() {
   // Sync the non-edited side when liveRate or fee bps change
   useEffect(() => {
     if (!liveRate || liveRate <= 0) return;
-    const f = ((profile?.fee_bps ?? 150) + (profile?.corridor_bps ?? 70)) / 10_000;
+    const f = ((profile?.fee_bps ?? 130) + (profile?.corridor_bps ?? 70)) / 10_000;
     if (htgLastEdited === "htg") {
       const gross = htgAmountRaw / liveRate;
       const net = gross * (1 - f);
