@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth, useRoles } from "@/lib/auth";
 import { fetchHorizonBalances } from "@/lib/balance";
-import { X, Plus, Building2, CheckCircle2 } from "lucide-react";
+import { X, Plus, Building2, CheckCircle2, ArrowUpDown } from "lucide-react";
 
 type Tab = "htg" | "swap" | "off";
 type KybStatus = "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
@@ -36,6 +36,10 @@ export default function Convert() {
   const [htgAmount, setHtgAmount] = useState("50,000");
   const [htgAmountRaw, setHtgAmountRaw] = useState(50000);
   const [htgBusy, setHtgBusy] = useState(false);
+  // Two-field widget (HTG → USDC mode): mirrored USDC net side
+  const [htgUsdcNetRaw, setHtgUsdcNetRaw] = useState(0);
+  const [htgUsdcNetDisplay, setHtgUsdcNetDisplay] = useState("");
+  const [htgLastEdited, setHtgLastEdited] = useState<"htg" | "usdc">("htg");
   // Tab 2: HTG-C ↔ USDC
   const [swapDir, setSwapDir] = useState<"htgc_to_usdc" | "usdc_to_htgc">("htgc_to_usdc");
   const [swapAmount, setSwapAmount] = useState("5,000");
@@ -189,6 +193,26 @@ export default function Convert() {
     return () => clearInterval(id);
   }, []);
 
+  // Sync the non-edited side when liveRate or fee bps change
+  useEffect(() => {
+    if (!liveRate || liveRate <= 0) return;
+    const f = ((profile?.fee_bps ?? 150) + (profile?.corridor_bps ?? 70)) / 10_000;
+    if (htgLastEdited === "htg") {
+      const gross = htgAmountRaw / liveRate;
+      const net = gross * (1 - f);
+      setHtgUsdcNetRaw(net);
+      setHtgUsdcNetDisplay(net > 0 ? net.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "");
+    } else {
+      const denom = 1 - f;
+      const gross = denom > 0 ? htgUsdcNetRaw / denom : 0;
+      const htg = gross * liveRate;
+      setHtgAmountRaw(htg);
+      setHtgAmount(htg > 0 ? Math.round(htg).toLocaleString("en-US") : "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveRate, profile?.fee_bps, profile?.corridor_bps]);
+
+
   const handleUsdcInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.replace(/[^\d]/g, "");
     const num = parseInt(raw, 10) || 0;
@@ -336,12 +360,47 @@ export default function Convert() {
     marginBottom: -1, transition: "all 130ms", whiteSpace: "nowrap",
   });
 
+  // Two-field widget math helpers (HTG → USDC mode)
+  const fmtUsdcStr = (n: number) =>
+    n > 0 ? n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "";
+  const fmtHtgStr = (n: number) =>
+    n > 0 ? Math.round(n).toLocaleString("en-US") : "";
+
   const handleHtgInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.replace(/[^\d]/g, "");
     const num = parseInt(raw, 10) || 0;
     setHtgAmountRaw(num);
     setHtgAmount(num ? num.toLocaleString("en-US") : "");
+    setHtgLastEdited("htg");
+    if (htgReceiveMode === "usdc" && liveRate && liveRate > 0) {
+      const f = totalBps / 10_000;
+      const gross = num / liveRate;
+      const net = gross * (1 - f);
+      setHtgUsdcNetRaw(net);
+      setHtgUsdcNetDisplay(fmtUsdcStr(net));
+    }
   };
+
+  const handleHtgUsdcInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Allow digits and a single decimal point
+    const cleaned = e.target.value.replace(/[^\d.]/g, "");
+    const parts = cleaned.split(".");
+    const normalized = parts.length > 1 ? `${parts[0]}.${parts.slice(1).join("").slice(0, 2)}` : parts[0];
+    const num = parseFloat(normalized) || 0;
+    setHtgUsdcNetRaw(num);
+    // Keep raw text while typing (so user can type "0." etc.) but show comma-formatted on blank/zero
+    setHtgUsdcNetDisplay(normalized);
+    setHtgLastEdited("usdc");
+    if (liveRate && liveRate > 0) {
+      const f = totalBps / 10_000;
+      const denom = 1 - f;
+      const gross = denom > 0 ? num / denom : 0;
+      const htg = gross * liveRate;
+      setHtgAmountRaw(htg);
+      setHtgAmount(fmtHtgStr(htg));
+    }
+  };
+
 
   const handleSwapInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.replace(/[^\d]/g, "");
@@ -357,9 +416,12 @@ export default function Convert() {
     if (htgReceiveMode === "usdc") {
       if (!canQuote) { toast.error("KYB approval required to convert to USDC"); return; }
       if (!liveRate) { toast.error("Rate unavailable, try again shortly"); return; }
-      const usdcEquiv = Math.floor(htgAmountRaw / liveRate);
-      if (usdcEquiv > 50000) {
-        toast.error("Maximum deposit is $50,000 USDC equivalent per order");
+      const f = totalBps / 10_000;
+      const denom = 1 - f;
+      const usdcGross = denom > 0 ? htgUsdcNetRaw / denom : 0;
+      const usdcGrossRounded = Math.round(usdcGross * 1e7) / 1e7;
+      if (usdcGrossRounded < 1000 || usdcGrossRounded > 50000) {
+        toast.error("Enter an amount between 1,000 and 50,000 USDC");
         return;
       }
       setHtgBusy(true);
@@ -367,7 +429,7 @@ export default function Convert() {
         const { data, error } = await supabase.functions.invoke("create-quote", {
           body: {
             order_kind: "usdc_conversion",
-            usdc_amount: usdcEquiv,
+            usdc_amount: usdcGrossRounded,
             destination_wallet_address: selectedWallet,
           },
         });
@@ -522,19 +584,95 @@ export default function Convert() {
                 </div>
               )}
 
-              <div style={{ marginBottom: 14 }}>
-                <label style={labelStyle}>HTG to deposit</label>
-                <div style={{ position: "relative" }}>
-                  <input
-                    style={{ ...inputStyle, paddingRight: 56 }}
-                    type="text" inputMode="numeric"
-                    value={htgAmount}
-                    onChange={handleHtgInput}
-                    placeholder="0"
-                  />
-                  <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>HTG</span>
+              {htgReceiveMode === "htgc" ? (
+                <div style={{ marginBottom: 14 }}>
+                  <label style={labelStyle}>HTG to deposit</label>
+                  <div style={{ position: "relative" }}>
+                    <input
+                      style={{ ...inputStyle, paddingRight: 56 }}
+                      type="text" inputMode="numeric"
+                      value={htgAmount}
+                      onChange={handleHtgInput}
+                      placeholder="0"
+                    />
+                    <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>HTG</span>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                /* Coinbase-style two-field HTG ↔ USDC widget */
+                <div style={{ marginBottom: 14, position: "relative" }}>
+                  <div className="rounded-xl" style={{ border: "1px solid hsl(var(--theo-blue-chip))", background: "white", overflow: "hidden" }}>
+                    {/* You send · HTG */}
+                    <div style={{ padding: "12px 14px" }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: "hsl(var(--theo-mid))", marginBottom: 6 }}>
+                        You send
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={htgAmount}
+                          onChange={handleHtgInput}
+                          onFocus={() => setHtgLastEdited("htg")}
+                          placeholder="0"
+                          style={{
+                            flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent",
+                            fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em",
+                            color: htgLastEdited === "htg" ? "hsl(var(--theo-blue))" : "hsl(var(--theo-mid))",
+                            fontFamily: "inherit", padding: 0,
+                          }}
+                        />
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>HTG</span>
+                      </div>
+                    </div>
+
+                    <div style={{ height: 1, background: "hsl(var(--theo-blue-chip))" }} />
+
+                    {/* You receive · USDC */}
+                    <div style={{ padding: "12px 14px" }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: "hsl(var(--theo-mid))", marginBottom: 6 }}>
+                        You receive
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={htgUsdcNetDisplay}
+                          onChange={handleHtgUsdcInput}
+                          onFocus={() => setHtgLastEdited("usdc")}
+                          placeholder="0.00"
+                          style={{
+                            flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent",
+                            fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em",
+                            color: htgLastEdited === "usdc" ? "hsl(var(--theo-blue))" : "hsl(var(--theo-mid))",
+                            fontFamily: "inherit", padding: 0,
+                          }}
+                        />
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>USDC</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Flip button — visual only */}
+                  <button
+                    type="button"
+                    aria-disabled="true"
+                    tabIndex={-1}
+                    onClick={(e) => e.preventDefault()}
+                    style={{
+                      position: "absolute", top: "50%", left: "50%",
+                      transform: "translate(-50%, -50%)",
+                      width: 32, height: 32, borderRadius: 999,
+                      background: "white",
+                      border: "1px solid hsl(var(--theo-blue-chip))",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      cursor: "default", padding: 0,
+                    }}
+                  >
+                    <ArrowUpDown style={{ width: 14, height: 14, color: "hsl(var(--theo-blue))" }} />
+                  </button>
+                </div>
+              )}
 
               <div style={{ marginBottom: 14 }}>
                 <label style={labelStyle}>Destination account</label>
@@ -584,22 +722,39 @@ export default function Convert() {
                   </>
                 ) : (
                   <>
-                    <div className="flex justify-between mb-1.5">
-                      <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>You receive (≈)</span>
-                      <span style={{ fontSize: 15, fontWeight: 800, color: "hsl(var(--theo-blue))" }}>
-                        {liveRate && htgAmountRaw > 0 ? `$${(htgAmountRaw / liveRate).toLocaleString("en-US", { maximumFractionDigits: 2 })} USDC` : "—"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between mb-1.5">
-                      <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Rate</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
-                        {liveRate ? `${liveRate.toFixed(2)} HTG / USDC` : "—"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Quote lock</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>15 minutes</span>
-                    </div>
+                    {(() => {
+                      const f = totalBps / 10_000;
+                      const denom = 1 - f;
+                      const grossUsdc = denom > 0 ? htgUsdcNetRaw / denom : 0;
+                      const feeOnly = grossUsdc - htgUsdcNetRaw;
+                      const feePct = (totalBps / 100).toFixed(2);
+                      return (
+                        <>
+                          <div className="flex justify-between mb-1.5">
+                            <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Rate</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
+                              {liveRate ? `${liveRate.toFixed(2)} HTG / USDC` : "—"}
+                            </span>
+                          </div>
+                          <div className="flex justify-between mb-1.5">
+                            <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Theo fee ({feePct}%)</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
+                              {feeOnly > 0 ? `− $${feeOnly.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC` : "—"}
+                            </span>
+                          </div>
+                          <div className="flex justify-between mb-1.5">
+                            <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>You receive net</span>
+                            <span style={{ fontSize: 15, fontWeight: 800, color: "hsl(var(--theo-blue))" }}>
+                              {htgUsdcNetRaw > 0 ? `$${htgUsdcNetRaw.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC` : "—"}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>Quote lock</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>15 minutes</span>
+                          </div>
+                        </>
+                      );
+                    })()}
                     <div className="flex items-center gap-1.5 mt-2.5 pt-2.5" style={{ borderTop: "1px solid hsl(var(--theo-blue-chip))" }}>
                       <div className="rounded-full" style={{ width: 6, height: 6, background: "hsl(var(--theo-cyan))" }} />
                       <span style={{ fontSize: 11, color: "hsl(var(--theo-blue))", fontWeight: 600 }}>
