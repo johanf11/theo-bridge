@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth, useRoles } from "@/lib/auth";
 import { fetchHorizonBalances } from "@/lib/balance";
-import { X, Plus, Building2, CheckCircle2 } from "lucide-react";
+import { X, Plus, Building2, CheckCircle2, ArrowUpDown } from "lucide-react";
 
 type Tab = "htg" | "swap" | "off";
 type KybStatus = "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
