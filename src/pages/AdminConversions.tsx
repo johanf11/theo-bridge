@@ -146,10 +146,10 @@ export default function AdminConversions() {
             Admin
           </div>
           <div className="font-extrabold" style={{ fontSize: 22, color: "hsl(var(--theo-blue))", letterSpacing: "-0.02em" }}>
-            Conversion Orders
+            Orders
           </div>
           <div style={{ fontSize: 13, color: "hsl(var(--theo-mid))", marginTop: 2 }}>
-            Confirm HTG receipt and release USDC to clients.
+            Confirm HTG receipt to move orders through the pipeline and release USDC or mint HTG-C.
           </div>
         </div>
         <button
