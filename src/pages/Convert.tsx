@@ -225,7 +225,7 @@ export default function Convert() {
   const canQuote = profile?.kyb_status === "APPROVED" && !profileLoading && !rateLoading;
 
   // Fee breakdown — bps applied to USDC notional
-  const feeBps      = profile?.fee_bps      ?? 150; // Theo margin
+  const feeBps      = profile?.fee_bps      ?? 130; // Theo net margin
   const corridorBps = profile?.corridor_bps ?? 70;  // MoneyGram corridor
   const totalBps    = feeBps + corridorBps;
   const feeUSDC     = usdcRaw * (totalBps / 10_000);
