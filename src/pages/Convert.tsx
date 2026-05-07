@@ -5,7 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth, useRoles } from "@/lib/auth";
 import { fetchHorizonBalances } from "@/lib/balance";
-import { X, Plus, Building2, CheckCircle2, ArrowUpDown, Loader2 } from "lucide-react";
+import { X, Plus, Building2, CheckCircle2, ArrowUpDown, Loader2, Info } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Tab = "htg" | "swap" | "off";
 type KybStatus = "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
@@ -50,6 +51,7 @@ export default function Convert() {
   const [balLoading, setBalLoading] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
+  const [lifetimeSavings, setLifetimeSavings] = useState(0);
   const [spotRate, setSpotRate] = useState<number | null>(null);
   const [liveRate, setLiveRate] = useState<number | null>(null);
   const [rateSource, setRateSource] = useState<"brh" | "cache" | "seed">("seed");
