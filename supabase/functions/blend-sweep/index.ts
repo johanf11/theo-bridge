@@ -61,8 +61,7 @@ Deno.serve(async (req) => {
     if (!sourceWalletId) return json({ error: "sourceWalletId required" }, 400);
     const parsedAmount = parseFloat(amount);
     if (!parsedAmount || parsedAmount <= 0) return json({ error: "Valid amount required" }, 400);
-    try { assertWithinLimits(parsedAmount, "Sweep amount"); }
-    catch (e) { return json({ error: (e as Error).message }, 400); }
+    // No external single-tx cap on internal Blend sweeps — wallet balance is the only limit.
 
     const { data: wallet } = await admin
       .from("wallets")
