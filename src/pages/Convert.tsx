@@ -494,6 +494,18 @@ export default function Convert() {
 
   const handleSwapSubmit = async () => {
     if (swapAmountRaw < 1) { toast.error("Enter an amount"); return; }
+    const usdcEquivalent = swapDir === "htgc_to_usdc"
+      ? swapAmountRaw / (liveRate ?? 130)
+      : swapAmountRaw;
+    if (usdcEquivalent < 1000) {
+      const minHtgc = Math.ceil(1000 * (liveRate ?? 130));
+      toast.error("Minimum swap not met", {
+        description: swapDir === "htgc_to_usdc"
+          ? `Swaps require at least 1,000 USDC equivalent (~${minHtgc.toLocaleString("en-US")} HTG-C).`
+          : "Swaps require at least 1,000 USDC.",
+      });
+      return;
+    }
     const wallet = walletOptions.find((w) => w.stellar_address === selectedWallet) ?? walletOptions[0];
     if (!wallet) { toast.error("No wallet selected"); return; }
     setSwapBusy(true);
