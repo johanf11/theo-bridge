@@ -1382,7 +1382,7 @@ export default function Convert() {
                     className="flex items-center justify-center gap-2"
                     style={{ flex: 2, background: offBusy ? "hsl(var(--theo-mid))" : "hsl(var(--theo-blue))", color: "#fff", border: "none", borderRadius: 9, padding: "10px", fontSize: 13, fontWeight: 700, cursor: offBusy ? "not-allowed" : "pointer", fontFamily: "inherit" }}
                   >
-                    {offBusy ? "Processing…" : <><CheckCircle2 size={14} /> Confirm withdrawal</>}
+                    {offBusy ? <><Loader2 size={14} className="animate-spin" /> Processing…</> : <><CheckCircle2 size={14} /> Confirm withdrawal</>}
                   </button>
                 </div>
               </div>
