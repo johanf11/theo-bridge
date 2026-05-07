@@ -617,7 +617,7 @@ export default function Payout() {
               </div>
             </>
           ) : (() => {
-            const bankFee = bankAmountRaw > 0 ? 1.5 + bankAmountRaw * 0.005 : 0;
+            const bankFee = bankAmountRaw > 0 ? bankAmountRaw * 0.005 : 0;
             const bankNet = Math.max(0, bankAmountRaw - bankFee);
             const selectedBankWallet = wallets.find((w) => w.id === sourceWalletId);
             const bankWalletBalance = Number(selectedBankWallet?.usdc_balance ?? 0);
@@ -739,7 +739,7 @@ export default function Payout() {
                     <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>${bankAmountRaw.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC</span>
                   </div>
                   <div className="flex justify-between" style={{ fontSize: 12, marginBottom: 6 }}>
-                    <span style={{ color: "hsl(var(--theo-mid))" }}>Estimated orchestrator fee <span style={{ opacity: 0.7 }}>($1.50 + 0.5%)</span></span>
+                    <span style={{ color: "hsl(var(--theo-mid))" }}>Estimated orchestrator fee <span style={{ opacity: 0.7 }}>(50 bps)</span></span>
                     <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>−${bankFee.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC</span>
                   </div>
                   <div className="flex justify-between" style={{ fontSize: 13, marginTop: 8, paddingTop: 8, borderTop: "1px solid hsl(var(--theo-light))" }}>
