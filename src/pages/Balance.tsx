@@ -177,11 +177,23 @@ export default function Balance() {
     loadWallets();
   };
 
+  const openSweepModal = (wallet: Wallet) => {
+    setSweepWallet(wallet);
+    setSweepAmount("");
+  };
+
+  const closeSweepModal = () => {
+    setSweepWallet(null);
+    setSweepAmount("");
+  };
+
   const handleSweep = async () => {
-    if (!sweepWallet || !sweepValid) return;
+    if (!sweepWallet) return;
+    const amountToSweep = Math.min(sweepAmountNum, sweepCap);
+    if (amountToSweep <= 0) return;
     setSweeping(true);
     const { data, error } = await supabase.functions.invoke("blend-sweep", {
-      body: { sourceWalletId: sweepWallet.id, amount: sweepAmountNum },
+      body: { sourceWalletId: sweepWallet.id, amount: amountToSweep },
     });
     setSweeping(false);
     if (error || (data as { error?: string })?.error) {
@@ -190,9 +202,8 @@ export default function Balance() {
       return;
     }
     const hash = (data as { hash?: string })?.hash ?? "";
-    toast.success(`Swept ${fmt(sweepAmountNum)} USDC to Blend · ${hash.slice(0, 8)}…`);
-    setSweepWallet(null);
-    setSweepAmount("");
+    toast.success(`Swept ${fmt(amountToSweep)} USDC to Blend · ${hash.slice(0, 8)}…`);
+    closeSweepModal();
     await Promise.all([loadWallets(), refreshBlend(), refreshTotal()]);
   };
 
@@ -481,7 +492,7 @@ export default function Balance() {
             </div>
           </div>
           <button
-            onClick={() => wallets.length > 0 && setSweepWallet(wallets[0])}
+            onClick={() => wallets.length > 0 && openSweepModal(wallets[0])}
             style={{
               background: "#1A7F37", border: "none", color: "#fff",
               borderRadius: 8, padding: "8px 16px", fontSize: 12,
@@ -599,7 +610,7 @@ export default function Balance() {
                       </button>
                     )}
                     <button
-                      onClick={() => setSweepWallet(w)}
+                      onClick={() => openSweepModal(w)}
                       style={{
                         flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
                         background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)",
@@ -656,7 +667,7 @@ export default function Balance() {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center"
           style={{ background: "rgba(15, 29, 84, 0.5)" }}
-          onClick={() => !sweeping && setSweepWallet(null)}
+          onClick={() => !sweeping && closeSweepModal()}
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -678,7 +689,7 @@ export default function Balance() {
                 </div>
               </div>
               <button
-                onClick={() => setSweepWallet(null)}
+                onClick={closeSweepModal}
                 style={{ background: "transparent", border: "none", cursor: "pointer", color: "hsl(var(--theo-mid))", padding: 4 }}
               >
                 <X size={18} />
@@ -697,7 +708,7 @@ export default function Balance() {
                   value={sweepAmount}
                   onChange={(e) => {
                     const v = parseFloat(e.target.value);
-                    if (!isNaN(v) && v > SWEEP_MAX) { setSweepAmount(String(SWEEP_MAX)); return; }
+                    if (!isNaN(v) && v > sweepCap) { setSweepAmount(String(sweepCap)); return; }
                     setSweepAmount(e.target.value);
                   }}
                   placeholder="0.00"
@@ -763,7 +774,7 @@ export default function Balance() {
             {/* Actions */}
             <div className="flex gap-2">
               <button
-                onClick={() => { setSweepWallet(null); setSweepAmount(""); }}
+                onClick={closeSweepModal}
                 disabled={sweeping}
                 style={{
                   flex: 1, background: "transparent", border: "1.5px solid hsl(var(--border))",
