@@ -95,8 +95,7 @@ Deno.serve(async (req) => {
     }
     const parsedAmount = Number(amount);
     if (!parsedAmount || parsedAmount <= 0) return json({ error: "Valid amount required" }, 400);
-    try { assertWithinLimits(parsedAmount, "Swap amount"); }
-    catch (e) { return json({ error: (e as Error).message }, 400); }
+    // Limits are denominated in USDC; convert when source is HTGC.
 
     // Wallet (must belong to caller, must have signing key)
     const { data: wallet } = await admin
