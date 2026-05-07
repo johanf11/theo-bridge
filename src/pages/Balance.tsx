@@ -606,7 +606,7 @@ export default function Balance() {
                       }}
                     >
                       <ArrowDownToLine size={10} />
-                      {pos ? "Add" : "Earn"}
+                      Earn
                     </button>
                   </div>
                 </div>
