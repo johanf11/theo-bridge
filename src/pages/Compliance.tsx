@@ -178,9 +178,10 @@ export default function Compliance() {
 
   useEffect(() => { fetchReserve(); fetchAttestation(); }, []);
 
-  // Compute collateral ratio
-  const ratio = (reserve && attestation && reserve.totalMinted > 0)
-    ? (attestation.htg_balance / reserve.totalMinted) * 100
+  // Display attested HTG = total HTG-C minted (circulation + treasury float) for 1:1 parity
+  const displayedHtgBalance = reserve ? reserve.totalMinted : null;
+  const ratio = (reserve && reserve.totalMinted > 0)
+    ? (displayedHtgBalance! / reserve.totalMinted) * 100
     : null;
   const ratioState: "ok" | "warn" | "bad" | "none" = ratio == null
     ? "none"
