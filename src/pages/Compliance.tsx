@@ -591,36 +591,6 @@ export default function Compliance() {
         </div>
       </div>
 
-      {/* On-chain verification link */}
-      <div style={{
-        borderRadius: 12, padding: "16px 20px",
-        background: "hsl(var(--theo-blue-soft))",
-        border: "1.5px solid hsl(var(--theo-blue) / 0.15)",
-        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
-      }}>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 14, color: "hsl(var(--theo-blue))", marginBottom: 3 }}>
-            Verify the reserve yourself
-          </div>
-          <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>
-            The treasury account is public. Open it on Stellar Expert to see every token movement — no trust required.
-          </div>
-        </div>
-        <a
-          href={`https://stellar.expert/explorer/testnet/account/${HTGC_DISTRIBUTOR}`}
-          target="_blank"
-          rel="noreferrer"
-          style={{
-            display: "flex", alignItems: "center", gap: 6,
-            background: "hsl(var(--theo-blue))", color: "#fff",
-            borderRadius: 8, padding: "9px 16px", fontSize: 12, fontWeight: 700,
-            textDecoration: "none", whiteSpace: "nowrap", flexShrink: 0,
-          }}
-        >
-          Open on Stellar Expert <ExternalLink style={{ width: 11, height: 11 }} />
-        </a>
-      </div>
-
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}</style>
