@@ -491,7 +491,7 @@ export default function Payout() {
               </div>
 
               {/* ── Amount ──────────────────────────────────────────── */}
-              <div style={{ marginBottom: 14 }}>
+              <div style={{ marginBottom: 10 }}>
                 <label style={labelStyle}>Amount (USDC)</label>
                 <div style={{ position: "relative" }}>
                   <input
@@ -511,7 +511,7 @@ export default function Payout() {
               </div>
 
               {/* ── Source account ───────────────────────────────────── */}
-              <div style={{ marginBottom: 14 }}>
+              <div style={{ marginBottom: 10 }}>
                 <label style={labelStyle}>Source account</label>
                 {walletsLoading ? (
                   <div style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>Loading accounts…</div>
@@ -530,7 +530,7 @@ export default function Payout() {
               </div>
 
               {/* ── Memo ────────────────────────────────────────────── */}
-              <div style={{ marginBottom: 14 }}>
+              <div style={{ marginBottom: 10 }}>
                 <label style={labelStyle}>Payment note (optional)</label>
                 <input
                   style={{ ...inputStyle, marginBottom: 0 }}
