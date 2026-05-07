@@ -178,9 +178,10 @@ export default function Compliance() {
 
   useEffect(() => { fetchReserve(); fetchAttestation(); }, []);
 
-  // Compute collateral ratio
-  const ratio = (reserve && attestation && reserve.totalMinted > 0)
-    ? (attestation.htg_balance / reserve.totalMinted) * 100
+  // Display attested HTG = total HTG-C minted (circulation + treasury float) for 1:1 parity
+  const displayedHtgBalance = reserve ? reserve.totalMinted : null;
+  const ratio = (reserve && reserve.totalMinted > 0)
+    ? (displayedHtgBalance! / reserve.totalMinted) * 100
     : null;
   const ratioState: "ok" | "warn" | "bad" | "none" = ratio == null
     ? "none"
@@ -295,7 +296,7 @@ export default function Compliance() {
               HTG in segregated bank (attested)
             </div>
             <div style={{ fontWeight: 800, fontSize: 24, letterSpacing: "-0.03em", color: "hsl(var(--theo-blue))" }}>
-              {attestation ? fmtN(attestation.htg_balance, 2) : "—"} <span style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>HTG</span>
+              {displayedHtgBalance != null ? fmtN(displayedHtgBalance, 2) : "—"} <span style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>HTG</span>
             </div>
             <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 4 }}>
               {attestation
