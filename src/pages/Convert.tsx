@@ -312,10 +312,16 @@ export default function Convert() {
   };
 
   const handleOffAmountInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value.replace(/[^\d]/g, "");
-    const num = parseInt(raw, 10) || 0;
+    const cleaned = e.target.value.replace(/[^\d.]/g, "");
+    const parts = cleaned.split(".");
+    const intPart = parts[0].replace(/^0+(?=\d)/, "");
+    const decPart = parts.length > 1 ? parts.slice(1).join("").slice(0, 2) : null;
+    const normalized = decPart !== null ? `${intPart || "0"}.${decPart}` : intPart;
+    const num = parseFloat(normalized) || 0;
     setOffAmountRaw(num);
-    setOffAmount(num ? num.toLocaleString("en-US") : "");
+    const intFormatted = intPart ? Number(intPart).toLocaleString("en-US") : "";
+    const display = decPart !== null ? `${intFormatted || "0"}.${decPart}` : intFormatted;
+    setOffAmount(display);
   };
 
   const loadBankAccounts = async () => {
@@ -1166,7 +1172,7 @@ export default function Convert() {
                 <div style={{ position: "relative" }}>
                   <input
                     style={{ ...inputStyle, paddingRight: 60 }}
-                    type="text" inputMode="numeric"
+                    type="text" inputMode="decimal"
                     value={offAmount}
                     onChange={handleOffAmountInput}
                     placeholder="0"
