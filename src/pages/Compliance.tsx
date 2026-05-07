@@ -453,42 +453,6 @@ export default function Compliance() {
         );
       })()}
 
-      {/* Peg explanation */}
-      <div style={{
-        display: "flex", gap: 0, borderRadius: 14, overflow: "hidden",
-        border: "1.5px solid hsl(var(--theo-light))", marginBottom: 20,
-      }}>
-        {/* Left — bank side */}
-        <div style={{ flex: 1, padding: "20px 22px", background: "hsl(var(--theo-cream))", borderRight: "1px solid hsl(var(--theo-light))" }}>
-          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "hsl(var(--theo-mid))", marginBottom: 8 }}>
-            Off-chain — SPIH Bank
-          </div>
-          <div style={{ fontWeight: 700, fontSize: 15, color: "hsl(var(--theo-ink))", marginBottom: 6 }}>Segregated HTG Account</div>
-          <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))", lineHeight: 1.6 }}>
-            When a business deposits HTG via SPIH, the funds land in Theo's dedicated, ring-fenced account.
-            They cannot be commingled with operating funds.
-          </div>
-        </div>
-        {/* Arrow */}
-        <div style={{
-          width: 48, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
-          background: "#fff", fontSize: 20, color: "hsl(var(--theo-blue))", fontWeight: 700,
-        }}>
-          ⇄
-        </div>
-        {/* Right — blockchain side */}
-        <div style={{ flex: 1, padding: "20px 22px", background: "#fff" }}>
-          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "hsl(var(--theo-mid))", marginBottom: 8 }}>
-            On-chain — Stellar Network
-          </div>
-          <div style={{ fontWeight: 700, fontSize: 15, color: "hsl(var(--theo-ink))", marginBottom: 6 }}>HTG-C Tokens Issued</div>
-          <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))", lineHeight: 1.6 }}>
-            For every HTG received, exactly one HTG-C is minted on Stellar and credited to the depositing wallet.
-            No token exists without a matching bank deposit.
-          </div>
-        </div>
-      </div>
-
       {/* Regulatory controls — plain language */}
       <div style={{ marginBottom: 20 }}>
         <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "hsl(var(--theo-mid))", marginBottom: 12 }}>
