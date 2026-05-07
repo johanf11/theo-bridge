@@ -704,16 +704,18 @@ export default function Balance() {
               <div className="flex items-center gap-2 rounded-xl" style={{ border: "1.5px solid hsl(var(--border))", padding: "10px 14px" }}>
                 <span style={{ fontSize: 18, fontWeight: 700, color: "hsl(var(--theo-mid))", marginRight: 2 }}>$</span>
                 <input
-                  type="number"
-                  value={sweepAmount}
+                  type="text"
+                  inputMode="decimal"
+                  value={sweepAmount === "" ? "" : Number(sweepAmount).toLocaleString("en-US")}
                   onChange={(e) => {
-                    const v = parseFloat(e.target.value);
+                    const raw = e.target.value.replace(/,/g, "");
+                    if (raw === "") { setSweepAmount(""); return; }
+                    if (!/^\d*\.?\d*$/.test(raw)) return;
+                    const v = parseFloat(raw);
                     if (!isNaN(v) && v > sweepCap) { setSweepAmount(String(sweepCap)); return; }
-                    setSweepAmount(e.target.value);
+                    setSweepAmount(raw);
                   }}
                   placeholder="0.00"
-                  min={0}
-                  max={sweepCap}
                   style={{
                     flex: 1, border: "none", outline: "none", fontSize: 22,
                     fontWeight: 800, color: "hsl(var(--theo-ink))", fontFamily: "inherit",
