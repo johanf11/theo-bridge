@@ -492,7 +492,7 @@ export default function Balance() {
             </div>
           </div>
           <button
-            onClick={() => wallets.length > 0 && setSweepWallet(wallets[0])}
+            onClick={() => wallets.length > 0 && openSweepModal(wallets[0])}
             style={{
               background: "#1A7F37", border: "none", color: "#fff",
               borderRadius: 8, padding: "8px 16px", fontSize: 12,
@@ -610,7 +610,7 @@ export default function Balance() {
                       </button>
                     )}
                     <button
-                      onClick={() => setSweepWallet(w)}
+                      onClick={() => openSweepModal(w)}
                       style={{
                         flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
                         background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)",
@@ -667,7 +667,7 @@ export default function Balance() {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center"
           style={{ background: "rgba(15, 29, 84, 0.5)" }}
-          onClick={() => !sweeping && setSweepWallet(null)}
+          onClick={() => !sweeping && closeSweepModal()}
         >
           <div
             onClick={(e) => e.stopPropagation()}
