@@ -674,7 +674,7 @@ export default function Balance() {
                   </span>
                 </div>
                 <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>
-                  {sweepWallet.label ?? "Wallet"} · ${fmt(sweepWalletBalance)} USDC available
+                  {sweepWallet.label ?? "Wallet"} · ${fmt(sweepWalletBalance)} USDC available · max ${fmt(SWEEP_MAX)}/sweep
                 </div>
               </div>
               <button
