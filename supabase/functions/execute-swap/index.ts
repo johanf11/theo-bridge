@@ -145,6 +145,10 @@ Deno.serve(async (req) => {
       htgAmount = destAmount;
     }
 
+    try { assertWithinLimits(usdcAmount, "Swap amount"); }
+    catch (e) { return json({ error: (e as Error).message }, 400); }
+
+
     const server = new Horizon.Server(HORIZON_URL);
     const userKp = Keypair.fromSecret(wallet.stellar_secret);
     let htgcBalanceBeforeLeg1: number | null = null;
