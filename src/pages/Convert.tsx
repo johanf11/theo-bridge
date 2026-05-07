@@ -412,11 +412,15 @@ export default function Convert() {
     // Allow digits and a single decimal point
     const cleaned = e.target.value.replace(/[^\d.]/g, "");
     const parts = cleaned.split(".");
-    const normalized = parts.length > 1 ? `${parts[0]}.${parts.slice(1).join("").slice(0, 2)}` : parts[0];
+    const intPart = parts[0].replace(/^0+(?=\d)/, "");
+    const decPart = parts.length > 1 ? parts.slice(1).join("").slice(0, 2) : null;
+    const normalized = decPart !== null ? `${intPart || "0"}.${decPart}` : intPart;
     const num = parseFloat(normalized) || 0;
     setHtgUsdcNetRaw(num);
-    // Keep raw text while typing (so user can type "0." etc.) but show comma-formatted on blank/zero
-    setHtgUsdcNetDisplay(normalized);
+    // Add thousand separators to the integer portion while preserving in-progress decimals
+    const intFormatted = intPart ? Number(intPart).toLocaleString("en-US") : "";
+    const display = decPart !== null ? `${intFormatted || "0"}.${decPart}` : intFormatted;
+    setHtgUsdcNetDisplay(display);
     setHtgLastEdited("usdc");
     if (liveRate && liveRate > 0) {
       const f = totalBps / 10_000;
