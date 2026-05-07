@@ -347,20 +347,29 @@ export default function Convert() {
     const bank = bankAccounts.find((b) => b.id === selectedBank);
     if (!bank) { toast.error("Please select a destination bank account"); return; }
     if (offAmountRaw < 100) { toast.error("Minimum withdrawal is 100 HTG-C"); return; }
-    const wallet = walletOptions.find((w) => w.stellar_address === selectedWallet) ?? walletOptions[0];
+    const wallet = walletOptions.find((w) => w.id === offSourceWallet)
+      ?? walletOptions.find((w) => w.stellar_address === selectedWallet)
+      ?? walletOptions[0];
     if (!wallet) { toast.error("No wallet selected"); return; }
     setOffBusy(true);
     try {
-      const { data, error } = await supabase.functions.invoke("execute-withdraw", {
-        body: { wallet_id: wallet.id, amount: offAmountRaw, bank_account_id: selectedBank },
+      const { data: c } = await supabase.from("customers").select("id").maybeSingle();
+      if (!c?.id) { toast.error("Customer not found"); return; }
+      const { data, error } = await supabase.functions.invoke("withdraw-htgc", {
+        body: {
+          customerId: c.id,
+          htgcAmount: offAmountRaw,
+          sourceWalletAddress: wallet.stellar_address,
+          destinationBankAccountId: selectedBank,
+        },
       });
       if (error || data?.error) {
         toast.error(data?.error || error?.message || "Withdrawal failed");
         return;
       }
       setOffConfirm(false);
-      toast.success(`${offAmount} HTG-C burned - ${offAmountRaw.toLocaleString("en-US")} HTG will arrive at your bank in 1-2 business days`);
-      navigate(`/orders/${data.orderId}`);
+      toast.success("Withdrawal submitted — HTG-C burned on-chain. HTG arrives in 1–2 business days via SPIH.");
+      navigate("/transactions");
     } finally {
       setOffBusy(false);
     }
