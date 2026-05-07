@@ -8,7 +8,7 @@ import { fetchHorizonBalances } from "@/lib/balance";
 import { X, Plus, Building2, CheckCircle2, ArrowUpDown, Loader2, Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-type Tab = "htg" | "swap" | "off";
+type Tab = "htg" | "swap" | "off" | "bank";
 type KybStatus = "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
 type Profile = { kyb_status: KybStatus; stellar_wallet_address: string | null; fee_bps: number; corridor_bps: number };
 type WalletOption = { id: string; label: string; stellar_address: string };
@@ -52,6 +52,14 @@ export default function Convert() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [lifetimeSavings, setLifetimeSavings] = useState(0);
+  // Bank Payout (Global) tab state
+  const [bankRecipientName, setBankRecipientName] = useState("");
+  const [bankBankName, setBankBankName] = useState("");
+  const [bankAccountNumber, setBankAccountNumber] = useState("");
+  const [bankRoutingCode, setBankRoutingCode] = useState("");
+  const [bankAmountRaw, setBankAmountRaw] = useState(0);
+  const [bankAmountDisplay, setBankAmountDisplay] = useState("");
+  const [bankBusy, setBankBusy] = useState(false);
   const [spotRate, setSpotRate] = useState<number | null>(null);
   const [liveRate, setLiveRate] = useState<number | null>(null);
   const [rateSource, setRateSource] = useState<"brh" | "cache" | "seed">("seed");
@@ -623,6 +631,7 @@ export default function Convert() {
             <button style={tabStyle("htg")} onClick={() => setTab("htg")}>Deposit HTG</button>
             <button style={tabStyle("swap")} onClick={() => setTab("swap")}>Swap</button>
             <button style={tabStyle("off")} onClick={() => setTab("off")}>Withdraw to Bank</button>
+            <button style={tabStyle("bank")} onClick={() => setTab("bank")}>Global Bank Payout</button>
           </div>
 
           {/* ── Tab 1: Deposit HTG → mint HTG-C OR auto-convert to USDC ── */}
