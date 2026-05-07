@@ -5,7 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth, useRoles } from "@/lib/auth";
 import { fetchHorizonBalances } from "@/lib/balance";
-import { X, Plus, Building2, CheckCircle2, ArrowUpDown, Loader2 } from "lucide-react";
+import { X, Plus, Building2, CheckCircle2, ArrowUpDown, Loader2, Info } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Tab = "htg" | "swap" | "off";
 type KybStatus = "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
@@ -50,6 +51,7 @@ export default function Convert() {
   const [balLoading, setBalLoading] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
+  const [lifetimeSavings, setLifetimeSavings] = useState(0);
   const [spotRate, setSpotRate] = useState<number | null>(null);
   const [liveRate, setLiveRate] = useState<number | null>(null);
   const [rateSource, setRateSource] = useState<"brh" | "cache" | "seed">("seed");
@@ -126,6 +128,23 @@ export default function Convert() {
           const def = b.find((x) => x.is_default) ?? b[0];
           if (def) setSelectedBank(def.id);
           setBankLoading(false);
+        }
+
+
+        // Lifetime savings: completed orders' usdc_amount × (5% − totalBps/10_000)
+        const { data: lifetimeOrders } = await supabase
+          .from("orders")
+          .select("usdc_amount")
+          .eq("customer_id", data.id)
+          .eq("status", "COMPLETED");
+        if (!cancelled) {
+          const totalBpsLocal = (data.fee_bps ?? 130) + (data.corridor_bps ?? 70);
+          const feeRate = totalBpsLocal / 10_000;
+          const sum = (lifetimeOrders ?? []).reduce((s, o: any) => {
+            const u = Number(o.usdc_amount ?? 0);
+            return s + u * 0.05 - u * feeRate;
+          }, 0);
+          setLifetimeSavings(Math.max(0, sum));
         }
       }
     });
@@ -1303,6 +1322,37 @@ export default function Convert() {
                 As of {new Date(rateCapturedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </div>
             )}
+          </div>
+
+          <div className="rounded-xl p-5 shadow-xs" style={{ background: "#EFFBF3" }}>
+            <div className="flex items-center gap-1 mb-2">
+              <div className="font-bold uppercase" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(150 50% 25%)" }}>
+                Lifetime Savings
+              </div>
+              <TooltipProvider delayDuration={150}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="How is lifetime savings calculated?"
+                      className="inline-flex items-center justify-center"
+                      style={{ background: "transparent", border: "none", padding: 0, cursor: "help", color: "hsl(150 50% 25%)" }}
+                    >
+                      <Info className="h-3 w-3" style={{ strokeWidth: 2 }} />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs text-xs">
+                    We calculate this by comparing our low fees to the 5% average markup charged by traditional banks and wire services.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <div className="font-extrabold leading-none" style={{ fontSize: 26, letterSpacing: "-1px", color: "hsl(150 70% 25%)" }}>
+              ${lifetimeSavings.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "hsl(150 30% 30%)", marginTop: 6 }}>
+              Compared to standard 5% market FX rates
+            </div>
           </div>
         </div>
       </div>
