@@ -416,7 +416,7 @@ export default function Payout() {
               </div>
 
               {/* ── Recipient fields ────────────────────────────────── */}
-              <div className="grid gap-3 mb-3.5" style={{ gridTemplateColumns: "1fr 1fr" }}>
+              <div className="grid gap-3 mb-2.5" style={{ gridTemplateColumns: "1fr 1fr" }}>
                 <div>
                   <label style={labelStyle}>Recipient name</label>
                   <input
