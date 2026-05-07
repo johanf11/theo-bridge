@@ -9,7 +9,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 
 type Tab = "single" | "bulk" | "global";
 
-type Wallet = { id: string; label: string; stellar_address: string };
+type Wallet = { id: string; label: string; stellar_address: string; usdc_balance: number };
 
 type Payout = {
   id: string;
