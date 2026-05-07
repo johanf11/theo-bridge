@@ -275,7 +275,7 @@ export default function Payout() {
 
       <div className="grid gap-4" style={{ gridTemplateColumns: "3fr 2fr" }}>
         {/* Payout form */}
-        <div className="bg-card border border-border rounded-xl shadow-xs" style={{ padding: "16px 20px" }}>
+        <div className="bg-card border border-border rounded-xl shadow-xs self-start" style={{ padding: "16px 20px 14px" }}>
           <div className="flex items-center justify-between mb-1">
             <div className="font-bold" style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>New payout</div>
             <span className="font-bold rounded-full" style={{ fontSize: 11, background: "hsl(var(--theo-blue-soft))", color: "hsl(var(--theo-blue))", padding: "3px 8px" }}>
