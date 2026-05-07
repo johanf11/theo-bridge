@@ -129,6 +129,23 @@ export default function Convert() {
           if (def) setSelectedBank(def.id);
           setBankLoading(false);
         }
+
+
+        // Lifetime savings: completed orders' usdc_amount × (5% − totalBps/10_000)
+        const { data: lifetimeOrders } = await supabase
+          .from("orders")
+          .select("usdc_amount")
+          .eq("customer_id", data.id)
+          .eq("status", "COMPLETED");
+        if (!cancelled) {
+          const totalBpsLocal = (data.fee_bps ?? 130) + (data.corridor_bps ?? 70);
+          const feeRate = totalBpsLocal / 10_000;
+          const sum = (lifetimeOrders ?? []).reduce((s, o: any) => {
+            const u = Number(o.usdc_amount ?? 0);
+            return s + u * 0.05 - u * feeRate;
+          }, 0);
+          setLifetimeSavings(Math.max(0, sum));
+        }
       }
     });
     // Fetch live BRH reference rate.
