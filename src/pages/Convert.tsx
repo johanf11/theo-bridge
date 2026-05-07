@@ -1336,14 +1336,29 @@ export default function Convert() {
           )}
 
           {tab === "wire" && (() => {
+            // Wire fee config:
+            // - WIRE_FLAT_FEE: $50 flat correspondent-bank wire fee
+            // - Variable fee 100 bps (1%) split as:
+            //     • 50 bps → OwlTing (orchestrator)
+            //     • 50 bps → Theo  (platform)
+            // - Volume incentive: amounts > $50,000 reduce Theo's portion
+            //   from 50 bps to 25 bps (total variable becomes 75 bps + $50 flat).
+            const WIRE_FLAT_FEE = 50;
+            const orchestratorBps = 50;
+            const platformBps = wireAmountRaw > 50000 ? 25 : 50;
+            const variableBps = orchestratorBps + platformBps;
+
             const selectedWireWallet = walletOptions.find((w) => w.id === wireSourceWallet);
             const wireUsdcBal = selectedWireWallet ? walletBalances.usdc : 0;
-            const orchestratorFee = wireAmountRaw * 0.005;
-            const platformFee = wireAmountRaw * 0.005;
-            const totalFees = orchestratorFee + platformFee;
-            const netDelivered = Math.max(0, wireAmountRaw - totalFees);
-            const totalDebit = wireAmountRaw + totalFees;
+
+            const orchestratorFee = wireAmountRaw * (orchestratorBps / 10000);
+            const platformFee = wireAmountRaw * (platformBps / 10000);
+            const variableFee = orchestratorFee + platformFee;
+            const totalCost = wireAmountRaw > 0 ? variableFee + WIRE_FLAT_FEE : 0;
+            const totalDebit = wireAmountRaw + totalCost;
+            const netDelivered = Math.max(0, wireAmountRaw); // recipient gets full principal in local currency
             const overBalance = totalDebit > wireUsdcBal;
+
             const allFilled =
               !!wireSourceWallet &&
               wireRecipientName.trim() &&
@@ -1361,9 +1376,11 @@ export default function Convert() {
                 iban: wireIban,
                 bank_city: wireBankCity,
                 amount_usdc: wireAmountRaw,
+                flat_fee_usdc: WIRE_FLAT_FEE,
                 orchestrator_fee_usdc: orchestratorFee,
                 platform_fee_usdc: platformFee,
-                net_delivered_usdc: netDelivered,
+                total_cost_usdc: totalCost,
+                total_debit_usdc: totalDebit,
                 rail: "owlpay-global",
               };
               console.log("[GlobalWire] payload", payload);
@@ -1371,6 +1388,9 @@ export default function Convert() {
               toast.success("Wire instruction sent to OwlPay orchestrator");
               setTimeout(() => setWireBusy(false), 1200);
             };
+
+            const fmt = (n: number) =>
+              n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
             return (
               <>
@@ -1388,7 +1408,7 @@ export default function Convert() {
                     <label style={{ ...labelStyle, marginBottom: 0 }}>Source account <span style={{ color: "#C00" }}>*</span></label>
                     {selectedWireWallet && (
                       <span style={{ display: "inline-block", background: "hsl(var(--theo-blue-soft))", color: "hsl(var(--theo-blue))", border: "1px solid hsl(var(--theo-blue-chip))", fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 999 }}>
-                        Available: {wireUsdcBal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC
+                        Available: {fmt(wireUsdcBal)} USDC
                       </span>
                     )}
                   </div>
@@ -1448,28 +1468,42 @@ export default function Convert() {
                   />
                   {overBalance && (
                     <div style={{ fontSize: 11, color: "hsl(var(--destructive))", marginTop: 6, fontWeight: 600 }}>
-                      Insufficient USDC — you need {totalDebit.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC including fees.
+                      Insufficient USDC — you need {fmt(totalDebit)} USDC including fees.
+                    </div>
+                  )}
+                  {wireAmountRaw > 50000 && (
+                    <div style={{ fontSize: 11, color: "hsl(var(--theo-cyan))", marginTop: 6, fontWeight: 600 }}>
+                      Volume incentive applied: Theo platform fee reduced to 0.25% (total 0.75% + $50 flat).
                     </div>
                   )}
                 </div>
 
-                {/* Fee breakdown */}
+                {/* Transfer Summary */}
                 <div className="rounded-xl mb-4 p-4" style={{ background: "hsl(var(--theo-cream))", border: "1px solid hsl(var(--theo-light))" }}>
-                  <div className="flex justify-between" style={{ fontSize: 12, marginBottom: 6 }}>
-                    <span style={{ color: "hsl(var(--theo-mid))" }}>Amount</span>
-                    <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>${wireAmountRaw.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC</span>
+                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: "hsl(var(--theo-cyan))", marginBottom: 10 }}>
+                    Transfer Summary
                   </div>
                   <div className="flex justify-between" style={{ fontSize: 12, marginBottom: 6 }}>
-                    <span style={{ color: "hsl(var(--theo-mid))" }}>OwlPay Network Settlement <span style={{ opacity: 0.7 }}>(0.50%)</span></span>
-                    <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>−${orchestratorFee.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC</span>
+                    <span style={{ color: "hsl(var(--theo-mid))" }}>Principal</span>
+                    <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>${fmt(wireAmountRaw)} USDC</span>
                   </div>
                   <div className="flex justify-between" style={{ fontSize: 12, marginBottom: 6 }}>
-                    <span style={{ color: "hsl(var(--theo-mid))" }}>Theo Platform Service <span style={{ opacity: 0.7 }}>(0.50%)</span></span>
-                    <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>−${platformFee.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC</span>
+                    <span style={{ color: "hsl(var(--theo-mid))" }}>Bank Wire Fee <span style={{ opacity: 0.7 }}>(Flat)</span></span>
+                    <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>${fmt(WIRE_FLAT_FEE)} USDC</span>
+                  </div>
+                  <div className="flex justify-between" style={{ fontSize: 12, marginBottom: 6 }}>
+                    <span style={{ color: "hsl(var(--theo-mid))" }}>Processing Fee <span style={{ opacity: 0.7 }}>({(variableBps / 100).toFixed(2)}%)</span></span>
+                    <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>${fmt(variableFee)} USDC</span>
                   </div>
                   <div className="flex justify-between" style={{ fontSize: 13, marginTop: 8, paddingTop: 8, borderTop: "1px solid hsl(var(--theo-light))" }}>
-                    <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>Recipient receives</span>
-                    <span style={{ fontWeight: 800, color: "hsl(var(--theo-blue))" }}>${netDelivered.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} in local currency</span>
+                    <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>Total Deducted</span>
+                    <span style={{ fontWeight: 800, color: "hsl(var(--theo-blue))" }}>${fmt(totalDebit)} USDC</span>
+                  </div>
+                  <div className="flex justify-between items-center" style={{ fontSize: 13, marginTop: 10, paddingTop: 10, borderTop: "1px dashed hsl(var(--theo-cyan))" }}>
+                    <span style={{ fontWeight: 800, color: "hsl(var(--theo-blue))" }}>Net Delivery</span>
+                    <span style={{ fontWeight: 800, color: "hsl(var(--theo-blue))" }}>
+                      Recipient will receive <span style={{ color: "hsl(var(--theo-cyan))" }}>${fmt(netDelivered)}</span> in local currency
+                    </span>
                   </div>
                 </div>
 
@@ -1493,7 +1527,7 @@ export default function Convert() {
                     fontFamily: "inherit",
                   }}
                 >
-                  {wireBusy ? "Initiating wire…" : "Send Global Wire →"}
+                  {wireBusy ? "Initiating wire…" : "Confirm Wire →"}
                 </button>
               </>
             );
