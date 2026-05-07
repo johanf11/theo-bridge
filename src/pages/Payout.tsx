@@ -629,11 +629,28 @@ export default function Payout() {
               </div>
             </>
           ) : (() => {
-            const bankFee = bankAmountRaw > 0 ? bankAmountRaw * 0.005 : 0;
-            const bankNet = Math.max(0, bankAmountRaw - bankFee);
+            // Wire fee config (matches Convert.tsx Global Wire tab):
+            // - WIRE_FLAT_FEE: $50 flat correspondent-bank wire fee
+            // - Variable fee 100 bps (1%) split:
+            //     • 50 bps → OwlTing (orchestrator)
+            //     • 50 bps → Theo  (platform)
+            // - Volume incentive: amounts > $50,000 reduce Theo's portion
+            //   from 50 bps → 25 bps (total variable becomes 75 bps + $50 flat).
+            const WIRE_FLAT_FEE = 50;
+            const orchestratorBps = 50;
+            const platformBps = bankAmountRaw > 50000 ? 25 : 50;
+            const variableBps = orchestratorBps + platformBps;
+
+            const orchestratorFee = bankAmountRaw * (orchestratorBps / 10000);
+            const platformFee = bankAmountRaw * (platformBps / 10000);
+            const variableFee = orchestratorFee + platformFee;
+            const totalCost = bankAmountRaw > 0 ? variableFee + WIRE_FLAT_FEE : 0;
+            const totalDebit = bankAmountRaw + totalCost;
+            const netDelivered = Math.max(0, bankAmountRaw);
+
             const selectedBankWallet = wallets.find((w) => w.id === sourceWalletId);
             const bankWalletBalance = Number(selectedBankWallet?.usdc_balance ?? 0);
-            const overBalance = bankAmountRaw > bankWalletBalance;
+            const overBalance = totalDebit > bankWalletBalance;
             const allFilled =
               bankRecipientName.trim() &&
               bankBankName.trim() &&
@@ -643,6 +660,8 @@ export default function Payout() {
               !!sourceWalletId;
             const disabled = bankBusy || !allFilled || overBalance || !can("payout_send");
 
+            const fmt = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
             const handleBankPayoutSubmit = async () => {
               const payload = {
                 recipient_name: bankRecipientName,
@@ -650,6 +669,11 @@ export default function Payout() {
                 account_number: bankAccountNumber,
                 routing_code: bankRoutingCode,
                 amount_usdc: bankAmountRaw,
+                flat_fee_usdc: WIRE_FLAT_FEE,
+                orchestrator_fee_usdc: orchestratorFee,
+                platform_fee_usdc: platformFee,
+                total_cost_usdc: totalCost,
+                total_debit_usdc: totalDebit,
                 orchestrator: "owlpay",
                 source_wallet: sourceWalletId,
               };
@@ -740,23 +764,42 @@ export default function Payout() {
                   />
                   {overBalance && (
                     <div style={{ fontSize: 11, color: "hsl(var(--destructive))", marginTop: 6, fontWeight: 600 }}>
-                      Insufficient USDC balance in selected account.
+                      Insufficient USDC — you need {fmt(totalDebit)} USDC including fees.
+                    </div>
+                  )}
+                  {bankAmountRaw > 50000 && (
+                    <div style={{ fontSize: 11, color: "hsl(var(--theo-cyan))", marginTop: 6, fontWeight: 600 }}>
+                      Volume incentive applied: Theo platform fee reduced to 0.25% (total 0.75% + $50 flat).
                     </div>
                   )}
                 </div>
 
+                {/* Transfer Summary */}
                 <div className="rounded-xl mb-4 p-4" style={{ background: "hsl(var(--theo-cream))", border: "1px solid hsl(var(--theo-light))" }}>
-                  <div className="flex justify-between" style={{ fontSize: 12, marginBottom: 6 }}>
-                    <span style={{ color: "hsl(var(--theo-mid))" }}>Amount</span>
-                    <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>${bankAmountRaw.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC</span>
+                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: "hsl(var(--theo-cyan))", marginBottom: 10 }}>
+                    Transfer Summary
                   </div>
                   <div className="flex justify-between" style={{ fontSize: 12, marginBottom: 6 }}>
-                    <span style={{ color: "hsl(var(--theo-mid))" }}>Estimated orchestrator fee <span style={{ opacity: 0.7 }}>(0.50%)</span></span>
-                    <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>−${bankFee.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC</span>
+                    <span style={{ color: "hsl(var(--theo-mid))" }}>Principal</span>
+                    <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>${fmt(bankAmountRaw)} USDC</span>
+                  </div>
+                  <div className="flex justify-between" style={{ fontSize: 12, marginBottom: 6 }}>
+                    <span style={{ color: "hsl(var(--theo-mid))" }}>Bank Wire Fee <span style={{ opacity: 0.7 }}>(Flat)</span></span>
+                    <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>${fmt(WIRE_FLAT_FEE)} USDC</span>
+                  </div>
+                  <div className="flex justify-between" style={{ fontSize: 12, marginBottom: 6 }}>
+                    <span style={{ color: "hsl(var(--theo-mid))" }}>Processing Fee <span style={{ opacity: 0.7 }}>({(variableBps / 100).toFixed(2)}%)</span></span>
+                    <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>${fmt(variableFee)} USDC</span>
                   </div>
                   <div className="flex justify-between" style={{ fontSize: 13, marginTop: 8, paddingTop: 8, borderTop: "1px solid hsl(var(--theo-light))" }}>
-                    <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>Recipient receives</span>
-                    <span style={{ fontWeight: 800, color: "hsl(var(--theo-blue))" }}>${bankNet.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC</span>
+                    <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>Total Deducted</span>
+                    <span style={{ fontWeight: 800, color: "hsl(var(--theo-blue))" }}>${fmt(totalDebit)} USDC</span>
+                  </div>
+                  <div className="flex justify-between items-center" style={{ fontSize: 13, marginTop: 10, paddingTop: 10, borderTop: "1px dashed hsl(var(--theo-cyan))" }}>
+                    <span style={{ fontWeight: 800, color: "hsl(var(--theo-blue))" }}>Net Delivery</span>
+                    <span style={{ fontWeight: 800, color: "hsl(var(--theo-blue))" }}>
+                      Recipient will receive <span style={{ color: "hsl(var(--theo-cyan))" }}>${fmt(netDelivered)}</span> in local currency
+                    </span>
                   </div>
                 </div>
 
@@ -765,14 +808,14 @@ export default function Payout() {
                   disabled={disabled}
                   className="w-full font-bold"
                   style={{
-                    background: disabled ? "hsl(var(--theo-light))" : "hsl(var(--theo-blue))",
+                    background: disabled ? "hsl(var(--theo-light))" : "hsl(var(--theo-cyan))",
                     color: disabled ? "hsl(var(--theo-mid))" : "#fff",
                     borderRadius: 9, padding: "12px", fontSize: 14, border: "none",
                     cursor: disabled ? "not-allowed" : "pointer",
                     fontFamily: "inherit",
                   }}
                 >
-                  {bankBusy ? "Initiating…" : "Confirm Payout →"}
+                  {bankBusy ? "Initiating wire…" : "Confirm Wire →"}
                 </button>
               </>
             );
