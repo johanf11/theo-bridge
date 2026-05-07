@@ -601,7 +601,7 @@ export default function Payout() {
                 </div>
               )}
             </form>
-          ) : (
+          ) : tab === "bulk" ? (
             <>
               <div
                 className="text-center cursor-pointer transition-colors"
@@ -621,7 +621,110 @@ export default function Payout() {
                 </a>
               </div>
             </>
-          )}
+          ) : (() => {
+            const bankFee = bankAmountRaw > 0 ? 1.5 + bankAmountRaw * 0.005 : 0;
+            const bankNet = Math.max(0, bankAmountRaw - bankFee);
+            const allFilled =
+              bankRecipientName.trim() &&
+              bankBankName.trim() &&
+              bankAccountNumber.trim() &&
+              bankRoutingCode.trim() &&
+              bankAmountRaw > 0;
+            const disabled = bankBusy || !allFilled || !can("payout_send");
+
+            const handleBankPayoutSubmit = async () => {
+              const payload = {
+                recipient_name: bankRecipientName,
+                bank_name: bankBankName,
+                account_number: bankAccountNumber,
+                routing_code: bankRoutingCode,
+                amount_usdc: bankAmountRaw,
+                orchestrator: "owlpay",
+                source_wallet: sourceWalletId,
+              };
+              console.log("[BankPayout] payload", payload);
+              setBankBusy(true);
+              toast("Initiating orchestrator bridge...");
+              setTimeout(() => setBankBusy(false), 1200);
+            };
+
+            return (
+              <>
+                <div className="rounded-xl mb-4 flex items-start gap-2.5" style={{ background: "hsl(var(--theo-blue-soft))", border: "1px solid hsl(var(--theo-cyan))", padding: "12px 14px" }}>
+                  <Building2 className="shrink-0" style={{ width: 16, height: 16, color: "hsl(var(--theo-cyan))", marginTop: 1 }} />
+                  <div style={{ fontSize: 12, color: "hsl(var(--theo-blue))", lineHeight: 1.6 }}>
+                    Settlements to bank accounts are processed via <strong>OwlPay</strong> regulated rails. Requires a valid business license and may take 1–3 business days.
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 12 }}>
+                  <label style={labelStyle}>Recipient full name <span style={{ color: "#C00" }}>*</span></label>
+                  <input style={inputStyle} value={bankRecipientName} onChange={(e) => setBankRecipientName(e.target.value)} placeholder="Jane Doe" />
+                </div>
+
+                <div style={{ marginBottom: 12 }}>
+                  <label style={labelStyle}>Bank name <span style={{ color: "#C00" }}>*</span></label>
+                  <input style={inputStyle} value={bankBankName} onChange={(e) => setBankBankName(e.target.value)} placeholder="HSBC, BBVA, etc." />
+                </div>
+
+                <div style={{ marginBottom: 12 }}>
+                  <label style={labelStyle}>Account number / IBAN / CLABE <span style={{ color: "#C00" }}>*</span></label>
+                  <input style={inputStyle} value={bankAccountNumber} onChange={(e) => setBankAccountNumber(e.target.value)} placeholder="GB29 NWBK 6016 1331 9268 19" />
+                </div>
+
+                <div style={{ marginBottom: 12 }}>
+                  <label style={labelStyle}>Routing / SWIFT code <span style={{ color: "#C00" }}>*</span></label>
+                  <input style={inputStyle} value={bankRoutingCode} onChange={(e) => setBankRoutingCode(e.target.value)} placeholder="NWBKGB2L" />
+                </div>
+
+                <div style={{ marginBottom: 12 }}>
+                  <label style={labelStyle}>Amount (USDC) <span style={{ color: "#C00" }}>*</span></label>
+                  <input
+                    style={inputStyle}
+                    inputMode="decimal"
+                    value={bankAmountDisplay}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/[^\d.]/g, "");
+                      const num = parseFloat(raw) || 0;
+                      setBankAmountRaw(num);
+                      setBankAmountDisplay(raw);
+                    }}
+                    placeholder="0.00"
+                  />
+                </div>
+
+                <div className="rounded-xl mb-4 p-4" style={{ background: "hsl(var(--theo-cream))", border: "1px solid hsl(var(--theo-light))" }}>
+                  <div className="flex justify-between" style={{ fontSize: 12, marginBottom: 6 }}>
+                    <span style={{ color: "hsl(var(--theo-mid))" }}>Amount</span>
+                    <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>${bankAmountRaw.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC</span>
+                  </div>
+                  <div className="flex justify-between" style={{ fontSize: 12, marginBottom: 6 }}>
+                    <span style={{ color: "hsl(var(--theo-mid))" }}>Estimated orchestrator fee <span style={{ opacity: 0.7 }}>($1.50 + 0.5%)</span></span>
+                    <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>−${bankFee.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC</span>
+                  </div>
+                  <div className="flex justify-between" style={{ fontSize: 13, marginTop: 8, paddingTop: 8, borderTop: "1px solid hsl(var(--theo-light))" }}>
+                    <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>Recipient receives</span>
+                    <span style={{ fontWeight: 800, color: "hsl(var(--theo-blue))" }}>${bankNet.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC</span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleBankPayoutSubmit}
+                  disabled={disabled}
+                  className="w-full font-bold"
+                  style={{
+                    background: disabled ? "hsl(var(--theo-light))" : "hsl(var(--theo-blue))",
+                    color: disabled ? "hsl(var(--theo-mid))" : "#fff",
+                    borderRadius: 9, padding: "12px", fontSize: 14, border: "none",
+                    cursor: disabled ? "not-allowed" : "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  {bankBusy ? "Initiating…" : "Confirm Payout →"}
+                </button>
+              </>
+            );
+          })()}
         </div>
 
         {/* Recent payouts */}
