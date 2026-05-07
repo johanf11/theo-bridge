@@ -244,6 +244,107 @@ export default function Compliance() {
         </div>
       )}
 
+      {/* Proof of Reserve — minted vs bank, side by side */}
+      <div style={{
+        borderRadius: 14, marginBottom: 20, overflow: "hidden",
+        border: `1.5px solid ${ratioState === "ok" ? "#86EFAC" : ratioState === "warn" ? "#FCD34D" : ratioState === "bad" ? "#FCA5A5" : "hsl(var(--theo-light))"}`,
+        background: "#fff",
+      }}>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "12px 18px",
+          background: ratioBg,
+          borderBottom: `1px solid ${ratioState === "ok" ? "#BBF7D0" : ratioState === "warn" ? "#FDE68A" : ratioState === "bad" ? "#FECACA" : "hsl(var(--theo-light))"}`,
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.16em", color: ratioColor }}>
+            Proof of Reserve
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: ratioColor }}>
+            {ratioState === "ok" && <CheckCircle2 style={{ width: 13, height: 13 }} />}
+            {(ratioState === "warn" || ratioState === "bad") && <AlertTriangle style={{ width: 13, height: 13 }} />}
+            {ratio != null ? `${ratio.toFixed(2)}% collateralised` : "Loading…"}
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 48px 1fr", alignItems: "stretch" }}>
+          {/* Left: HTG-C minted on-chain */}
+          <div style={{ padding: "18px 22px" }}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "hsl(var(--theo-mid))", marginBottom: 6 }}>
+              HTG-C in circulation (on-chain)
+            </div>
+            <div style={{ fontWeight: 800, fontSize: 24, letterSpacing: "-0.03em", color: "hsl(var(--theo-blue))" }}>
+              {state === "ok" && reserve ? fmtN(reserve.totalMinted, 2) : "—"} <span style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>HTG-C</span>
+            </div>
+            <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 4 }}>
+              Live from Stellar · refreshed {fetchedAt ? fetchedAt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "—"}
+            </div>
+          </div>
+
+          {/* Equals divider */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: "hsl(var(--theo-cream))", borderLeft: "1px solid hsl(var(--theo-light))", borderRight: "1px solid hsl(var(--theo-light))",
+            fontSize: 22, fontWeight: 700, color: ratioColor,
+          }}>
+            =
+          </div>
+
+          {/* Right: HTG in bank, attested */}
+          <div style={{ padding: "18px 22px" }}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "hsl(var(--theo-mid))", marginBottom: 6 }}>
+              HTG in segregated bank (attested)
+            </div>
+            <div style={{ fontWeight: 800, fontSize: 24, letterSpacing: "-0.03em", color: "hsl(var(--theo-blue))" }}>
+              {attestation ? fmtN(attestation.htg_balance, 2) : "—"} <span style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>HTG</span>
+            </div>
+            <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 4 }}>
+              {attestation
+                ? <>{attestation.period_label} · attested by {attestation.auditor_name ?? "auditor"}</>
+                : "Awaiting attestation"}
+            </div>
+          </div>
+        </div>
+
+        {/* CTA strip */}
+        <div style={{
+          display: "flex", gap: 10, padding: "12px 18px",
+          background: "hsl(var(--theo-cream))", borderTop: "1px solid hsl(var(--theo-light))",
+        }}>
+          <a
+            href={`https://stellar.expert/explorer/testnet/asset/HTGC-${HTGC_ISSUER}`}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-blue))",
+              textDecoration: "none",
+              padding: "6px 12px", borderRadius: 7,
+              background: "#fff", border: "1.5px solid hsl(var(--theo-blue))",
+            }}
+          >
+            <ExternalLink style={{ width: 12, height: 12 }} />
+            Verify on-chain (issuer asset page)
+          </a>
+          {attestation?.attestation_pdf_url && (
+            <a
+              href={attestation.attestation_pdf_url}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-blue))",
+                textDecoration: "none",
+                padding: "6px 12px", borderRadius: 7,
+                background: "#fff", border: "1.5px solid hsl(var(--theo-light))",
+              }}
+            >
+              <FileText style={{ width: 12, height: 12 }} />
+              Download attestation (PDF)
+            </a>
+          )}
+        </div>
+      </div>
+
       {/* Reserve stats — 4 cards: total minted, circulation, treasury, backing ratio */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 14, marginBottom: 20 }}>
         <StatCard
