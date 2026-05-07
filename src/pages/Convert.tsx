@@ -1135,8 +1135,8 @@ export default function Convert() {
             <>
               {/* Amount */}
               <div style={{ marginBottom: 14 }}>
-                <label style={labelStyle}>HTG-C to redeem</label>
-                <div style={{ marginBottom: 6 }}>
+                <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
+                  <label style={{ ...labelStyle, marginBottom: 0 }}>HTG-C to redeem</label>
                   <span
                     style={{
                       display: "inline-block",
