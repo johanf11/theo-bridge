@@ -1047,9 +1047,57 @@ export default function Convert() {
                   />
                   <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>HTG-C</span>
                 </div>
-                <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 4 }}>
-                  You receive <strong>{offAmountRaw > 0 ? offAmountRaw.toLocaleString("en-US") : "—"} HTG</strong> at your bank · 1:1 peg
+              {/* Amount */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelStyle}>HTG-C to redeem</label>
+                <div style={{ marginBottom: 6 }}>
+                  <span
+                    style={{
+                      display: "inline-block",
+                      background: "hsl(var(--theo-light))",
+                      color: "hsl(var(--theo-blue))",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      padding: "3px 9px",
+                      borderRadius: 999,
+                      letterSpacing: "0.01em",
+                    }}
+                  >
+                    Available: {offHtgcLoading || offHtgcBalance == null
+                      ? "—"
+                      : offHtgcBalance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} HTG-C
+                  </span>
                 </div>
+                <div style={{ position: "relative" }}>
+                  <input
+                    style={{ ...inputStyle, paddingRight: 60 }}
+                    type="text" inputMode="numeric"
+                    value={offAmount}
+                    onChange={handleOffAmountInput}
+                    placeholder="0"
+                  />
+                  <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>HTG-C</span>
+                </div>
+                {offHtgcBalance != null && offAmountRaw > offHtgcBalance ? (
+                  <div style={{ fontSize: 11, color: "hsl(var(--destructive))", marginTop: 6, fontWeight: 600 }}>
+                    Insufficient HTG-C balance.{" "}
+                    <button
+                      type="button"
+                      onClick={() => setTab("swap")}
+                      style={{
+                        background: "none", border: "none", padding: 0, cursor: "pointer",
+                        color: "hsl(var(--theo-cyan))", fontWeight: 700, textDecoration: "underline",
+                        fontFamily: "inherit", fontSize: 11,
+                      }}
+                    >
+                      Swap USDC → HTG-C first.
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 4 }}>
+                    You receive <strong>{offAmountRaw > 0 ? offAmountRaw.toLocaleString("en-US") : "—"} HTG</strong> at your bank · 1:1 peg
+                  </div>
+                )}
               </div>
 
               {/* Source wallet */}
