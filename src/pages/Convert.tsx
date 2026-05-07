@@ -1551,7 +1551,7 @@ export default function Convert() {
                   <div className="flex justify-between items-center" style={{ fontSize: 13, marginTop: 10, paddingTop: 10, borderTop: "1px dashed hsl(var(--theo-cyan))" }}>
                     <span style={{ fontWeight: 800, color: "hsl(var(--theo-blue))" }}>Net Delivery</span>
                     <span style={{ fontWeight: 800, color: "hsl(var(--theo-blue))" }}>
-                      Recipient will receive <span style={{ color: "hsl(var(--theo-cyan))" }}>${fmt(netDelivered)}</span> in local currency
+                      Destination Account will receive <span style={{ color: "hsl(var(--theo-cyan))" }}>${fmt(netDelivered)}</span> in local currency
                     </span>
                   </div>
                 </div>
