@@ -656,6 +656,7 @@ export default function Convert() {
             <button style={tabStyle("htg")} onClick={() => setTab("htg")}>Deposit HTG</button>
             <button style={tabStyle("swap")} onClick={() => setTab("swap")}>Swap</button>
             <button style={tabStyle("off")} onClick={() => setTab("off")}>Withdraw to Bank</button>
+            <button style={tabStyle("wire")} onClick={() => setTab("wire")}>Global Wire</button>
             
           </div>
 
