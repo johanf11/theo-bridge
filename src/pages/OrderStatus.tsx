@@ -57,7 +57,7 @@ export default function OrderStatus() {
     load();
     fetchedRef.current = true;
 
-    const ch = supabase.channel(`order-${id}`)
+    const ch = supabase.channel(`order-${id}`, { config: { private: true } })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders", filter: `id=eq.${id}` },
         (p) => setOrder(p.new as Order))
       .subscribe();
