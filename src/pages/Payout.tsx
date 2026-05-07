@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { useSearch } from "@/contexts/SearchContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { fetchHorizonBalances } from "@/lib/balance";
 
 type Tab = "single" | "bulk" | "global";
 
