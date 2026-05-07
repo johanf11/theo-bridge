@@ -275,7 +275,7 @@ export default function Payout() {
 
       <div className="grid gap-4" style={{ gridTemplateColumns: "3fr 2fr" }}>
         {/* Payout form */}
-        <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
+        <div className="bg-card border border-border rounded-xl shadow-xs" style={{ padding: "16px 20px" }}>
           <div className="flex items-center justify-between mb-1">
             <div className="font-bold" style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>New payout</div>
             <span className="font-bold rounded-full" style={{ fontSize: 11, background: "hsl(var(--theo-blue-soft))", color: "hsl(var(--theo-blue))", padding: "3px 8px" }}>
@@ -283,7 +283,7 @@ export default function Payout() {
             </span>
           </div>
 
-          <div className="flex border-b border-border mb-4 mt-3">
+          <div className="flex border-b border-border mb-2 mt-2">
             <button style={tabStyle("single")} onClick={() => setTab("single")}>Single recipient</button>
             <button style={tabStyle("bulk")} onClick={() => setTab("bulk")}>Mass transfer</button>
           </div>
@@ -292,7 +292,7 @@ export default function Payout() {
             <form onSubmit={handleSend}>
 
               {/* ── Saved recipients selector ───────────────────────── */}
-              <div style={{ marginBottom: 16 }}>
+              <div style={{ marginBottom: 10 }}>
                 <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
                   <label style={labelStyle}>Saved recipients</label>
                   {savedRecipients.length > 0 && (
