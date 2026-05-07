@@ -108,7 +108,9 @@ export default function Balance() {
 
   const sweepAmountNum = parseFloat(sweepAmount) || 0;
   const sweepWalletBalance = sweepWallet ? (balances[sweepWallet.id] ?? 0) : 0;
-  const sweepValid = sweepAmountNum > 0 && sweepAmountNum <= sweepWalletBalance;
+  const SWEEP_MAX = 50_000;
+  const sweepCap = Math.min(sweepWalletBalance, SWEEP_MAX);
+  const sweepValid = sweepAmountNum > 0 && sweepAmountNum <= sweepCap;
 
   const startEdit = (w: Wallet) => {
     setEditingId(w.id);
@@ -672,7 +674,7 @@ export default function Balance() {
                   </span>
                 </div>
                 <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>
-                  {sweepWallet.label ?? "Wallet"} · ${fmt(sweepWalletBalance)} USDC available
+                  {sweepWallet.label ?? "Wallet"} · ${fmt(sweepWalletBalance)} USDC available · max ${fmt(SWEEP_MAX)}/sweep
                 </div>
               </div>
               <button
@@ -693,10 +695,14 @@ export default function Balance() {
                 <input
                   type="number"
                   value={sweepAmount}
-                  onChange={(e) => setSweepAmount(e.target.value)}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    if (!isNaN(v) && v > SWEEP_MAX) { setSweepAmount(String(SWEEP_MAX)); return; }
+                    setSweepAmount(e.target.value);
+                  }}
                   placeholder="0.00"
                   min={0}
-                  max={sweepWalletBalance}
+                  max={sweepCap}
                   style={{
                     flex: 1, border: "none", outline: "none", fontSize: 22,
                     fontWeight: 800, color: "hsl(var(--theo-ink))", fontFamily: "inherit",
@@ -705,7 +711,7 @@ export default function Balance() {
                 />
                 <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>USDC</span>
                 <button
-                  onClick={() => setSweepAmount(String(sweepWalletBalance))}
+                  onClick={() => setSweepAmount(String(sweepCap))}
                   style={{
                     background: "hsl(var(--theo-cream))", border: "1px solid hsl(var(--border))",
                     color: "hsl(var(--theo-blue))", borderRadius: 6, padding: "3px 8px",
