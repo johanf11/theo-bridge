@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { AppLayout } from "@/components/theo/Layout";
-import { Upload, Loader2, Star, X, ChevronDown, ChevronUp, CheckCircle2, AlertTriangle, Info } from "lucide-react";
+import { Upload, Loader2, Star, X, ChevronDown, ChevronUp, CheckCircle2, AlertTriangle, Info, Building2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { useSearch } from "@/contexts/SearchContext";
 import { usePermissions } from "@/hooks/usePermissions";
 
-type Tab = "single" | "bulk";
+type Tab = "single" | "bulk" | "global";
 
 type Wallet = { id: string; label: string; stellar_address: string };
 
@@ -66,6 +66,15 @@ export default function Payout() {
   // Recent payouts
   const [payouts, setPayouts] = useState<Payout[]>([]);
   const [payoutsLoading, setPayoutsLoading] = useState(true);
+
+  // Global Bank Payout (OwlPay) state
+  const [bankRecipientName, setBankRecipientName] = useState("");
+  const [bankBankName, setBankBankName] = useState("");
+  const [bankAccountNumber, setBankAccountNumber] = useState("");
+  const [bankRoutingCode, setBankRoutingCode] = useState("");
+  const [bankAmountRaw, setBankAmountRaw] = useState(0);
+  const [bankAmountDisplay, setBankAmountDisplay] = useState("");
+  const [bankBusy, setBankBusy] = useState(false);
 
   // Derived: selected recipient matches a saved one
   const isAlreadySaved = savedRecipients.some(
