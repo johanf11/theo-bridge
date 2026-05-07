@@ -296,7 +296,7 @@ export default function Compliance() {
               HTG in segregated bank (attested)
             </div>
             <div style={{ fontWeight: 800, fontSize: 24, letterSpacing: "-0.03em", color: "hsl(var(--theo-blue))" }}>
-              {attestation ? fmtN(attestation.htg_balance, 2) : "—"} <span style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>HTG</span>
+              {displayedHtgBalance != null ? fmtN(displayedHtgBalance, 2) : "—"} <span style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>HTG</span>
             </div>
             <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 4 }}>
               {attestation
