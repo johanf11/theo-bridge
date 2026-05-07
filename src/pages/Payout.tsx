@@ -617,7 +617,7 @@ export default function Payout() {
               </div>
             </>
           ) : (() => {
-            const bankFee = bankAmountRaw > 0 ? 1.5 + bankAmountRaw * 0.005 : 0;
+            const bankFee = bankAmountRaw > 0 ? bankAmountRaw * 0.005 : 0;
             const bankNet = Math.max(0, bankAmountRaw - bankFee);
             const selectedBankWallet = wallets.find((w) => w.id === sourceWalletId);
             const bankWalletBalance = Number(selectedBankWallet?.usdc_balance ?? 0);
