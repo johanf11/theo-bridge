@@ -358,6 +358,21 @@ export default function Compliance() {
             <ExternalLink style={{ width: 12, height: 12 }} />
             Verify on-chain (issuer asset page)
           </a>
+          <a
+            href={`https://stellar.expert/explorer/testnet/account/${HTGC_DISTRIBUTOR}`}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-blue))",
+              textDecoration: "none",
+              padding: "6px 12px", borderRadius: 7,
+              background: "#fff", border: "1.5px solid hsl(var(--theo-blue))",
+            }}
+          >
+            <ExternalLink style={{ width: 12, height: 12 }} />
+            Verify treasury (account page)
+          </a>
           {attestation?.attestation_pdf_url && (
             <a
               href={attestation.attestation_pdf_url}
