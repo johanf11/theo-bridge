@@ -1037,19 +1037,6 @@ export default function Convert() {
               {/* Amount */}
               <div style={{ marginBottom: 14 }}>
                 <label style={labelStyle}>HTG-C to redeem</label>
-                <div style={{ position: "relative" }}>
-                  <input
-                    style={{ ...inputStyle, paddingRight: 60 }}
-                    type="text" inputMode="numeric"
-                    value={offAmount}
-                    onChange={handleOffAmountInput}
-                    placeholder="0"
-                  />
-                  <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>HTG-C</span>
-                </div>
-              {/* Amount */}
-              <div style={{ marginBottom: 14 }}>
-                <label style={labelStyle}>HTG-C to redeem</label>
                 <div style={{ marginBottom: 6 }}>
                   <span
                     style={{
