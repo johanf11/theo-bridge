@@ -178,10 +178,10 @@ export default function Compliance() {
 
   useEffect(() => { fetchReserve(); fetchAttestation(); }, []);
 
-  // Display attested HTG = total HTG-C minted (circulation + treasury float) for 1:1 parity
-  const displayedHtgBalance = reserve ? reserve.totalMinted : null;
-  const ratio = (reserve && reserve.totalMinted > 0)
-    ? (displayedHtgBalance! / reserve.totalMinted) * 100
+  // Proof-of-Reserve: HTG-C in customer wallets (circulation) backed 1:1 by HTG in bank.
+  const displayedHtgBalance = reserve ? reserve.circulation : null;
+  const ratio = reserve
+    ? (reserve.circulation > 0 ? (displayedHtgBalance! / reserve.circulation) * 100 : 100)
     : null;
   const ratioState: "ok" | "warn" | "bad" | "none" = ratio == null
     ? "none"
@@ -274,7 +274,7 @@ export default function Compliance() {
               HTG-C in circulation (on-chain)
             </div>
             <div style={{ fontWeight: 800, fontSize: 24, letterSpacing: "-0.03em", color: "hsl(var(--theo-blue))" }}>
-              {state === "ok" && reserve ? fmtN(reserve.totalMinted, 2) : "—"} <span style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>HTG-C</span>
+              {state === "ok" && reserve ? fmtN(reserve.circulation, 2) : "—"} <span style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>HTG-C</span>
             </div>
             <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 4 }}>
               Live from Stellar · refreshed {fetchedAt ? fetchedAt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "—"}
@@ -351,9 +351,9 @@ export default function Compliance() {
         <StatCard
           accent
           icon={Landmark}
-          label="Total HTG-C Minted"
-          value={state === "ok" && reserve && !isNaN(reserve.totalMinted) ? fmtN(reserve.totalMinted, 0) : "—"}
-          sub="All tokens issued · on-chain supply"
+          label="HTG in Bank Reserve"
+          value={attestation ? fmtN(attestation.htg_balance, 0) : "—"}
+          sub={attestation ? `${attestation.period_label} · attested by ${attestation.auditor_name ?? "auditor"}` : "Awaiting attestation"}
         />
         <StatCard
           icon={CircleDot}
