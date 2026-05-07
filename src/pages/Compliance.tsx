@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/theo/Layout";
-import { RefreshCw, ExternalLink, ShieldCheck, Lock, Landmark, CircleDot, DollarSign } from "lucide-react";
+import { RefreshCw, ExternalLink, ShieldCheck, Lock, Landmark, CircleDot, DollarSign, FileText, CheckCircle2, AlertTriangle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 // The distributor holds the HTG-C treasury — it receives minted tokens and
 // sends them to customers on deposit. Its balance = tokens still in reserve.
