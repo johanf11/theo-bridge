@@ -8,7 +8,7 @@ import { fetchHorizonBalances } from "@/lib/balance";
 import { X, Plus, Building2, CheckCircle2, ArrowUpDown, Loader2, Info, Globe2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-type Tab = "htg" | "swap" | "off";
+type Tab = "htg" | "swap" | "off" | "wire";
 type KybStatus = "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
 type Profile = { kyb_status: KybStatus; stellar_wallet_address: string | null; fee_bps: number; corridor_bps: number };
 type WalletOption = { id: string; label: string; stellar_address: string };
