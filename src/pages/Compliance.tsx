@@ -351,9 +351,9 @@ export default function Compliance() {
         <StatCard
           accent
           icon={Landmark}
-          label="Total HTG-C Minted"
-          value={state === "ok" && reserve && !isNaN(reserve.totalMinted) ? fmtN(reserve.totalMinted, 0) : "—"}
-          sub="All tokens issued · on-chain supply"
+          label="HTG in Bank Reserve"
+          value={attestation ? fmtN(attestation.htg_balance, 0) : "—"}
+          sub={attestation ? `${attestation.period_label} · attested by ${attestation.auditor_name ?? "auditor"}` : "Awaiting attestation"}
         />
         <StatCard
           icon={CircleDot}
