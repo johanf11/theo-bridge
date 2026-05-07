@@ -7,14 +7,15 @@ type WalletKey = {
   id: string;
   label: string | null;
   stellar_address: string;
-  stellar_secret: string | null;
+  has_signing_key: boolean;
 };
 
 const shortAddr = (a: string) => `${a.slice(0, 8)}...${a.slice(-6)}`;
 
 export function WalletKeys() {
   const [wallets, setWallets] = useState<WalletKey[]>([]);
-  const [revealed, setRevealed] = useState<Record<string, boolean>>({});
+  const [revealed, setRevealed] = useState<Record<string, string>>({});
+  const [revealing, setRevealing] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
@@ -53,7 +54,7 @@ export function WalletKeys() {
       }
       const { data } = await supabase
         .from("wallets")
-        .select("id, label, stellar_address, stellar_secret")
+        .select("id, label, stellar_address, has_signing_key")
         .eq("customer_id", c.id)
         .order("created_at", { ascending: true });
       setWallets((data ?? []) as WalletKey[]);
@@ -67,6 +68,34 @@ export function WalletKeys() {
       toast({ title: msg });
     } catch {
       toast({ title: "Copy failed", variant: "destructive" });
+    }
+  };
+
+  const toggleReveal = async (id: string) => {
+    if (revealed[id]) {
+      setRevealed((r) => {
+        const next = { ...r };
+        delete next[id];
+        return next;
+      });
+      return;
+    }
+    setRevealing((r) => ({ ...r, [id]: true }));
+    try {
+      const { data, error } = await supabase.functions.invoke("reveal-wallet-secret", {
+        body: { walletId: id },
+      });
+      if (error || !data?.secret) {
+        toast({ title: "Could not reveal key", description: error?.message ?? "Unknown error", variant: "destructive" });
+        return;
+      }
+      setRevealed((r) => ({ ...r, [id]: data.secret as string }));
+    } finally {
+      setRevealing((r) => {
+        const next = { ...r };
+        delete next[id];
+        return next;
+      });
     }
   };
 
