@@ -830,7 +830,15 @@ export default function Convert() {
                     <div className="flex items-center gap-1.5 mt-2.5 pt-2.5" style={{ borderTop: "1px solid hsl(var(--theo-blue-chip))" }}>
                       <div className="rounded-full" style={{ width: 6, height: 6, background: "#22c55e" }} />
                       <span style={{ fontSize: 11, color: "#15803d", fontWeight: 600 }}>
-                        HTG-C is fully collateralised by HTG held in Theo's segregated bank account · quarterly audited attestations
+                        HTG-C is fully collateralised by HTG held in Theo's segregated bank account · quarterly audited attestations ·{" "}
+                        <a
+                          href="https://stellar.expert/explorer/testnet/account/GCP6VMZS3SJ4CSOT3ZVMMJIOXOHTMJK47YQ4RTUJN7P2KYKDVRCUBS2X"
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ color: "hsl(var(--theo-cyan))", textDecoration: "underline", fontWeight: 700 }}
+                        >
+                          verify on-chain ↗
+                        </a>
                       </span>
                     </div>
                   </>
