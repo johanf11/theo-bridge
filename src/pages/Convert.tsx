@@ -1227,7 +1227,7 @@ export default function Convert() {
               )}
             </div>
             <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1px", color: "hsl(var(--theo-blue))" }}>
-              {rateLoading ? "…" : liveRate != null ? liveRate.toFixed(2) : "—"}
+              {rateLoading ? "…" : liveRate != null ? liveRate.toFixed(4) : "—"}
             </div>
             <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 2 }}>HTG per USDC</div>
             <div className="flex items-center gap-1.5 mt-1.5">
