@@ -189,7 +189,7 @@ export function WalletKeys() {
                   <div className="font-bold uppercase mb-1" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>
                     Secret key
                   </div>
-                  {!w.stellar_secret ? (
+                  {!w.has_signing_key ? (
                     <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))", fontStyle: "italic" }}>
                       External wallet — secret not stored.
                     </div>
@@ -204,22 +204,23 @@ export function WalletKeys() {
                           wordBreak: "break-all",
                         }}
                       >
-                        {revealed[w.id] ? w.stellar_secret : "•".repeat(20)}
+                        {revealed[w.id] ?? "•".repeat(20)}
                       </code>
                       <button
-                        onClick={() => setRevealed((r) => ({ ...r, [w.id]: !r[w.id] }))}
+                        onClick={() => toggleReveal(w.id)}
+                        disabled={revealing[w.id]}
                         className="flex items-center gap-1"
-                        style={{ background: "transparent", border: "1px solid hsl(var(--border))", borderRadius: 6, padding: "4px 8px", fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-blue))", cursor: "pointer", fontFamily: "inherit" }}
+                        style={{ background: "transparent", border: "1px solid hsl(var(--border))", borderRadius: 6, padding: "4px 8px", fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-blue))", cursor: revealing[w.id] ? "wait" : "pointer", fontFamily: "inherit", opacity: revealing[w.id] ? 0.6 : 1 }}
                       >
                         {revealed[w.id] ? (
                           <><EyeOff style={{ width: 11, height: 11 }} /> Hide</>
                         ) : (
-                          <><Eye style={{ width: 11, height: 11 }} /> Reveal</>
+                          <><Eye style={{ width: 11, height: 11 }} /> {revealing[w.id] ? "Loading…" : "Reveal"}</>
                         )}
                       </button>
                       {revealed[w.id] && (
                         <button
-                          onClick={() => copy(w.stellar_secret!, "Secret key copied")}
+                          onClick={() => copy(revealed[w.id], "Secret key copied")}
                           className="flex items-center gap-1"
                           style={{ background: "transparent", border: "1px solid hsl(var(--border))", borderRadius: 6, padding: "4px 8px", fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-blue))", cursor: "pointer", fontFamily: "inherit" }}
                         >
