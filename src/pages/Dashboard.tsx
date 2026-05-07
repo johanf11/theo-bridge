@@ -119,7 +119,6 @@ export default function Dashboard() {
   const [txs, setTxs] = useState<UnifiedTx[]>([]);
   const [convertedThisMonth, setConvertedThisMonth] = useState(0);
   const [txCount30d, setTxCount30d] = useState(0);
-  const [lifetimeSavings, setLifetimeSavings] = useState(0);
   const { total: balance, htgcTotal } = useCustomerBalance();
   const { positions: yieldPositions, netApy } = useBlendPositions();
   const totalEarning = yieldPositions.reduce((s, p) => s + p.deposited + p.accrued, 0);
@@ -146,7 +145,6 @@ export default function Dashboard() {
         { data: monthOrders },
         { count: orderCount30d },
         { count: payoutCount30d },
-        { data: lifetimeOrders },
       ] = await Promise.all([
         supabase
           .from("orders")
@@ -176,11 +174,6 @@ export default function Dashboard() {
           .select("id", { count: "exact", head: true })
           .eq("customer_id", c.id)
           .gte("created_at", thirtyDaysAgo.toISOString()),
-        supabase
-          .from("orders")
-          .select("usdc_amount")
-          .eq("customer_id", c.id)
-          .eq("status", "COMPLETED"),
       ]);
 
       const orderTxs: UnifiedTx[] = (orders ?? []).map((o: any) => ({
@@ -214,14 +207,6 @@ export default function Dashboard() {
         (monthOrders ?? []).reduce((s, o: any) => s + Number(o.htg_amount ?? 0), 0)
       );
       setTxCount30d((orderCount30d ?? 0) + (payoutCount30d ?? 0));
-
-      const totalBps = (c.fee_bps ?? 130) + (c.corridor_bps ?? 70);
-      const feeRate = totalBps / 10_000;
-      const savings = (lifetimeOrders ?? []).reduce((s, o: any) => {
-        const u = Number(o.usdc_amount ?? 0);
-        return s + u * 0.05 - u * feeRate;
-      }, 0);
-      setLifetimeSavings(Math.max(0, savings));
     })();
   }, []);
 
