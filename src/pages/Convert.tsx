@@ -1011,7 +1011,7 @@ export default function Convert() {
                     <div style={{ position: "relative" }}>
                       <input
                         style={{ ...inputStyle, paddingRight: 64 }}
-                        type="text" inputMode="numeric"
+                        type="text" inputMode="decimal"
                         value={swapAmount}
                         onChange={handleSwapInput}
                         placeholder="0"
