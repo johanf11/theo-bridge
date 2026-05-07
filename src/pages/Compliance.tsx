@@ -362,9 +362,9 @@ export default function Compliance() {
         />
         <StatCard
           icon={Landmark}
-          label="In Treasury"
+          label="Treasury float"
           value={state === "ok" && reserve && !isNaN(reserve.treasury) ? fmtN(reserve.treasury, 0) : "—"}
-          sub="Available for distribution"
+          sub="Distributor wallet · pre-mint buffer"
         />
         <StatCard
           icon={ShieldCheck}
