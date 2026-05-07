@@ -6,11 +6,13 @@ import { fmtUSDC, fmtHTG } from "@/lib/format";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useBlendPositions } from "@/hooks/useBlendPositions";
 import { useAuth } from "@/lib/auth";
-import { Plus } from "lucide-react";
+import { Plus, Info } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Customer = {
   id: string; company_name: string; contact_name: string | null;
   kyb_status: "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
+  fee_bps: number | null; corridor_bps: number | null;
 };
 
 type UnifiedTx = {
@@ -118,6 +120,7 @@ export default function Dashboard() {
   const [txs, setTxs] = useState<UnifiedTx[]>([]);
   const [convertedThisMonth, setConvertedThisMonth] = useState(0);
   const [txCount30d, setTxCount30d] = useState(0);
+  const [lifetimeSavings, setLifetimeSavings] = useState(0);
   const { total: balance, htgcTotal } = useCustomerBalance();
   const { positions: yieldPositions, netApy } = useBlendPositions();
   const totalEarning = yieldPositions.reduce((s, p) => s + p.deposited + p.accrued, 0);
@@ -129,7 +132,7 @@ export default function Dashboard() {
     (async () => {
       const { data: c } = await supabase
         .from("customers")
-        .select("id, company_name, contact_name, kyb_status")
+        .select("id, company_name, contact_name, kyb_status, fee_bps, corridor_bps")
         .maybeSingle();
       setCustomer(c as Customer | null);
       if (!c) return;
