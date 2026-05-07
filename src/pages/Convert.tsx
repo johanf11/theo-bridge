@@ -941,7 +941,16 @@ export default function Convert() {
                     {/* Label row with available balance */}
                     <div className="flex items-center justify-between mb-1.5">
                       <label style={{ ...labelStyle, marginBottom: 0 }}>{currency} to swap</label>
-                      <span style={{ fontSize: 11, color: "hsl(var(--theo-mid))", fontWeight: 600 }}>
+                      <span
+                        title={`Available ${currency} in selected wallet`}
+                        style={{
+                          fontSize: 11, fontWeight: 600,
+                          color: "hsl(var(--theo-blue))",
+                          background: "hsl(var(--theo-blue-soft))",
+                          border: "1px solid hsl(var(--theo-blue-chip))",
+                          padding: "3px 8px", borderRadius: 999,
+                        }}
+                      >
                         {balLoading ? "..." : `Available: ${availBal > 0 ? availBal.toLocaleString("en-US", { maximumFractionDigits: 2 }) : "0"} ${currency}`}
                       </span>
                     </div>
