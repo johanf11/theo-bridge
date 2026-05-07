@@ -108,8 +108,7 @@ export default function Balance() {
 
   const sweepAmountNum = parseFloat(sweepAmount) || 0;
   const sweepWalletBalance = sweepWallet ? (balances[sweepWallet.id] ?? 0) : 0;
-  const SWEEP_MAX = 50_000;
-  const sweepCap = Math.min(sweepWalletBalance, SWEEP_MAX);
+  const sweepCap = sweepWalletBalance;
   const sweepValid = sweepAmountNum > 0 && sweepAmountNum <= sweepCap;
 
   const startEdit = (w: Wallet) => {
@@ -685,7 +684,7 @@ export default function Balance() {
                   </span>
                 </div>
                 <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>
-                  {sweepWallet.label ?? "Wallet"} · ${fmt(sweepWalletBalance)} USDC available · max ${fmt(SWEEP_MAX)}/sweep
+                  {sweepWallet.label ?? "Wallet"} · ${fmt(sweepWalletBalance)} USDC available
                 </div>
               </div>
               <button
