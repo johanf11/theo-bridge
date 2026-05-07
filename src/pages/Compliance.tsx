@@ -185,8 +185,8 @@ export default function Compliance() {
   const ratioState: "ok" | "warn" | "bad" | "none" = ratio == null
     ? "none"
     : ratio >= 100 ? "ok" : ratio >= 99 ? "warn" : "bad";
-  const ratioColor = ratioState === "ok" ? "#15803D" : ratioState === "warn" ? "#B45309" : ratioState === "bad" ? "#991B1B" : "hsl(var(--theo-mid))";
-  const ratioBg = ratioState === "ok" ? "#DCFCE7" : ratioState === "warn" ? "#FEF3C7" : ratioState === "bad" ? "#FEE2E2" : "hsl(var(--theo-blue-soft))";
+  const ratioColor = ratioState === "ok" ? "#33359A" : ratioState === "warn" ? "#B45309" : ratioState === "bad" ? "#991B1B" : "hsl(var(--theo-mid))";
+  const ratioBg = ratioState === "ok" ? "#E0F7FD" : ratioState === "warn" ? "#FEF3C7" : ratioState === "bad" ? "#FEE2E2" : "hsl(var(--theo-blue-soft))";
 
   return (
     <AppLayout>
@@ -247,14 +247,14 @@ export default function Compliance() {
       {/* Proof of Reserve — minted vs bank, side by side */}
       <div style={{
         borderRadius: 14, marginBottom: 20, overflow: "hidden",
-        border: `1.5px solid ${ratioState === "ok" ? "#86EFAC" : ratioState === "warn" ? "#FCD34D" : ratioState === "bad" ? "#FCA5A5" : "hsl(var(--theo-light))"}`,
+        border: `1.5px solid ${ratioState === "ok" ? "#08B5E5" : ratioState === "warn" ? "#FCD34D" : ratioState === "bad" ? "#FCA5A5" : "hsl(var(--theo-light))"}`,
         background: "#fff",
       }}>
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "12px 18px",
           background: ratioBg,
-          borderBottom: `1px solid ${ratioState === "ok" ? "#BBF7D0" : ratioState === "warn" ? "#FDE68A" : ratioState === "bad" ? "#FECACA" : "hsl(var(--theo-light))"}`,
+          borderBottom: `1px solid ${ratioState === "ok" ? "#7FE0F4" : ratioState === "warn" ? "#FDE68A" : ratioState === "bad" ? "#FECACA" : "hsl(var(--theo-light))"}`,
         }}>
           <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.16em", color: ratioColor }}>
             Proof of Reserve
