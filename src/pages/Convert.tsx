@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth, useRoles } from "@/lib/auth";
 import { fetchHorizonBalances } from "@/lib/balance";
-import { X, Plus, Building2, CheckCircle2, ArrowUpDown, Loader2, Info } from "lucide-react";
+import { X, Plus, Building2, CheckCircle2, ArrowUpDown, Loader2, Info, Globe2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Tab = "htg" | "swap" | "off";
