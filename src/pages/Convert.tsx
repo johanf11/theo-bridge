@@ -1335,6 +1335,170 @@ export default function Convert() {
             </>
           )}
 
+          {tab === "wire" && (() => {
+            const selectedWireWallet = walletOptions.find((w) => w.id === wireSourceWallet);
+            const wireUsdcBal = selectedWireWallet ? walletBalances.usdc : 0;
+            const orchestratorFee = wireAmountRaw * 0.005;
+            const platformFee = wireAmountRaw * 0.005;
+            const totalFees = orchestratorFee + platformFee;
+            const netDelivered = Math.max(0, wireAmountRaw - totalFees);
+            const totalDebit = wireAmountRaw + totalFees;
+            const overBalance = totalDebit > wireUsdcBal;
+            const allFilled =
+              !!wireSourceWallet &&
+              wireRecipientName.trim() &&
+              wireSwift.trim() &&
+              wireIban.trim() &&
+              wireBankCity.trim() &&
+              wireAmountRaw > 0;
+            const disabled = wireBusy || !allFilled || overBalance;
+
+            const handleWireSubmit = () => {
+              const payload = {
+                source_wallet: wireSourceWallet,
+                recipient_name: wireRecipientName,
+                swift: wireSwift,
+                iban: wireIban,
+                bank_city: wireBankCity,
+                amount_usdc: wireAmountRaw,
+                orchestrator_fee_usdc: orchestratorFee,
+                platform_fee_usdc: platformFee,
+                net_delivered_usdc: netDelivered,
+                rail: "owlpay-global",
+              };
+              console.log("[GlobalWire] payload", payload);
+              setWireBusy(true);
+              toast.success("Wire instruction sent to OwlPay orchestrator");
+              setTimeout(() => setWireBusy(false), 1200);
+            };
+
+            return (
+              <>
+                {/* High-visibility badge */}
+                <div className="rounded-xl mb-4 flex items-start gap-2.5" style={{ background: "hsl(var(--theo-cyan) / 0.08)", border: "1.5px solid hsl(var(--theo-cyan))", padding: "12px 14px" }}>
+                  <Globe2 className="shrink-0" style={{ width: 16, height: 16, color: "hsl(var(--theo-cyan))", marginTop: 1 }} />
+                  <div style={{ fontSize: 12, color: "hsl(var(--theo-blue))", lineHeight: 1.6, fontWeight: 600 }}>
+                    Global Orchestrator Wire <span style={{ opacity: 0.75, fontWeight: 500 }}>(Bypasses Local SPIH)</span>
+                  </div>
+                </div>
+
+                {/* Source wallet */}
+                <div style={{ marginBottom: 12 }}>
+                  <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
+                    <label style={{ ...labelStyle, marginBottom: 0 }}>Source account <span style={{ color: "#C00" }}>*</span></label>
+                    {selectedWireWallet && (
+                      <span style={{ display: "inline-block", background: "hsl(var(--theo-blue-soft))", color: "hsl(var(--theo-blue))", border: "1px solid hsl(var(--theo-blue-chip))", fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 999 }}>
+                        Available: {wireUsdcBal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC
+                      </span>
+                    )}
+                  </div>
+                  {walletOptions.length === 0 ? (
+                    <div style={{ ...inputStyle, color: "hsl(var(--theo-mid))", fontSize: 13 }}>No accounts yet — create one on the Balance page.</div>
+                  ) : (
+                    <select
+                      value={wireSourceWallet}
+                      onChange={(e) => { setWireSourceWallet(e.target.value); setSelectedWallet(walletOptions.find(w=>w.id===e.target.value)?.stellar_address ?? ""); }}
+                      style={{ ...inputStyle, appearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6B8A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: 28, cursor: "pointer" }}
+                    >
+                      <option value="">Select account…</option>
+                      {walletOptions.map((w) => <option key={w.id} value={w.id}>{w.label}</option>)}
+                    </select>
+                  )}
+                </div>
+
+                <div style={{ marginBottom: 12 }}>
+                  <label style={labelStyle}>Recipient full name <span style={{ color: "#C00" }}>*</span></label>
+                  <input style={inputStyle} value={wireRecipientName} onChange={(e) => setWireRecipientName(e.target.value)} placeholder="Jane Doe" />
+                </div>
+
+                <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr", marginBottom: 12 }}>
+                  <div>
+                    <label style={labelStyle}>Bank SWIFT / BIC <span style={{ color: "#C00" }}>*</span></label>
+                    <input style={inputStyle} value={wireSwift} onChange={(e) => setWireSwift(e.target.value.toUpperCase())} placeholder="HSBCGB2L" />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Bank city / country <span style={{ color: "#C00" }}>*</span></label>
+                    <input style={inputStyle} value={wireBankCity} onChange={(e) => setWireBankCity(e.target.value)} placeholder="London, UK" />
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 12 }}>
+                  <label style={labelStyle}>International account number (IBAN) <span style={{ color: "#C00" }}>*</span></label>
+                  <input style={inputStyle} value={wireIban} onChange={(e) => setWireIban(e.target.value.toUpperCase())} placeholder="GB29 NWBK 6016 1331 9268 19" />
+                </div>
+
+                <div style={{ marginBottom: 12 }}>
+                  <label style={labelStyle}>Amount (USDC) <span style={{ color: "#C00" }}>*</span></label>
+                  <input
+                    style={inputStyle}
+                    inputMode="decimal"
+                    value={wireAmountDisplay}
+                    onChange={(e) => {
+                      const cleaned = e.target.value.replace(/[^\d.]/g, "");
+                      const parts = cleaned.split(".");
+                      const intPart = parts[0].replace(/^0+(?=\d)/, "");
+                      const decPart = parts.length > 1 ? parts.slice(1).join("").slice(0, 2) : null;
+                      const normalized = decPart !== null ? `${intPart || "0"}.${decPart}` : intPart;
+                      const num = parseFloat(normalized) || 0;
+                      setWireAmountRaw(num);
+                      const intFormatted = intPart ? Number(intPart).toLocaleString("en-US") : "";
+                      setWireAmountDisplay(decPart !== null ? `${intFormatted || "0"}.${decPart}` : intFormatted);
+                    }}
+                    placeholder="0.00"
+                  />
+                  {overBalance && (
+                    <div style={{ fontSize: 11, color: "hsl(var(--destructive))", marginTop: 6, fontWeight: 600 }}>
+                      Insufficient USDC — you need {totalDebit.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC including fees.
+                    </div>
+                  )}
+                </div>
+
+                {/* Fee breakdown */}
+                <div className="rounded-xl mb-4 p-4" style={{ background: "hsl(var(--theo-cream))", border: "1px solid hsl(var(--theo-light))" }}>
+                  <div className="flex justify-between" style={{ fontSize: 12, marginBottom: 6 }}>
+                    <span style={{ color: "hsl(var(--theo-mid))" }}>Amount</span>
+                    <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>${wireAmountRaw.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC</span>
+                  </div>
+                  <div className="flex justify-between" style={{ fontSize: 12, marginBottom: 6 }}>
+                    <span style={{ color: "hsl(var(--theo-mid))" }}>OwlPay Network Settlement <span style={{ opacity: 0.7 }}>(50 bps)</span></span>
+                    <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>−${orchestratorFee.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC</span>
+                  </div>
+                  <div className="flex justify-between" style={{ fontSize: 12, marginBottom: 6 }}>
+                    <span style={{ color: "hsl(var(--theo-mid))" }}>Theo Platform Service <span style={{ opacity: 0.7 }}>(50 bps)</span></span>
+                    <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>−${platformFee.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC</span>
+                  </div>
+                  <div className="flex justify-between" style={{ fontSize: 13, marginTop: 8, paddingTop: 8, borderTop: "1px solid hsl(var(--theo-light))" }}>
+                    <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>Recipient receives</span>
+                    <span style={{ fontWeight: 800, color: "hsl(var(--theo-blue))" }}>${netDelivered.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} in local currency</span>
+                  </div>
+                </div>
+
+                {/* Settlement note */}
+                <div className="rounded-xl mb-4 flex items-start gap-2.5" style={{ background: "hsl(var(--theo-blue-soft))", border: "1px solid hsl(var(--theo-blue-chip))", padding: "12px 14px" }}>
+                  <Info className="shrink-0" style={{ width: 14, height: 14, color: "hsl(var(--theo-blue))", marginTop: 2 }} />
+                  <div style={{ fontSize: 12, color: "hsl(var(--theo-blue))", lineHeight: 1.6 }}>
+                    Standard settlement <strong>1–3 business days</strong>. Powered by regulated global liquidity providers.
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleWireSubmit}
+                  disabled={disabled}
+                  className="w-full font-bold"
+                  style={{
+                    background: disabled ? "hsl(var(--theo-mid))" : "hsl(var(--theo-cyan))",
+                    color: "#fff",
+                    borderRadius: 9, padding: "12px", fontSize: 14, border: "none",
+                    cursor: disabled ? "not-allowed" : "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  {wireBusy ? "Initiating wire…" : "Send Global Wire →"}
+                </button>
+              </>
+            );
+          })()}
+
         </div>
 
         {/* Info sidebar */}
