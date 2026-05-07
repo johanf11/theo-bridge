@@ -872,7 +872,7 @@ export default function Convert() {
                     <div className="flex items-center gap-1.5 mt-2.5 pt-2.5" style={{ borderTop: "1px solid hsl(var(--theo-blue-chip))" }}>
                       <div className="rounded-full" style={{ width: 6, height: 6, background: "hsl(var(--theo-cyan))" }} />
                       <span style={{ fontSize: 11, color: "hsl(var(--theo-blue))", fontWeight: 600 }}>
-                        Max $50,000 USDC per order · fees applied at settlement
+                        Max $50,000 USDC per order · fees withheld at settlement
                       </span>
                     </div>
                   </>
