@@ -629,11 +629,28 @@ export default function Payout() {
               </div>
             </>
           ) : (() => {
-            const bankFee = bankAmountRaw > 0 ? bankAmountRaw * 0.005 : 0;
-            const bankNet = Math.max(0, bankAmountRaw - bankFee);
+            // Wire fee config (matches Convert.tsx Global Wire tab):
+            // - WIRE_FLAT_FEE: $50 flat correspondent-bank wire fee
+            // - Variable fee 100 bps (1%) split:
+            //     • 50 bps → OwlTing (orchestrator)
+            //     • 50 bps → Theo  (platform)
+            // - Volume incentive: amounts > $50,000 reduce Theo's portion
+            //   from 50 bps → 25 bps (total variable becomes 75 bps + $50 flat).
+            const WIRE_FLAT_FEE = 50;
+            const orchestratorBps = 50;
+            const platformBps = bankAmountRaw > 50000 ? 25 : 50;
+            const variableBps = orchestratorBps + platformBps;
+
+            const orchestratorFee = bankAmountRaw * (orchestratorBps / 10000);
+            const platformFee = bankAmountRaw * (platformBps / 10000);
+            const variableFee = orchestratorFee + platformFee;
+            const totalCost = bankAmountRaw > 0 ? variableFee + WIRE_FLAT_FEE : 0;
+            const totalDebit = bankAmountRaw + totalCost;
+            const netDelivered = Math.max(0, bankAmountRaw);
+
             const selectedBankWallet = wallets.find((w) => w.id === sourceWalletId);
             const bankWalletBalance = Number(selectedBankWallet?.usdc_balance ?? 0);
-            const overBalance = bankAmountRaw > bankWalletBalance;
+            const overBalance = totalDebit > bankWalletBalance;
             const allFilled =
               bankRecipientName.trim() &&
               bankBankName.trim() &&
@@ -643,6 +660,8 @@ export default function Payout() {
               !!sourceWalletId;
             const disabled = bankBusy || !allFilled || overBalance || !can("payout_send");
 
+            const fmt = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
             const handleBankPayoutSubmit = async () => {
               const payload = {
                 recipient_name: bankRecipientName,
@@ -650,6 +669,11 @@ export default function Payout() {
                 account_number: bankAccountNumber,
                 routing_code: bankRoutingCode,
                 amount_usdc: bankAmountRaw,
+                flat_fee_usdc: WIRE_FLAT_FEE,
+                orchestrator_fee_usdc: orchestratorFee,
+                platform_fee_usdc: platformFee,
+                total_cost_usdc: totalCost,
+                total_debit_usdc: totalDebit,
                 orchestrator: "owlpay",
                 source_wallet: sourceWalletId,
               };
