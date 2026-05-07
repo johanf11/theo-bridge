@@ -1,73 +1,63 @@
-## Goal
+## What to build
 
-In `src/pages/Convert.tsx`, on the "Deposit HTG → USDC" sub-mode (tab `htg` with `htgReceiveMode === "usdc"`), replace the single "HTG to deposit" input with a Coinbase-style two-field widget where the user can type in either HTG or USDC and the other field auto-fills using the live rate and fee.
+### 1. Fix the "verify on-chain" link in `src/pages/Convert.tsx`
+The link currently points to the distributor account, which only shows treasury float — not total in circulation. Change it to point to the **HTG-C asset page** on Stellar Expert, which is the canonical place to see total supply + every holder:
 
-The HTG-C 1:1 mint sub-mode is unchanged.
+```
+https://stellar.expert/explorer/testnet/asset/HTGC-{HTGC_ISSUER}
+```
 
-## Widget UX
+Reuse the existing `HTGC_ISSUER` constant from `supabase/functions/_shared/stellar-assets.ts` (already imported in `src/lib/balance.ts`).
+
+### 2. Add a Proof of Reserve panel to `src/pages/Compliance.tsx`
+A new card at the top of the page showing three live numbers side-by-side:
+
+- **HTG-C in circulation** — fetched live from Horizon: `GET /assets?asset_code=HTGC&asset_issuer={HTGC_ISSUER}` → `amount` field.
+- **HTG in segregated bank** — pulled from a new `reserve_attestations` table (latest row), with attestation period label (e.g. "Q2 2026").
+- **Collateral ratio** — `bank / minted * 100`, color-coded:
+  - ≥ 100.00%: green ✓
+  - 99.00–99.99%: amber
+  - < 99.00%: red
+
+Two CTAs below:
+- "Verify on-chain ↗" → asset page link above
+- "Download attestation (PDF) ↗" → uses `attestation_pdf_url` from the latest attestation row
+
+### 3. New table: `reserve_attestations`
+Stores each quarter's attested bank balance. Admin-writable, public-readable.
 
 ```text
-┌─────────────────────────────────────────┐
-│  You send                               │
-│  [ 130,870 ]                   HTG      │
-├──────────────── ↕ ──────────────────────┤
-│  You receive                            │
-│  [ 1,000.00 ]                  USDC     │
-└─────────────────────────────────────────┘
+id                uuid (pk)
+period_label      text          e.g. "Q2 2026"
+attested_at       timestamptz   when the auditor signed
+htg_balance       numeric       HTG held in segregated account
+auditor_name      text
+attestation_pdf_url text         public link to signed PDF
+created_at        timestamptz
 ```
 
-- One outer rounded card; two stacked rows separated by a hairline divider.
-- Centered round `↕` icon button (`ArrowUpDown` from lucide-react) overlapping the divider. Visual only — clicking it does nothing functional (stays inert; can be `aria-disabled`).
-- Both fields are editable text inputs with thousands-comma formatting; HTG shows 0 decimals, USDC shows up to 2.
-- The field the user is NOT currently typing in is rendered in a slightly muted color (e.g. `hsl(var(--theo-mid))`) but remains an editable input — focusing it makes it the active field.
-- Right-aligned currency label (HTG / USDC) inside each row.
+RLS:
+- SELECT: anyone authenticated (and we'll keep it readable on /compliance which is already auth-gated).
+- INSERT/UPDATE/DELETE: admins only.
 
-## Math
+Seed with one demo row matching current testnet supply.
 
-Constants already present: `liveRate`, `feeBps`, `corridorBps`, `totalBps = feeBps + corridorBps`.
+### 4. Existing distributor reference
+Keep the distributor balance display elsewhere on `/compliance` if it exists, but relabel it "Treasury float" so it's not confused with circulating supply.
 
-Let `f = totalBps / 10_000` (≈ 0.022 at 220 bps).
+## Why issuer (not distributor)
 
-- User edits HTG (`htgAmountRaw`):
-  - `usdcGross = htgAmountRaw / liveRate`
-  - `usdcNet   = usdcGross * (1 - f)`  → shown in USDC field
-- User edits USDC (treated as net the user receives):
-  - `usdcGross    = usdcNet / (1 - f)`
-  - `htgAmountRaw = usdcGross * liveRate`  → shown in HTG field
-
-A small `lastEdited: "htg" | "usdc"` state tracks which side drives the other. Updates propagate on every keystroke (200 ms debounce is fine; immediate is also acceptable since math is cheap). When `liveRate` or `totalBps` changes, recompute the derived field from the last-edited side.
-
-## Fee line (kept, slightly relabelled)
-
-Below the widget, inside the existing blue quote box, show:
-
-```
-Theo fee (2.20%)    − $22.00 USDC
-You receive net       $978.00 USDC
-```
-
-The 2.20% comes from `totalBps / 100`. Net = `usdcNet`, fee = `usdcGross - usdcNet`. Existing "Rate" and "Quote lock" rows remain.
-
-The current "You receive (≈)" row in the quote box is removed (the widget itself shows it).
-
-## Submit
-
-`handleHtgSubmit` (USDC branch, lines 357–383) keeps the same shape but now sends the **gross** USDC:
-
-- `usdc_amount: usdcGross` (rounded to 7 decimals to match Stellar precision)
-- Validation: `usdcGross` must be between 1,000 and 50,000 (matches existing min/max). Show the existing toast on violation.
-- Destination wallet selector, KYB gate, rate-source badge, corridor sidebar — all unchanged.
-
-The edge function (`create-quote`) already treats incoming `usdc_amount` as gross and deducts the fee server-side, so no backend change is needed.
-
-## Out of scope
-
-- HTG-C 1:1 mint sub-mode UI
-- Tab 2 (swap) and Tab 3 (off-ramp)
-- Any backend / migration changes
+- **Issuer asset page** = total minted minus burned = exactly what must match HTG in bank.
+- **Distributor account** = only HTG-C sitting in Theo's treasury wallet, *not* the tokens already in customer wallets. Linking distributor would understate the obligation and confuse anyone trying to verify.
 
 ## Files touched
 
-- `src/pages/Convert.tsx` — widget JSX, state (`lastEdited`, `usdcNetRaw`, `usdcNetDisplay`), input handlers, fee-line tweak, submit payload.
+- `src/pages/Convert.tsx` — swap one URL.
+- `src/pages/Compliance.tsx` — add Proof of Reserve card; relabel distributor section if present.
+- `supabase/migrations/<timestamp>_reserve_attestations.sql` — new table + RLS + seed row.
 
-No new dependencies (`ArrowUpDown` already exists in `lucide-react`).
+## Out of scope
+
+- Mainnet asset URL (still testnet for now — switch when going live).
+- Auditor upload UI (admins seed rows via SQL for now; can add later).
+- Historical attestations list (just show the latest for now).

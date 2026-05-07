@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/theo/Layout";
-import { RefreshCw, ExternalLink, ShieldCheck, Lock, Landmark, CircleDot, DollarSign } from "lucide-react";
+import { RefreshCw, ExternalLink, ShieldCheck, Lock, Landmark, CircleDot, DollarSign, FileText, CheckCircle2, AlertTriangle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 // The distributor holds the HTG-C treasury — it receives minted tokens and
 // sends them to customers on deposit. Its balance = tokens still in reserve.
@@ -119,6 +120,23 @@ export default function Compliance() {
   const [reserve, setReserve] = useState<ReserveData | null>(null);
   const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [attestation, setAttestation] = useState<{
+    period_label: string;
+    attested_at: string;
+    htg_balance: number;
+    auditor_name: string | null;
+    attestation_pdf_url: string | null;
+  } | null>(null);
+
+  const fetchAttestation = async () => {
+    const { data } = await supabase
+      .from("reserve_attestations")
+      .select("period_label, attested_at, htg_balance, auditor_name, attestation_pdf_url")
+      .order("attested_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (data) setAttestation({ ...data, htg_balance: Number(data.htg_balance) });
+  };
 
   const fetchReserve = async () => {
     setState("loading");
@@ -135,14 +153,11 @@ export default function Compliance() {
       const distJson  = await distRes.json()  as { balances: HorizonBalance[] };
       const assetJson = await assetRes.json() as Record<string, unknown>;
 
-      // Distributor treasury balance
       const htgcBal = distJson.balances.find(
         (b) => b.asset_code === "HTGC" && b.asset_issuer === HTGC_ISSUER,
       );
       const treasury = htgcBal ? parseFloat(htgcBal.balance) : 0;
 
-      // Total minted — Horizon /assets returns balances.authorized (not `amount`)
-      // e.g. { balances: { authorized: "11075000.0000000", ... } }
       const records = (assetJson?._embedded as {
         records?: Array<{ balances?: { authorized?: string } }>
       } | undefined)?.records ?? [];
@@ -161,7 +176,17 @@ export default function Compliance() {
     }
   };
 
-  useEffect(() => { fetchReserve(); }, []);
+  useEffect(() => { fetchReserve(); fetchAttestation(); }, []);
+
+  // Compute collateral ratio
+  const ratio = (reserve && attestation && reserve.totalMinted > 0)
+    ? (attestation.htg_balance / reserve.totalMinted) * 100
+    : null;
+  const ratioState: "ok" | "warn" | "bad" | "none" = ratio == null
+    ? "none"
+    : ratio >= 100 ? "ok" : ratio >= 99 ? "warn" : "bad";
+  const ratioColor = ratioState === "ok" ? "#15803D" : ratioState === "warn" ? "#B45309" : ratioState === "bad" ? "#991B1B" : "hsl(var(--theo-mid))";
+  const ratioBg = ratioState === "ok" ? "#DCFCE7" : ratioState === "warn" ? "#FEF3C7" : ratioState === "bad" ? "#FEE2E2" : "hsl(var(--theo-blue-soft))";
 
   return (
     <AppLayout>
@@ -219,6 +244,107 @@ export default function Compliance() {
         </div>
       )}
 
+      {/* Proof of Reserve — minted vs bank, side by side */}
+      <div style={{
+        borderRadius: 14, marginBottom: 20, overflow: "hidden",
+        border: `1.5px solid ${ratioState === "ok" ? "#86EFAC" : ratioState === "warn" ? "#FCD34D" : ratioState === "bad" ? "#FCA5A5" : "hsl(var(--theo-light))"}`,
+        background: "#fff",
+      }}>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "12px 18px",
+          background: ratioBg,
+          borderBottom: `1px solid ${ratioState === "ok" ? "#BBF7D0" : ratioState === "warn" ? "#FDE68A" : ratioState === "bad" ? "#FECACA" : "hsl(var(--theo-light))"}`,
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.16em", color: ratioColor }}>
+            Proof of Reserve
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: ratioColor }}>
+            {ratioState === "ok" && <CheckCircle2 style={{ width: 13, height: 13 }} />}
+            {(ratioState === "warn" || ratioState === "bad") && <AlertTriangle style={{ width: 13, height: 13 }} />}
+            {ratio != null ? `${ratio.toFixed(2)}% collateralised` : "Loading…"}
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 48px 1fr", alignItems: "stretch" }}>
+          {/* Left: HTG-C minted on-chain */}
+          <div style={{ padding: "18px 22px" }}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "hsl(var(--theo-mid))", marginBottom: 6 }}>
+              HTG-C in circulation (on-chain)
+            </div>
+            <div style={{ fontWeight: 800, fontSize: 24, letterSpacing: "-0.03em", color: "hsl(var(--theo-blue))" }}>
+              {state === "ok" && reserve ? fmtN(reserve.totalMinted, 2) : "—"} <span style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>HTG-C</span>
+            </div>
+            <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 4 }}>
+              Live from Stellar · refreshed {fetchedAt ? fetchedAt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "—"}
+            </div>
+          </div>
+
+          {/* Equals divider */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: "hsl(var(--theo-cream))", borderLeft: "1px solid hsl(var(--theo-light))", borderRight: "1px solid hsl(var(--theo-light))",
+            fontSize: 22, fontWeight: 700, color: ratioColor,
+          }}>
+            =
+          </div>
+
+          {/* Right: HTG in bank, attested */}
+          <div style={{ padding: "18px 22px" }}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "hsl(var(--theo-mid))", marginBottom: 6 }}>
+              HTG in segregated bank (attested)
+            </div>
+            <div style={{ fontWeight: 800, fontSize: 24, letterSpacing: "-0.03em", color: "hsl(var(--theo-blue))" }}>
+              {attestation ? fmtN(attestation.htg_balance, 2) : "—"} <span style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>HTG</span>
+            </div>
+            <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 4 }}>
+              {attestation
+                ? <>{attestation.period_label} · attested by {attestation.auditor_name ?? "auditor"}</>
+                : "Awaiting attestation"}
+            </div>
+          </div>
+        </div>
+
+        {/* CTA strip */}
+        <div style={{
+          display: "flex", gap: 10, padding: "12px 18px",
+          background: "hsl(var(--theo-cream))", borderTop: "1px solid hsl(var(--theo-light))",
+        }}>
+          <a
+            href={`https://stellar.expert/explorer/testnet/asset/HTGC-${HTGC_ISSUER}`}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-blue))",
+              textDecoration: "none",
+              padding: "6px 12px", borderRadius: 7,
+              background: "#fff", border: "1.5px solid hsl(var(--theo-blue))",
+            }}
+          >
+            <ExternalLink style={{ width: 12, height: 12 }} />
+            Verify on-chain (issuer asset page)
+          </a>
+          {attestation?.attestation_pdf_url && (
+            <a
+              href={attestation.attestation_pdf_url}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-blue))",
+                textDecoration: "none",
+                padding: "6px 12px", borderRadius: 7,
+                background: "#fff", border: "1.5px solid hsl(var(--theo-light))",
+              }}
+            >
+              <FileText style={{ width: 12, height: 12 }} />
+              Download attestation (PDF)
+            </a>
+          )}
+        </div>
+      </div>
+
       {/* Reserve stats — 4 cards: total minted, circulation, treasury, backing ratio */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 14, marginBottom: 20 }}>
         <StatCard
@@ -236,9 +362,9 @@ export default function Compliance() {
         />
         <StatCard
           icon={Landmark}
-          label="In Treasury"
+          label="Treasury float"
           value={state === "ok" && reserve && !isNaN(reserve.treasury) ? fmtN(reserve.treasury, 0) : "—"}
-          sub="Available for distribution"
+          sub="Distributor wallet · pre-mint buffer"
         />
         <StatCard
           icon={ShieldCheck}

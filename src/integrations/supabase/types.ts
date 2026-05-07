@@ -465,6 +465,39 @@ export type Database = {
         }
         Relationships: []
       }
+      reserve_attestations: {
+        Row: {
+          attestation_pdf_url: string | null
+          attested_at: string
+          auditor_name: string | null
+          created_at: string
+          htg_balance: number
+          id: string
+          period_label: string
+          updated_at: string
+        }
+        Insert: {
+          attestation_pdf_url?: string | null
+          attested_at: string
+          auditor_name?: string | null
+          created_at?: string
+          htg_balance: number
+          id?: string
+          period_label: string
+          updated_at?: string
+        }
+        Update: {
+          attestation_pdf_url?: string | null
+          attested_at?: string
+          auditor_name?: string | null
+          created_at?: string
+          htg_balance?: number
+          id?: string
+          period_label?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       role_permissions: {
         Row: {
           enabled: boolean
