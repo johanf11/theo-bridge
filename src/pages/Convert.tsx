@@ -395,7 +395,12 @@ export default function Convert() {
 
   const handleHtgInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.replace(/[^\d]/g, "");
-    const num = parseInt(raw, 10) || 0;
+    let num = parseInt(raw, 10) || 0;
+    // Cap HTG input so its USDC equivalent never exceeds 50,000 USDC
+    if (htgReceiveMode === "usdc" && liveRate && liveRate > 0) {
+      const maxHtg = Math.floor(50_000 * liveRate);
+      if (num > maxHtg) num = maxHtg;
+    }
     setHtgAmountRaw(num);
     setHtgAmount(num ? num.toLocaleString("en-US") : "");
     setHtgLastEdited("htg");
@@ -412,10 +417,17 @@ export default function Convert() {
     // Allow digits and a single decimal point
     const cleaned = e.target.value.replace(/[^\d.]/g, "");
     const parts = cleaned.split(".");
-    const intPart = parts[0].replace(/^0+(?=\d)/, "");
-    const decPart = parts.length > 1 ? parts.slice(1).join("").slice(0, 2) : null;
-    const normalized = decPart !== null ? `${intPart || "0"}.${decPart}` : intPart;
-    const num = parseFloat(normalized) || 0;
+    let intPart = parts[0].replace(/^0+(?=\d)/, "");
+    let decPart = parts.length > 1 ? parts.slice(1).join("").slice(0, 2) : null;
+    let normalized = decPart !== null ? `${intPart || "0"}.${decPart}` : intPart;
+    let num = parseFloat(normalized) || 0;
+    // Hard-cap net USDC at 50,000
+    if (num > 50_000) {
+      num = 50_000;
+      intPart = "50000";
+      decPart = null;
+      normalized = "50000";
+    }
     setHtgUsdcNetRaw(num);
     // Add thousand separators to the integer portion while preserving in-progress decimals
     const intFormatted = intPart ? Number(intPart).toLocaleString("en-US") : "";
