@@ -177,11 +177,23 @@ export default function Balance() {
     loadWallets();
   };
 
+  const openSweepModal = (wallet: Wallet) => {
+    setSweepWallet(wallet);
+    setSweepAmount("");
+  };
+
+  const closeSweepModal = () => {
+    setSweepWallet(null);
+    setSweepAmount("");
+  };
+
   const handleSweep = async () => {
-    if (!sweepWallet || !sweepValid) return;
+    if (!sweepWallet) return;
+    const amountToSweep = Math.min(sweepAmountNum, sweepCap);
+    if (amountToSweep <= 0) return;
     setSweeping(true);
     const { data, error } = await supabase.functions.invoke("blend-sweep", {
-      body: { sourceWalletId: sweepWallet.id, amount: sweepAmountNum },
+      body: { sourceWalletId: sweepWallet.id, amount: amountToSweep },
     });
     setSweeping(false);
     if (error || (data as { error?: string })?.error) {
@@ -190,9 +202,8 @@ export default function Balance() {
       return;
     }
     const hash = (data as { hash?: string })?.hash ?? "";
-    toast.success(`Swept ${fmt(sweepAmountNum)} USDC to Blend · ${hash.slice(0, 8)}…`);
-    setSweepWallet(null);
-    setSweepAmount("");
+    toast.success(`Swept ${fmt(amountToSweep)} USDC to Blend · ${hash.slice(0, 8)}…`);
+    closeSweepModal();
     await Promise.all([loadWallets(), refreshBlend(), refreshTotal()]);
   };
 
