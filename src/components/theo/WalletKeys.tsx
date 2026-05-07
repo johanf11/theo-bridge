@@ -7,14 +7,15 @@ type WalletKey = {
   id: string;
   label: string | null;
   stellar_address: string;
-  stellar_secret: string | null;
+  has_signing_key: boolean;
 };
 
 const shortAddr = (a: string) => `${a.slice(0, 8)}...${a.slice(-6)}`;
 
 export function WalletKeys() {
   const [wallets, setWallets] = useState<WalletKey[]>([]);
-  const [revealed, setRevealed] = useState<Record<string, boolean>>({});
+  const [revealed, setRevealed] = useState<Record<string, string>>({});
+  const [revealing, setRevealing] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
@@ -53,7 +54,7 @@ export function WalletKeys() {
       }
       const { data } = await supabase
         .from("wallets")
-        .select("id, label, stellar_address, stellar_secret")
+        .select("id, label, stellar_address, has_signing_key")
         .eq("customer_id", c.id)
         .order("created_at", { ascending: true });
       setWallets((data ?? []) as WalletKey[]);
@@ -67,6 +68,34 @@ export function WalletKeys() {
       toast({ title: msg });
     } catch {
       toast({ title: "Copy failed", variant: "destructive" });
+    }
+  };
+
+  const toggleReveal = async (id: string) => {
+    if (revealed[id]) {
+      setRevealed((r) => {
+        const next = { ...r };
+        delete next[id];
+        return next;
+      });
+      return;
+    }
+    setRevealing((r) => ({ ...r, [id]: true }));
+    try {
+      const { data, error } = await supabase.functions.invoke("reveal-wallet-secret", {
+        body: { walletId: id },
+      });
+      if (error || !data?.secret) {
+        toast({ title: "Could not reveal key", description: error?.message ?? "Unknown error", variant: "destructive" });
+        return;
+      }
+      setRevealed((r) => ({ ...r, [id]: data.secret as string }));
+    } finally {
+      setRevealing((r) => {
+        const next = { ...r };
+        delete next[id];
+        return next;
+      });
     }
   };
 
@@ -160,7 +189,7 @@ export function WalletKeys() {
                   <div className="font-bold uppercase mb-1" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>
                     Secret key
                   </div>
-                  {!w.stellar_secret ? (
+                  {!w.has_signing_key ? (
                     <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))", fontStyle: "italic" }}>
                       External wallet — secret not stored.
                     </div>
@@ -175,22 +204,23 @@ export function WalletKeys() {
                           wordBreak: "break-all",
                         }}
                       >
-                        {revealed[w.id] ? w.stellar_secret : "•".repeat(20)}
+                        {revealed[w.id] ?? "•".repeat(20)}
                       </code>
                       <button
-                        onClick={() => setRevealed((r) => ({ ...r, [w.id]: !r[w.id] }))}
+                        onClick={() => toggleReveal(w.id)}
+                        disabled={revealing[w.id]}
                         className="flex items-center gap-1"
-                        style={{ background: "transparent", border: "1px solid hsl(var(--border))", borderRadius: 6, padding: "4px 8px", fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-blue))", cursor: "pointer", fontFamily: "inherit" }}
+                        style={{ background: "transparent", border: "1px solid hsl(var(--border))", borderRadius: 6, padding: "4px 8px", fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-blue))", cursor: revealing[w.id] ? "wait" : "pointer", fontFamily: "inherit", opacity: revealing[w.id] ? 0.6 : 1 }}
                       >
                         {revealed[w.id] ? (
                           <><EyeOff style={{ width: 11, height: 11 }} /> Hide</>
                         ) : (
-                          <><Eye style={{ width: 11, height: 11 }} /> Reveal</>
+                          <><Eye style={{ width: 11, height: 11 }} /> {revealing[w.id] ? "Loading…" : "Reveal"}</>
                         )}
                       </button>
                       {revealed[w.id] && (
                         <button
-                          onClick={() => copy(w.stellar_secret!, "Secret key copied")}
+                          onClick={() => copy(revealed[w.id], "Secret key copied")}
                           className="flex items-center gap-1"
                           style={{ background: "transparent", border: "1px solid hsl(var(--border))", borderRadius: 6, padding: "4px 8px", fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-blue))", cursor: "pointer", fontFamily: "inherit" }}
                         >

@@ -588,6 +588,7 @@ export type Database = {
           created_at: string
           currency: string
           customer_id: string | null
+          has_signing_key: boolean | null
           id: string
           label: string | null
           network: string
@@ -601,6 +602,7 @@ export type Database = {
           created_at?: string
           currency?: string
           customer_id?: string | null
+          has_signing_key?: boolean | null
           id?: string
           label?: string | null
           network?: string
@@ -614,6 +616,7 @@ export type Database = {
           created_at?: string
           currency?: string
           customer_id?: string | null
+          has_signing_key?: boolean | null
           id?: string
           label?: string | null
           network?: string
