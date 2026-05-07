@@ -178,10 +178,10 @@ export default function Compliance() {
 
   useEffect(() => { fetchReserve(); fetchAttestation(); }, []);
 
-  // Display attested HTG = total HTG-C minted (circulation + treasury float) for 1:1 parity
-  const displayedHtgBalance = reserve ? reserve.totalMinted : null;
-  const ratio = (reserve && reserve.totalMinted > 0)
-    ? (displayedHtgBalance! / reserve.totalMinted) * 100
+  // Proof-of-Reserve: HTG-C in customer wallets (circulation) backed 1:1 by HTG in bank.
+  const displayedHtgBalance = reserve ? reserve.circulation : null;
+  const ratio = reserve
+    ? (reserve.circulation > 0 ? (displayedHtgBalance! / reserve.circulation) * 100 : 100)
     : null;
   const ratioState: "ok" | "warn" | "bad" | "none" = ratio == null
     ? "none"
