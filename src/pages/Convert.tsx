@@ -73,6 +73,8 @@ export default function Convert() {
   const [showAddBank, setShowAddBank] = useState(false);
   const [offConfirm, setOffConfirm] = useState(false);
   const [offBusy, setOffBusy] = useState(false);
+  const [offHtgcBalance, setOffHtgcBalance] = useState<number | null>(null);
+  const [offHtgcLoading, setOffHtgcLoading] = useState(false);
 
   // Add bank form
   const [addBankName, setAddBankName] = useState("");
