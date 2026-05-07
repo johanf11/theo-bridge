@@ -1172,7 +1172,7 @@ export default function Convert() {
                 <div style={{ position: "relative" }}>
                   <input
                     style={{ ...inputStyle, paddingRight: 60 }}
-                    type="text" inputMode="numeric"
+                    type="text" inputMode="decimal"
                     value={offAmount}
                     onChange={handleOffAmountInput}
                     placeholder="0"
