@@ -73,6 +73,8 @@ export default function Convert() {
   const [showAddBank, setShowAddBank] = useState(false);
   const [offConfirm, setOffConfirm] = useState(false);
   const [offBusy, setOffBusy] = useState(false);
+  const [offHtgcBalance, setOffHtgcBalance] = useState<number | null>(null);
+  const [offHtgcLoading, setOffHtgcLoading] = useState(false);
 
   // Add bank form
   const [addBankName, setAddBankName] = useState("");
@@ -184,6 +186,21 @@ export default function Convert() {
     });
     return () => { cancelled = true; };
   }, [selectedWallet]);
+
+  // Fetch HTG-C balance for the off-ramp source wallet
+  useEffect(() => {
+    const wallet = walletOptions.find((w) => w.id === offSourceWallet);
+    if (!wallet?.stellar_address?.startsWith("G")) {
+      setOffHtgcBalance(null);
+      return;
+    }
+    let cancelled = false;
+    setOffHtgcLoading(true);
+    fetchHorizonBalances(wallet.stellar_address).then((bals) => {
+      if (!cancelled) { setOffHtgcBalance(bals.htgc); setOffHtgcLoading(false); }
+    });
+    return () => { cancelled = true; };
+  }, [offSourceWallet, walletOptions, offBusy]);
 
   // No random ticker — rate is BRH official, only refreshes on page load.
 
@@ -1020,6 +1037,24 @@ export default function Convert() {
               {/* Amount */}
               <div style={{ marginBottom: 14 }}>
                 <label style={labelStyle}>HTG-C to redeem</label>
+                <div style={{ marginBottom: 6 }}>
+                  <span
+                    style={{
+                      display: "inline-block",
+                      background: "hsl(var(--theo-light))",
+                      color: "hsl(var(--theo-blue))",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      padding: "3px 9px",
+                      borderRadius: 999,
+                      letterSpacing: "0.01em",
+                    }}
+                  >
+                    Available: {offHtgcLoading || offHtgcBalance == null
+                      ? "—"
+                      : offHtgcBalance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} HTG-C
+                  </span>
+                </div>
                 <div style={{ position: "relative" }}>
                   <input
                     style={{ ...inputStyle, paddingRight: 60 }}
@@ -1030,9 +1065,26 @@ export default function Convert() {
                   />
                   <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>HTG-C</span>
                 </div>
-                <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 4 }}>
-                  You receive <strong>{offAmountRaw > 0 ? offAmountRaw.toLocaleString("en-US") : "—"} HTG</strong> at your bank · 1:1 peg
-                </div>
+                {offHtgcBalance != null && offAmountRaw > offHtgcBalance ? (
+                  <div style={{ fontSize: 11, color: "hsl(var(--destructive))", marginTop: 6, fontWeight: 600 }}>
+                    Insufficient HTG-C balance.{" "}
+                    <button
+                      type="button"
+                      onClick={() => setTab("swap")}
+                      style={{
+                        background: "none", border: "none", padding: 0, cursor: "pointer",
+                        color: "hsl(var(--theo-cyan))", fontWeight: 700, textDecoration: "underline",
+                        fontFamily: "inherit", fontSize: 11,
+                      }}
+                    >
+                      Swap USDC → HTG-C first.
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 4 }}>
+                    You receive <strong>{offAmountRaw > 0 ? offAmountRaw.toLocaleString("en-US") : "—"} HTG</strong> at your bank · 1:1 peg
+                  </div>
+                )}
               </div>
 
               {/* Source wallet */}
