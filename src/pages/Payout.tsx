@@ -149,8 +149,19 @@ export default function Payout() {
       .eq("customer_id", cid)
       .order("created_at", { ascending: true });
     const list = (data ?? []) as Wallet[];
-    setWallets(list);
-    if (list.length > 0) setSourceWalletId(list[0].id);
+    // Hydrate live USDC balances from Horizon (DB column is stale/0)
+    const hydrated = await Promise.all(
+      list.map(async (w) => {
+        try {
+          const bals = await fetchHorizonBalances(w.stellar_address);
+          return { ...w, usdc_balance: bals.usdc };
+        } catch {
+          return w;
+        }
+      })
+    );
+    setWallets(hydrated);
+    if (hydrated.length > 0) setSourceWalletId(hydrated[0].id);
     setWalletsLoading(false);
   };
 
