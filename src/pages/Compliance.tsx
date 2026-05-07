@@ -387,7 +387,7 @@ export default function Compliance() {
                   <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "hsl(var(--theo-mid))" }}>
                     In customer wallets
                   </span>
-                  <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
+                  <span style={{ marginLeft: "auto", fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", color: "hsl(var(--theo-blue))" }}>
                     {ready ? `${circPct.toFixed(1)}%` : "—"}
                   </span>
                 </div>
@@ -405,7 +405,7 @@ export default function Compliance() {
                   <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "hsl(var(--theo-mid))" }}>
                     Treasury float
                   </span>
-                  <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
+                  <span style={{ marginLeft: "auto", fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", color: "hsl(var(--theo-blue))" }}>
                     {ready ? `${treasPct.toFixed(1)}%` : "—"}
                   </span>
                 </div>
