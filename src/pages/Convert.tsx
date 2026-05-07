@@ -1235,7 +1235,7 @@ export default function Convert() {
           <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
             <div className="font-bold mb-3" style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>Corridor info</div>
             <p style={{ fontSize: 12, color: "hsl(var(--theo-mid))", lineHeight: 1.6, marginBottom: 12 }}>
-              Theo bridges the Haiti–DR corridor. All HTG payments route through SPIH, Haiti's interbank settlement network.
+              Theo onboards Haiti to USDC. All HTG payments route through SPIH, Haiti's interbank settlement network.
             </p>
             {[
               ["Avg. settlement", "< 2 min"],
