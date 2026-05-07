@@ -24,13 +24,17 @@ export function useAuth() {
 }
 
 export function useRoles() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [roles, setRoles] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
-    if (!user) { setRoles([]); return; }
+    if (authLoading) return;
+    if (!user) { setRoles([]); setLoading(false); return; }
+    setLoading(true);
     supabase.from("user_roles").select("role").eq("user_id", user.id).then(({ data }) => {
       setRoles((data ?? []).map((r) => r.role));
+      setLoading(false);
     });
-  }, [user]);
-  return { roles, isAdmin: roles.includes("admin"), isCustomer: roles.includes("customer") };
+  }, [user, authLoading]);
+  return { roles, isAdmin: roles.includes("admin"), isCustomer: roles.includes("customer"), loading };
 }
