@@ -1323,6 +1323,37 @@ export default function Convert() {
               </div>
             )}
           </div>
+
+          <div className="rounded-xl p-5 shadow-xs" style={{ background: "#EFFBF3" }}>
+            <div className="flex items-center gap-1 mb-2">
+              <div className="font-bold uppercase" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(150 50% 25%)" }}>
+                Lifetime Savings
+              </div>
+              <TooltipProvider delayDuration={150}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="How is lifetime savings calculated?"
+                      className="inline-flex items-center justify-center"
+                      style={{ background: "transparent", border: "none", padding: 0, cursor: "help", color: "hsl(150 50% 25%)" }}
+                    >
+                      <Info className="h-3 w-3" style={{ strokeWidth: 2 }} />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs text-xs">
+                    We calculate this by comparing our low fees to the 5% average markup charged by traditional banks and wire services.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <div className="font-extrabold leading-none" style={{ fontSize: 26, letterSpacing: "-1px", color: "hsl(150 70% 25%)" }}>
+              ${lifetimeSavings.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "hsl(150 30% 30%)", marginTop: 6 }}>
+              Compared to standard 5% market FX rates
+            </div>
+          </div>
         </div>
       </div>
 
