@@ -1460,11 +1460,11 @@ export default function Convert() {
                     <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>${wireAmountRaw.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC</span>
                   </div>
                   <div className="flex justify-between" style={{ fontSize: 12, marginBottom: 6 }}>
-                    <span style={{ color: "hsl(var(--theo-mid))" }}>OwlPay Network Settlement <span style={{ opacity: 0.7 }}>(50 bps)</span></span>
+                    <span style={{ color: "hsl(var(--theo-mid))" }}>OwlPay Network Settlement <span style={{ opacity: 0.7 }}>(0.50%)</span></span>
                     <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>−${orchestratorFee.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC</span>
                   </div>
                   <div className="flex justify-between" style={{ fontSize: 12, marginBottom: 6 }}>
-                    <span style={{ color: "hsl(var(--theo-mid))" }}>Theo Platform Service <span style={{ opacity: 0.7 }}>(50 bps)</span></span>
+                    <span style={{ color: "hsl(var(--theo-mid))" }}>Theo Platform Service <span style={{ opacity: 0.7 }}>(0.50%)</span></span>
                     <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>−${platformFee.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC</span>
                   </div>
                   <div className="flex justify-between" style={{ fontSize: 13, marginTop: 8, paddingTop: 8, borderTop: "1px solid hsl(var(--theo-light))" }}>
