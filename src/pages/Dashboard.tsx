@@ -6,11 +6,13 @@ import { fmtUSDC, fmtHTG } from "@/lib/format";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useBlendPositions } from "@/hooks/useBlendPositions";
 import { useAuth } from "@/lib/auth";
-import { Plus } from "lucide-react";
+import { Plus, Info } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Customer = {
   id: string; company_name: string; contact_name: string | null;
   kyb_status: "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
+  fee_bps: number | null; corridor_bps: number | null;
 };
 
 type UnifiedTx = {
@@ -118,6 +120,7 @@ export default function Dashboard() {
   const [txs, setTxs] = useState<UnifiedTx[]>([]);
   const [convertedThisMonth, setConvertedThisMonth] = useState(0);
   const [txCount30d, setTxCount30d] = useState(0);
+  const [lifetimeSavings, setLifetimeSavings] = useState(0);
   const { total: balance, htgcTotal } = useCustomerBalance();
   const { positions: yieldPositions, netApy } = useBlendPositions();
   const totalEarning = yieldPositions.reduce((s, p) => s + p.deposited + p.accrued, 0);
@@ -129,7 +132,7 @@ export default function Dashboard() {
     (async () => {
       const { data: c } = await supabase
         .from("customers")
-        .select("id, company_name, contact_name, kyb_status")
+        .select("id, company_name, contact_name, kyb_status, fee_bps, corridor_bps")
         .maybeSingle();
       setCustomer(c as Customer | null);
       if (!c) return;
@@ -144,6 +147,7 @@ export default function Dashboard() {
         { data: monthOrders },
         { count: orderCount30d },
         { count: payoutCount30d },
+        { data: lifetimeOrders },
       ] = await Promise.all([
         supabase
           .from("orders")
@@ -173,6 +177,11 @@ export default function Dashboard() {
           .select("id", { count: "exact", head: true })
           .eq("customer_id", c.id)
           .gte("created_at", thirtyDaysAgo.toISOString()),
+        supabase
+          .from("orders")
+          .select("usdc_amount")
+          .eq("customer_id", c.id)
+          .eq("status", "COMPLETED"),
       ]);
 
       const orderTxs: UnifiedTx[] = (orders ?? []).map((o: any) => ({
@@ -206,6 +215,14 @@ export default function Dashboard() {
         (monthOrders ?? []).reduce((s, o: any) => s + Number(o.htg_amount ?? 0), 0)
       );
       setTxCount30d((orderCount30d ?? 0) + (payoutCount30d ?? 0));
+
+      const totalBps = (c.fee_bps ?? 130) + (c.corridor_bps ?? 70);
+      const feeRate = totalBps / 10_000;
+      const savings = (lifetimeOrders ?? []).reduce((s, o: any) => {
+        const u = Number(o.usdc_amount ?? 0);
+        return s + u * 0.05 - u * feeRate;
+      }, 0);
+      setLifetimeSavings(Math.max(0, savings));
     })();
   }, []);
 
@@ -242,7 +259,7 @@ export default function Dashboard() {
       <div className="mb-4" style={{ width: 28, height: 3, background: "hsl(var(--theo-gold))", borderRadius: 2, marginTop: 8 }} />
 
       {/* Stat cards */}
-      <div className={`grid ${hasYield ? "grid-cols-5" : "grid-cols-4"} gap-3.5 mb-4`}>
+      <div className={`grid ${hasYield ? "grid-cols-6" : "grid-cols-5"} gap-3.5 mb-4`}>
         <div className="rounded-xl p-4 shadow-xs" style={{ background: "hsl(var(--theo-gold))" }}>
           <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "rgba(51,53,154,0.55)" }}>Total USDC Balance</div>
           <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1.5px", color: "hsl(var(--theo-blue))" }}>
@@ -282,6 +299,37 @@ export default function Dashboard() {
           </div>
           <div style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-mid))", marginTop: 6 }}>
             {new Date().toLocaleString("en-US", { month: "long" })}
+          </div>
+        </div>
+
+        <div className="rounded-xl p-4 shadow-xs" style={{ background: "#EFFBF3" }}>
+          <div className="flex items-center gap-1 mb-2">
+            <div className="font-bold uppercase" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(150 50% 25%)" }}>
+              Lifetime Savings
+            </div>
+            <TooltipProvider delayDuration={150}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="How is lifetime savings calculated?"
+                    className="inline-flex items-center justify-center"
+                    style={{ background: "transparent", border: "none", padding: 0, cursor: "help", color: "hsl(150 50% 25%)" }}
+                  >
+                    <Info className="h-3 w-3" style={{ strokeWidth: 2 }} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs text-xs">
+                  We calculate this by comparing our low fees to the 5% average markup charged by traditional banks and wire services.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1.5px", color: "hsl(150 70% 25%)" }}>
+            ${lifetimeSavings.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "hsl(150 30% 30%)", marginTop: 6 }}>
+            Compared to standard 5% market FX rates
           </div>
         </div>
 
