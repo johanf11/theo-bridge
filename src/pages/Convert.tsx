@@ -1176,6 +1176,34 @@ export default function Convert() {
                     You receive <strong>{offAmountRaw > 0 ? offAmountRaw.toLocaleString("en-US") : "—"} HTG</strong> at your bank · 1:1 peg
                   </div>
                 )}
+
+                {offHtgcBalance != null && offHtgcBalance > 0 && (
+                  <div className="flex gap-1.5 mt-2">
+                    {([0.25, 0.5, 0.75, 1] as const).map((pct) => {
+                      const target = Math.floor(offHtgcBalance * pct);
+                      const active = offAmountRaw === target && offAmountRaw > 0;
+                      return (
+                        <button
+                          key={pct}
+                          type="button"
+                          onClick={() => {
+                            setOffAmountRaw(target);
+                            setOffAmount(target ? target.toLocaleString("en-US") : "");
+                          }}
+                          style={{
+                            flex: 1, fontSize: 11, fontWeight: 700, padding: "4px 0",
+                            borderRadius: 6, border: "1.5px solid hsl(var(--theo-light))",
+                            background: active ? "hsl(var(--theo-blue))" : "transparent",
+                            color: active ? "#fff" : "hsl(var(--theo-mid))",
+                            cursor: "pointer", fontFamily: "inherit", transition: "all 120ms",
+                          }}
+                        >
+                          {pct === 1 ? "MAX" : `${pct * 100}%`}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Source wallet */}
