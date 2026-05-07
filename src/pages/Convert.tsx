@@ -79,6 +79,16 @@ export default function Convert() {
   const [offHtgcBalance, setOffHtgcBalance] = useState<number | null>(null);
   const [offHtgcLoading, setOffHtgcLoading] = useState(false);
 
+  // ── International wire state ────────────────────────────────────────────
+  const [wireSourceWallet, setWireSourceWallet] = useState<string>("");
+  const [wireRecipientName, setWireRecipientName] = useState("");
+  const [wireSwift, setWireSwift] = useState("");
+  const [wireIban, setWireIban] = useState("");
+  const [wireBankCity, setWireBankCity] = useState("");
+  const [wireAmountRaw, setWireAmountRaw] = useState(0);
+  const [wireAmountDisplay, setWireAmountDisplay] = useState("");
+  const [wireBusy, setWireBusy] = useState(false);
+
   // Add bank form
   const [addBankName, setAddBankName] = useState("");
   const [addAccountName, setAddAccountName] = useState("");
