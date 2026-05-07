@@ -284,7 +284,7 @@ export default function Compliance() {
           {/* Equals divider */}
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "center",
-            background: "hsl(var(--theo-cream))", borderLeft: "1px solid hsl(var(--theo-light))", borderRight: "1px solid hsl(var(--theo-light))",
+            background: "#fff", borderLeft: "1px solid hsl(var(--theo-light))", borderRight: "1px solid hsl(var(--theo-light))",
             fontSize: 22, fontWeight: 700, color: ratioColor,
           }}>
             =
