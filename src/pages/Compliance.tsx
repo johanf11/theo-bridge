@@ -313,11 +313,11 @@ export default function Compliance() {
         }}>
           <div style={{ padding: "16px 22px", background: "hsl(var(--theo-cream))" }}>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "hsl(var(--theo-mid))", marginBottom: 6 }}>
-              Off-chain — SPIH Bank
+              On-chain — Stellar Network
             </div>
-            <div style={{ fontWeight: 700, fontSize: 14, color: "hsl(var(--theo-ink))", marginBottom: 4 }}>Segregated HTG Account</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "hsl(var(--theo-ink))", marginBottom: 4 }}>HTG-C Tokens Issued</div>
             <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))", lineHeight: 1.55 }}>
-              HTG deposits via SPIH land in Theo's ring-fenced account — never commingled with operating funds.
+              For every HTG received, exactly one HTG-C is minted on Stellar. No token exists without a matching deposit.
             </div>
           </div>
           <div style={{
@@ -327,13 +327,13 @@ export default function Compliance() {
           }}>
             ⇄
           </div>
-          <div style={{ padding: "16px 22px" }}>
+          <div style={{ padding: "16px 22px", background: "hsl(var(--theo-cream))" }}>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "hsl(var(--theo-mid))", marginBottom: 6 }}>
-              On-chain — Stellar Network
+              Off-chain — SPIH Bank
             </div>
-            <div style={{ fontWeight: 700, fontSize: 14, color: "hsl(var(--theo-ink))", marginBottom: 4 }}>HTG-C Tokens Issued</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "hsl(var(--theo-ink))", marginBottom: 4 }}>Segregated HTG Account</div>
             <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))", lineHeight: 1.55 }}>
-              For every HTG received, exactly one HTG-C is minted on Stellar. No token exists without a matching deposit.
+              HTG deposits via SPIH land in Theo's ring-fenced account — never commingled with operating funds.
             </div>
           </div>
         </div>
