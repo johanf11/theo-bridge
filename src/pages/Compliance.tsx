@@ -346,34 +346,80 @@ export default function Compliance() {
         </div>
       </div>
 
-      {/* Reserve stats — 4 cards: total minted, circulation, treasury, backing ratio */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 14, marginBottom: 20 }}>
-        <StatCard
-          accent
-          icon={Landmark}
-          label="Total HTG-C Minted"
-          value={state === "ok" && reserve && !isNaN(reserve.totalMinted) ? fmtN(reserve.totalMinted, 0) : "—"}
-          sub="All tokens issued · on-chain supply"
-        />
-        <StatCard
-          icon={CircleDot}
-          label="In Circulation"
-          value={state === "ok" && reserve && !isNaN(reserve.circulation) ? fmtN(reserve.circulation, 0) : "—"}
-          sub="Held in customer wallets"
-        />
-        <StatCard
-          icon={Landmark}
-          label="Treasury float"
-          value={state === "ok" && reserve && !isNaN(reserve.treasury) ? fmtN(reserve.treasury, 0) : "—"}
-          sub="Distributor wallet · pre-mint buffer"
-        />
-        <StatCard
-          icon={ShieldCheck}
-          label="Backing Ratio"
-          value="1 : 1"
-          sub="1 HTG-C = 1 HTG · pegged"
-        />
-      </div>
+      {/* Supply breakdown — where the minted total sits */}
+      {(() => {
+        const total = reserve?.totalMinted ?? 0;
+        const circ = reserve?.circulation ?? 0;
+        const treas = reserve?.treasury ?? 0;
+        const circPct = total > 0 ? (circ / total) * 100 : 0;
+        const treasPct = total > 0 ? (treas / total) * 100 : 0;
+        const ready = state === "ok" && reserve && total > 0;
+        return (
+          <div style={{
+            borderRadius: 14, marginBottom: 20, overflow: "hidden",
+            border: "1.5px solid hsl(var(--theo-light))", background: "#fff",
+          }}>
+            <div style={{
+              padding: "10px 18px", background: "hsl(var(--theo-cream))",
+              borderBottom: "1px solid hsl(var(--theo-light))",
+              fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.16em",
+              color: "hsl(var(--theo-mid))",
+            }}>
+              Supply breakdown
+            </div>
+
+            {/* Stacked bar */}
+            <div style={{ padding: "18px 22px 14px" }}>
+              <div style={{
+                display: "flex", height: 10, borderRadius: 99, overflow: "hidden",
+                background: "hsl(var(--theo-light))",
+              }}>
+                <div style={{ width: `${circPct}%`, background: "hsl(var(--theo-blue))" }} />
+                <div style={{ width: `${treasPct}%`, background: "hsl(var(--theo-gold))" }} />
+              </div>
+            </div>
+
+            {/* Two columns */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderTop: "1px solid hsl(var(--theo-light))" }}>
+              <div style={{ padding: "16px 22px", borderRight: "1px solid hsl(var(--theo-light))" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 3, background: "hsl(var(--theo-blue))" }} />
+                  <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "hsl(var(--theo-mid))" }}>
+                    In customer wallets
+                  </span>
+                  <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
+                    {ready ? `${circPct.toFixed(1)}%` : "—"}
+                  </span>
+                </div>
+                <div style={{ fontWeight: 800, fontSize: 22, letterSpacing: "-0.03em", color: "hsl(var(--theo-ink))" }}>
+                  {ready ? fmtN(circ, 0) : "—"} <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))", fontWeight: 600 }}>HTG-C</span>
+                </div>
+                <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 3 }}>
+                  Held by businesses & end users
+                </div>
+              </div>
+
+              <div style={{ padding: "16px 22px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 3, background: "hsl(var(--theo-gold))" }} />
+                  <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "hsl(var(--theo-mid))" }}>
+                    Treasury float
+                  </span>
+                  <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
+                    {ready ? `${treasPct.toFixed(1)}%` : "—"}
+                  </span>
+                </div>
+                <div style={{ fontWeight: 800, fontSize: 22, letterSpacing: "-0.03em", color: "hsl(var(--theo-ink))" }}>
+                  {ready ? fmtN(treas, 0) : "—"} <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))", fontWeight: 600 }}>HTG-C</span>
+                </div>
+                <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 3 }}>
+                  Distributor wallet · pre-mint buffer
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Peg explanation */}
       <div style={{
