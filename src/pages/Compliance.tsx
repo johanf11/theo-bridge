@@ -557,7 +557,7 @@ export default function Compliance() {
               {[
                 { label: "Backing", value: "1 : 1 USD", sub: "Held in regulated US banks" },
                 { label: "Issuer", value: "Circle", sub: "Centre Consortium" },
-                { label: "On Chain", value: "Stellar Testnet", sub: "GBBD47…FLA5" },
+                { label: "On Chain", value: "Stellar", sub: "GBBD47…FLA5" },
               ].map(({ label, value, sub }) => (
                 <div key={label} style={{
                   padding: "12px 14px", borderRadius: 10,
