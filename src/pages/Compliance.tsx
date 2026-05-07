@@ -120,6 +120,23 @@ export default function Compliance() {
   const [reserve, setReserve] = useState<ReserveData | null>(null);
   const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [attestation, setAttestation] = useState<{
+    period_label: string;
+    attested_at: string;
+    htg_balance: number;
+    auditor_name: string | null;
+    attestation_pdf_url: string | null;
+  } | null>(null);
+
+  const fetchAttestation = async () => {
+    const { data } = await supabase
+      .from("reserve_attestations")
+      .select("period_label, attested_at, htg_balance, auditor_name, attestation_pdf_url")
+      .order("attested_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (data) setAttestation({ ...data, htg_balance: Number(data.htg_balance) });
+  };
 
   const fetchReserve = async () => {
     setState("loading");
@@ -136,14 +153,11 @@ export default function Compliance() {
       const distJson  = await distRes.json()  as { balances: HorizonBalance[] };
       const assetJson = await assetRes.json() as Record<string, unknown>;
 
-      // Distributor treasury balance
       const htgcBal = distJson.balances.find(
         (b) => b.asset_code === "HTGC" && b.asset_issuer === HTGC_ISSUER,
       );
       const treasury = htgcBal ? parseFloat(htgcBal.balance) : 0;
 
-      // Total minted — Horizon /assets returns balances.authorized (not `amount`)
-      // e.g. { balances: { authorized: "11075000.0000000", ... } }
       const records = (assetJson?._embedded as {
         records?: Array<{ balances?: { authorized?: string } }>
       } | undefined)?.records ?? [];
@@ -162,7 +176,17 @@ export default function Compliance() {
     }
   };
 
-  useEffect(() => { fetchReserve(); }, []);
+  useEffect(() => { fetchReserve(); fetchAttestation(); }, []);
+
+  // Compute collateral ratio
+  const ratio = (reserve && attestation && reserve.totalMinted > 0)
+    ? (attestation.htg_balance / reserve.totalMinted) * 100
+    : null;
+  const ratioState: "ok" | "warn" | "bad" | "none" = ratio == null
+    ? "none"
+    : ratio >= 100 ? "ok" : ratio >= 99 ? "warn" : "bad";
+  const ratioColor = ratioState === "ok" ? "#15803D" : ratioState === "warn" ? "#B45309" : ratioState === "bad" ? "#991B1B" : "hsl(var(--theo-mid))";
+  const ratioBg = ratioState === "ok" ? "#DCFCE7" : ratioState === "warn" ? "#FEF3C7" : ratioState === "bad" ? "#FEE2E2" : "hsl(var(--theo-blue-soft))";
 
   return (
     <AppLayout>
