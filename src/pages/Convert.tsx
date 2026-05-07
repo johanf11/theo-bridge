@@ -1304,9 +1304,62 @@ export default function Convert() {
                 );
               })()}
 
+              {/* Transfer Summary — mirrors Wire tab layout */}
+              {(() => {
+                const fmt = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                const redemption = offAmountRaw;
+                const spihFee = 0;
+                const theoFee = 0; // Local liquidity: 0 bps to emphasise free corridor
+                const totalSettlement = Math.max(0, redemption - spihFee - theoFee);
+                return (
+                  <div className="rounded-xl mb-4 p-4" style={{ background: "hsl(var(--theo-cream))", border: "1px solid hsl(var(--theo-light))" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: "hsl(var(--theo-cyan))", marginBottom: 10 }}>
+                      Transfer Summary
+                    </div>
+                    <div className="flex justify-between" style={{ fontSize: 12, marginBottom: 6 }}>
+                      <span style={{ color: "hsl(var(--theo-mid))" }}>Redemption Amount</span>
+                      <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>{fmt(redemption)} HTG-C</span>
+                    </div>
+                    <div className="flex justify-between" style={{ fontSize: 12, marginBottom: 6 }}>
+                      <span style={{ color: "hsl(var(--theo-mid))" }}>SPIH Network Fee</span>
+                      <span style={{ fontWeight: 700, color: "#1A7F37" }}>Included · Free</span>
+                    </div>
+                    <div className="flex justify-between" style={{ fontSize: 12, marginBottom: 6 }}>
+                      <span style={{ color: "hsl(var(--theo-mid))" }}>Theo Service Fee <span style={{ opacity: 0.7 }}>(0 bps)</span></span>
+                      <span style={{ fontWeight: 700, color: "#1A7F37" }}>$0.00</span>
+                    </div>
+                    <div className="flex justify-between" style={{ fontSize: 13, marginTop: 8, paddingTop: 8, borderTop: "1px solid hsl(var(--theo-light))" }}>
+                      <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>Total Settlement</span>
+                      <span style={{ fontWeight: 800, color: "hsl(var(--theo-blue))" }}>{fmt(totalSettlement)} HTG</span>
+                    </div>
+                    <div className="flex justify-between items-center gap-2" style={{ fontSize: 13, marginTop: 10, paddingTop: 10, borderTop: "1px dashed hsl(var(--theo-cyan))" }}>
+                      <span className="flex items-center gap-1.5" style={{ fontWeight: 800, color: "hsl(var(--theo-blue))" }}>
+                        Recipient Receives
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info size={13} style={{ color: "hsl(var(--theo-cyan))", cursor: "help" }} />
+                            </TooltipTrigger>
+                            <TooltipContent side="top" style={{ maxWidth: 240, fontSize: 11 }}>
+                              Local bank transfers via SPIH are processed at a 1:1 peg with no international wire surcharges.
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </span>
+                      <span style={{ fontWeight: 800, color: "hsl(var(--theo-blue))" }}>
+                        <span style={{ color: "hsl(var(--theo-cyan))" }}>{fmt(totalSettlement)}</span> HTG · 1:1 peg
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Settlement note */}
-              <div className="rounded-xl mb-4" style={{ background: "hsl(var(--theo-gold-soft))", border: "1px solid #F0C000", padding: "12px 14px", fontSize: 12, color: "#7A5F00", lineHeight: 1.5 }}>
-                <strong>How it works:</strong> Your HTG-C is burned on Stellar and an equivalent amount of HTG is sent to your bank via <strong>SPIH</strong>. Typically arrives in 1–2 business days.
+              <div className="rounded-xl mb-4 flex items-start gap-2.5" style={{ background: "hsl(var(--theo-blue-soft))", border: "1px solid hsl(var(--theo-blue-chip))", padding: "12px 14px" }}>
+                <Info className="shrink-0" style={{ width: 14, height: 14, color: "hsl(var(--theo-blue))", marginTop: 2 }} />
+                <div style={{ fontSize: 12, color: "hsl(var(--theo-blue))", lineHeight: 1.6 }}>
+                  Your HTG-C is burned on Stellar and an equivalent amount of HTG is sent to your bank via <strong>SPIH</strong>. Typically arrives in <strong>1–2 business days</strong>.
+                </div>
               </div>
 
               {(() => {
