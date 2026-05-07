@@ -9,7 +9,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 
 type Tab = "single" | "bulk" | "global";
 
-type Wallet = { id: string; label: string; stellar_address: string };
+type Wallet = { id: string; label: string; stellar_address: string; usdc_balance: number };
 
 type Payout = {
   id: string;
@@ -145,7 +145,7 @@ export default function Payout() {
     setWalletsLoading(true);
     const { data } = await supabase
       .from("wallets")
-      .select("id, label, stellar_address")
+      .select("id, label, stellar_address, usdc_balance")
       .eq("customer_id", cid)
       .order("created_at", { ascending: true });
     const list = (data ?? []) as Wallet[];
@@ -624,13 +624,17 @@ export default function Payout() {
           ) : (() => {
             const bankFee = bankAmountRaw > 0 ? 1.5 + bankAmountRaw * 0.005 : 0;
             const bankNet = Math.max(0, bankAmountRaw - bankFee);
+            const selectedBankWallet = wallets.find((w) => w.id === sourceWalletId);
+            const bankWalletBalance = Number(selectedBankWallet?.usdc_balance ?? 0);
+            const overBalance = bankAmountRaw > bankWalletBalance;
             const allFilled =
               bankRecipientName.trim() &&
               bankBankName.trim() &&
               bankAccountNumber.trim() &&
               bankRoutingCode.trim() &&
-              bankAmountRaw > 0;
-            const disabled = bankBusy || !allFilled || !can("payout_send");
+              bankAmountRaw > 0 &&
+              !!sourceWalletId;
+            const disabled = bankBusy || !allFilled || overBalance || !can("payout_send");
 
             const handleBankPayoutSubmit = async () => {
               const payload = {
@@ -655,6 +659,42 @@ export default function Payout() {
                   <div style={{ fontSize: 12, color: "hsl(var(--theo-blue))", lineHeight: 1.6 }}>
                     Settlements to bank accounts are processed via <strong>OwlPay</strong> regulated rails. Requires a valid business license and may take 1–3 business days.
                   </div>
+                </div>
+
+                {/* Source wallet */}
+                <div style={{ marginBottom: 12 }}>
+                  <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
+                    <label style={{ ...labelStyle, marginBottom: 0 }}>Source account <span style={{ color: "#C00" }}>*</span></label>
+                    {selectedBankWallet && (
+                      <span
+                        style={{
+                          display: "inline-block",
+                          background: "hsl(var(--theo-blue-soft))",
+                          color: "hsl(var(--theo-blue))",
+                          border: "1px solid hsl(var(--theo-blue-chip))",
+                          fontSize: 11,
+                          fontWeight: 600,
+                          padding: "3px 9px",
+                          borderRadius: 999,
+                        }}
+                      >
+                        Available: {bankWalletBalance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC
+                      </span>
+                    )}
+                  </div>
+                  {walletsLoading ? (
+                    <div style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>Loading accounts…</div>
+                  ) : wallets.length === 0 ? (
+                    <div style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>No accounts found. Add one on the Balance page.</div>
+                  ) : (
+                    <select
+                      style={{ ...inputStyle, marginBottom: 0, appearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6B8A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: 28, cursor: "pointer" }}
+                      value={sourceWalletId}
+                      onChange={(e) => setSourceWalletId(e.target.value)}
+                    >
+                      {wallets.map((w) => <option key={w.id} value={w.id}>{w.label}</option>)}
+                    </select>
+                  )}
                 </div>
 
                 <div style={{ marginBottom: 12 }}>
@@ -691,6 +731,11 @@ export default function Payout() {
                     }}
                     placeholder="0.00"
                   />
+                  {overBalance && (
+                    <div style={{ fontSize: 11, color: "hsl(var(--destructive))", marginTop: 6, fontWeight: 600 }}>
+                      Insufficient USDC balance in selected account.
+                    </div>
+                  )}
                 </div>
 
                 <div className="rounded-xl mb-4 p-4" style={{ background: "hsl(var(--theo-cream))", border: "1px solid hsl(var(--theo-light))" }}>
