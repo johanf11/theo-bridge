@@ -689,7 +689,7 @@ export default function Balance() {
                 </div>
               </div>
               <button
-                onClick={() => setSweepWallet(null)}
+                onClick={closeSweepModal}
                 style={{ background: "transparent", border: "none", cursor: "pointer", color: "hsl(var(--theo-mid))", padding: 4 }}
               >
                 <X size={18} />
@@ -708,7 +708,7 @@ export default function Balance() {
                   value={sweepAmount}
                   onChange={(e) => {
                     const v = parseFloat(e.target.value);
-                    if (!isNaN(v) && v > SWEEP_MAX) { setSweepAmount(String(SWEEP_MAX)); return; }
+                    if (!isNaN(v) && v > sweepCap) { setSweepAmount(String(sweepCap)); return; }
                     setSweepAmount(e.target.value);
                   }}
                   placeholder="0.00"
@@ -774,7 +774,7 @@ export default function Balance() {
             {/* Actions */}
             <div className="flex gap-2">
               <button
-                onClick={() => { setSweepWallet(null); setSweepAmount(""); }}
+                onClick={closeSweepModal}
                 disabled={sweeping}
                 style={{
                   flex: 1, background: "transparent", border: "1.5px solid hsl(var(--border))",
