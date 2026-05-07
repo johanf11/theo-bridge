@@ -40,6 +40,7 @@ export default function Convert() {
   const [htgUsdcNetRaw, setHtgUsdcNetRaw] = useState(0);
   const [htgUsdcNetDisplay, setHtgUsdcNetDisplay] = useState("");
   const [htgLastEdited, setHtgLastEdited] = useState<"htg" | "usdc">("htg");
+  const [htgFlipped, setHtgFlipped] = useState(false);
   // Tab 2: HTG-C ↔ USDC
   const [swapDir, setSwapDir] = useState<"htgc_to_usdc" | "usdc_to_htgc">("htgc_to_usdc");
   const [swapAmount, setSwapAmount] = useState("5,000");
@@ -697,11 +698,11 @@ export default function Convert() {
               ) : (
                 /* Coinbase-style two-field HTG ↔ USDC widget */
                 <div style={{ marginBottom: 14, position: "relative" }}>
-                  <div className="rounded-xl" style={{ border: "1px solid hsl(var(--theo-blue-chip))", background: "white", overflow: "hidden" }}>
+                  <div className="rounded-xl" style={{ border: "1px solid hsl(var(--theo-blue-chip))", background: "white", overflow: "hidden", display: "flex", flexDirection: "column" }}>
                     {/* You send · HTG */}
-                    <div style={{ padding: "12px 14px" }}>
+                    <div style={{ padding: "12px 14px", order: htgFlipped ? 2 : 0 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: "hsl(var(--theo-mid))", marginBottom: 6 }}>
-                        You send
+                        {htgFlipped ? "You receive" : "You send"}
                       </div>
                       <div className="flex items-center justify-between gap-3">
                         <input
@@ -722,12 +723,12 @@ export default function Convert() {
                       </div>
                     </div>
 
-                    <div style={{ height: 1, background: "hsl(var(--theo-blue-chip))" }} />
+                    <div style={{ height: 1, background: "hsl(var(--theo-blue-chip))", order: 1 }} />
 
                     {/* You receive · USDC */}
-                    <div style={{ padding: "12px 14px" }}>
+                    <div style={{ padding: "12px 14px", order: htgFlipped ? 0 : 2 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: "hsl(var(--theo-mid))", marginBottom: 6 }}>
-                        You receive
+                        {htgFlipped ? "You send" : "You receive"}
                       </div>
                       <div className="flex items-center justify-between gap-3">
                         <input
@@ -749,12 +750,11 @@ export default function Convert() {
                     </div>
                   </div>
 
-                  {/* Flip button — visual only */}
+                  {/* Flip button — swaps top/bottom visually */}
                   <button
                     type="button"
-                    aria-disabled="true"
-                    tabIndex={-1}
-                    onClick={(e) => e.preventDefault()}
+                    onClick={() => setHtgFlipped((f) => !f)}
+                    aria-label="Flip fields"
                     style={{
                       position: "absolute", top: "50%", left: "50%",
                       transform: "translate(-50%, -50%)",
@@ -762,7 +762,7 @@ export default function Convert() {
                       background: "white",
                       border: "1px solid hsl(var(--theo-blue-chip))",
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      cursor: "default", padding: 0,
+                      cursor: "pointer", padding: 0,
                     }}
                   >
                     <ArrowUpDown style={{ width: 14, height: 14, color: "hsl(var(--theo-blue))" }} />
