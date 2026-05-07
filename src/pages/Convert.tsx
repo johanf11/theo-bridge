@@ -606,7 +606,21 @@ export default function Convert() {
 
               {/* Receive mode toggle */}
               <div style={{ marginBottom: 14 }}>
-                <label style={labelStyle}>You receive</label>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <label style={{ ...labelStyle, marginBottom: 0 }}>You receive</label>
+                  <span
+                    title={`Available ${htgReceiveMode === "usdc" ? "USDC" : "HTG-C"} in selected wallet`}
+                    style={{
+                      fontSize: 11, fontWeight: 600,
+                      color: "hsl(var(--theo-blue))",
+                      background: "hsl(var(--theo-blue-soft))",
+                      border: "1px solid hsl(var(--theo-blue-chip))",
+                      padding: "3px 8px", borderRadius: 999,
+                    }}
+                  >
+                    Available: {(htgReceiveMode === "usdc" ? walletBalances.usdc : walletBalances.htgc).toLocaleString("en-US", { minimumFractionDigits: htgReceiveMode === "usdc" ? 2 : 0, maximumFractionDigits: htgReceiveMode === "usdc" ? 2 : 0 })} {htgReceiveMode === "usdc" ? "USDC" : "HTG-C"}
+                  </span>
+                </div>
                 <div className="flex items-center gap-2">
                   {dirToggle(htgReceiveMode === "usdc", () => setHtgReceiveMode("usdc"), "USDC · auto-convert")}
                   {dirToggle(htgReceiveMode === "htgc", () => setHtgReceiveMode("htgc"), "HTG-C · 1:1 mint")}
