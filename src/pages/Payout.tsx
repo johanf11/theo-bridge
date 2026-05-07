@@ -145,7 +145,7 @@ export default function Payout() {
     setWalletsLoading(true);
     const { data } = await supabase
       .from("wallets")
-      .select("id, label, stellar_address")
+      .select("id, label, stellar_address, usdc_balance")
       .eq("customer_id", cid)
       .order("created_at", { ascending: true });
     const list = (data ?? []) as Wallet[];
