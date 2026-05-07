@@ -252,7 +252,7 @@ export default function Convert() {
 
   const submit = async () => {
     if (!canQuote) { toast.error("KYB approval required"); return; }
-    if (usdcRaw < 1000 || usdcRaw > 50000) { toast.error("Enter an amount between 1,000 and 50,000 USDC"); return; }
+    if (usdcRaw < 1000 || usdcRaw > 52000) { toast.error("Enter an amount between 1,000 and 50,000 USDC"); return; }
     if (!selectedWallet) { toast.error("Please select a destination account"); return; }
     try {
       setBusy(true);
@@ -398,7 +398,10 @@ export default function Convert() {
     let num = parseInt(raw, 10) || 0;
     // Cap HTG input so its USDC equivalent never exceeds 50,000 USDC
     if (htgReceiveMode === "usdc" && liveRate && liveRate > 0) {
-      const maxHtg = Math.floor(50_000 * liveRate);
+      const f = totalBps / 10_000;
+      const denom = 1 - f;
+      const maxGross = denom > 0 ? 50_000 / denom : 50_000;
+      const maxHtg = Math.floor(maxGross * liveRate);
       if (num > maxHtg) num = maxHtg;
     }
     setHtgAmountRaw(num);
@@ -463,7 +466,7 @@ export default function Convert() {
       const denom = 1 - f;
       const usdcGross = denom > 0 ? htgUsdcNetRaw / denom : 0;
       const usdcGrossRounded = Math.round(usdcGross * 1e7) / 1e7;
-      if (usdcGrossRounded < 1000 || usdcGrossRounded > 50000) {
+      if (usdcGrossRounded < 1000 || usdcGrossRounded > 52000) {
         toast.error("Enter an amount between 1,000 and 50,000 USDC");
         return;
       }
