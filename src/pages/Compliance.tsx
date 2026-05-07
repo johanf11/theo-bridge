@@ -274,7 +274,7 @@ export default function Compliance() {
               HTG-C in circulation (on-chain)
             </div>
             <div style={{ fontWeight: 800, fontSize: 24, letterSpacing: "-0.03em", color: "hsl(var(--theo-blue))" }}>
-              {state === "ok" && reserve ? fmtN(reserve.totalMinted, 2) : "—"} <span style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>HTG-C</span>
+              {state === "ok" && reserve ? fmtN(reserve.circulation, 2) : "—"} <span style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>HTG-C</span>
             </div>
             <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 4 }}>
               Live from Stellar · refreshed {fetchedAt ? fetchedAt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "—"}
