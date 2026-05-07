@@ -722,16 +722,6 @@ export default function Balance() {
                   }}
                 />
                 <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>USDC</span>
-                <button
-                  onClick={() => setSweepAmount(String(sweepCap))}
-                  style={{
-                    background: "hsl(var(--theo-cream))", border: "1px solid hsl(var(--border))",
-                    color: "hsl(var(--theo-blue))", borderRadius: 6, padding: "3px 8px",
-                    fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                  }}
-                >
-                  Max
-                </button>
               </div>
             </div>
 
