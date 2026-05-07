@@ -292,9 +292,10 @@ export default function Payout() {
             </span>
           </div>
 
-          <div className="flex border-b border-border mb-2 mt-2">
+          <div className="flex border-b border-border mb-2 mt-2" style={{ overflowX: "auto" }}>
             <button style={tabStyle("single")} onClick={() => setTab("single")}>Single recipient</button>
             <button style={tabStyle("bulk")} onClick={() => setTab("bulk")}>Mass transfer</button>
+            <button style={tabStyle("global")} onClick={() => setTab("global")}>Global Bank Payout</button>
           </div>
 
           {tab === "single" ? (
