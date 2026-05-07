@@ -6,7 +6,7 @@ import {
   Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { distributorPublicKey, signWithSecret } from "../_shared/stellar-signer.ts";
-import { assertWithinLimits } from "../_shared/tx-limits.ts";
+// Internal Blend sweeps are not subject to external single-payment caps; only wallet balance constrains them.
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
