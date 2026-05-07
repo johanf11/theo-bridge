@@ -832,7 +832,7 @@ export default function Convert() {
                       <span style={{ fontSize: 11, color: "#15803d", fontWeight: 600 }}>
                         HTG-C is fully collateralised by HTG held in Theo's segregated bank account · quarterly audited attestations ·{" "}
                         <a
-                          href="https://stellar.expert/explorer/testnet/account/GCP6VMZS3SJ4CSOT3ZVMMJIOXOHTMJK47YQ4RTUJN7P2KYKDVRCUBS2X"
+                          href="https://stellar.expert/explorer/testnet/asset/HTGC-GDSRYZWTLQLBECKCL4TV7ZRGBZGBMSPD4V47B7Y7JSQVDJRSEXQTFCQT"
                           target="_blank"
                           rel="noreferrer"
                           style={{ color: "hsl(var(--theo-cyan))", textDecoration: "underline", fontWeight: 700 }}
