@@ -9,7 +9,7 @@ import {
 import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
 import { ensureWalletReady } from "../_shared/ensure-wallet-ready.ts";
 import { signWithSecret } from "../_shared/stellar-signer.ts";
-import { assertWithinLimits } from "../_shared/tx-limits.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -54,8 +54,7 @@ Deno.serve(async (req) => {
     if (sourceWalletId === destinationWalletId) return json({ error: "Source and destination must differ" }, 400);
     const parsedAmount = parseFloat(amount);
     if (!parsedAmount || parsedAmount <= 0) return json({ error: "Valid amount required" }, 400);
-    try { assertWithinLimits(parsedAmount, "Transfer amount"); }
-    catch (e) { return json({ error: (e as Error).message }, 400); }
+    // Note: internal wallet-to-wallet moves are NOT subject to the external single-payment cap.
 
     // Both wallets must belong to this customer.
     const { data: srcWallet } = await admin
