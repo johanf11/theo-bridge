@@ -250,15 +250,15 @@ export default function Payout() {
   const labelStyle: React.CSSProperties = {
     display: "block", fontSize: 10, fontWeight: 700,
     textTransform: "uppercase", letterSpacing: "0.10em",
-    color: "hsl(var(--theo-mid))", marginBottom: 6,
+    color: "hsl(var(--theo-mid))", marginBottom: 4,
   };
 
   const inputStyle: React.CSSProperties = {
     width: "100%", fontFamily: "inherit", fontSize: 14,
-    padding: "10px 12px", borderRadius: 9,
+    padding: "8px 12px", borderRadius: 9,
     border: "1.5px solid hsl(var(--theo-light))",
     background: "#fff", color: "hsl(var(--theo-ink))",
-    outline: "none", marginBottom: 14, boxSizing: "border-box",
+    outline: "none", marginBottom: 10, boxSizing: "border-box",
   };
 
   return (
@@ -275,7 +275,7 @@ export default function Payout() {
 
       <div className="grid gap-4" style={{ gridTemplateColumns: "3fr 2fr" }}>
         {/* Payout form */}
-        <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
+        <div className="bg-card border border-border rounded-xl shadow-xs" style={{ padding: "16px 20px" }}>
           <div className="flex items-center justify-between mb-1">
             <div className="font-bold" style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>New payout</div>
             <span className="font-bold rounded-full" style={{ fontSize: 11, background: "hsl(var(--theo-blue-soft))", color: "hsl(var(--theo-blue))", padding: "3px 8px" }}>
@@ -283,7 +283,7 @@ export default function Payout() {
             </span>
           </div>
 
-          <div className="flex border-b border-border mb-4 mt-3">
+          <div className="flex border-b border-border mb-2 mt-2">
             <button style={tabStyle("single")} onClick={() => setTab("single")}>Single recipient</button>
             <button style={tabStyle("bulk")} onClick={() => setTab("bulk")}>Mass transfer</button>
           </div>
@@ -292,7 +292,7 @@ export default function Payout() {
             <form onSubmit={handleSend}>
 
               {/* ── Saved recipients selector ───────────────────────── */}
-              <div style={{ marginBottom: 16 }}>
+              <div style={{ marginBottom: 10 }}>
                 <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
                   <label style={labelStyle}>Saved recipients</label>
                   {savedRecipients.length > 0 && (
@@ -416,7 +416,7 @@ export default function Payout() {
               </div>
 
               {/* ── Recipient fields ────────────────────────────────── */}
-              <div className="grid gap-3 mb-3.5" style={{ gridTemplateColumns: "1fr 1fr" }}>
+              <div className="grid gap-3 mb-2.5" style={{ gridTemplateColumns: "1fr 1fr" }}>
                 <div>
                   <label style={labelStyle}>Recipient name</label>
                   <input
@@ -491,7 +491,7 @@ export default function Payout() {
               </div>
 
               {/* ── Amount ──────────────────────────────────────────── */}
-              <div style={{ marginBottom: 14 }}>
+              <div style={{ marginBottom: 10 }}>
                 <label style={labelStyle}>Amount (USDC)</label>
                 <div style={{ position: "relative" }}>
                   <input
@@ -511,7 +511,7 @@ export default function Payout() {
               </div>
 
               {/* ── Source account ───────────────────────────────────── */}
-              <div style={{ marginBottom: 14 }}>
+              <div style={{ marginBottom: 10 }}>
                 <label style={labelStyle}>Source account</label>
                 {walletsLoading ? (
                   <div style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>Loading accounts…</div>
@@ -530,7 +530,7 @@ export default function Payout() {
               </div>
 
               {/* ── Memo ────────────────────────────────────────────── */}
-              <div style={{ marginBottom: 14 }}>
+              <div style={{ marginBottom: 10 }}>
                 <label style={labelStyle}>Payment note (optional)</label>
                 <input
                   style={{ ...inputStyle, marginBottom: 0 }}
