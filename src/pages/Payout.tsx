@@ -250,15 +250,15 @@ export default function Payout() {
   const labelStyle: React.CSSProperties = {
     display: "block", fontSize: 10, fontWeight: 700,
     textTransform: "uppercase", letterSpacing: "0.10em",
-    color: "hsl(var(--theo-mid))", marginBottom: 6,
+    color: "hsl(var(--theo-mid))", marginBottom: 4,
   };
 
   const inputStyle: React.CSSProperties = {
     width: "100%", fontFamily: "inherit", fontSize: 14,
-    padding: "10px 12px", borderRadius: 9,
+    padding: "8px 12px", borderRadius: 9,
     border: "1.5px solid hsl(var(--theo-light))",
     background: "#fff", color: "hsl(var(--theo-ink))",
-    outline: "none", marginBottom: 14, boxSizing: "border-box",
+    outline: "none", marginBottom: 10, boxSizing: "border-box",
   };
 
   return (
