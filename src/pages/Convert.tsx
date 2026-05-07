@@ -1205,11 +1205,7 @@ export default function Convert() {
                       Swap USDC → HTG-C first.
                     </button>
                   </div>
-                ) : (
-                  <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 4 }}>
-                    You receive <strong>{offAmountRaw > 0 ? offAmountRaw.toLocaleString("en-US") : "—"} HTG</strong> at your bank · 1:1 peg
-                  </div>
-                )}
+                ) : null}
 
                 {offHtgcBalance != null && offHtgcBalance > 0 && (
                   <div className="flex gap-1.5 mt-2">
