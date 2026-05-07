@@ -187,6 +187,21 @@ export default function Convert() {
     return () => { cancelled = true; };
   }, [selectedWallet]);
 
+  // Fetch HTG-C balance for the off-ramp source wallet
+  useEffect(() => {
+    const wallet = walletOptions.find((w) => w.id === offSourceWallet);
+    if (!wallet?.stellar_address?.startsWith("G")) {
+      setOffHtgcBalance(null);
+      return;
+    }
+    let cancelled = false;
+    setOffHtgcLoading(true);
+    fetchHorizonBalances(wallet.stellar_address).then((bals) => {
+      if (!cancelled) { setOffHtgcBalance(bals.htgc); setOffHtgcLoading(false); }
+    });
+    return () => { cancelled = true; };
+  }, [offSourceWallet, walletOptions, offBusy]);
+
   // No random ticker — rate is BRH official, only refreshes on page load.
 
   // Countdown
