@@ -1160,19 +1160,25 @@ export default function Convert() {
                 <strong>How it works:</strong> Your HTG-C is burned on Stellar and an equivalent amount of HTG is sent to your bank via <strong>SPIH</strong>. Typically arrives in 1–2 business days.
               </div>
 
-              <button
-                onClick={() => setOffConfirm(true)}
-                disabled={!selectedBank || offAmountRaw < 100}
-                className="w-full font-bold text-white"
-                style={{
-                  background: !selectedBank || offAmountRaw < 100 ? "hsl(var(--theo-mid))" : "hsl(var(--theo-blue))",
-                  borderRadius: 9, padding: "12px", fontSize: 14,
-                  border: "none", cursor: !selectedBank || offAmountRaw < 100 ? "not-allowed" : "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                Withdraw to bank →
-              </button>
+              {(() => {
+                const overBalance = offHtgcBalance != null && offAmountRaw > offHtgcBalance;
+                const disabled = !selectedBank || offAmountRaw < 100 || overBalance;
+                return (
+                  <button
+                    onClick={() => setOffConfirm(true)}
+                    disabled={disabled}
+                    className="w-full font-bold text-white"
+                    style={{
+                      background: disabled ? "hsl(var(--theo-mid))" : "hsl(var(--theo-blue))",
+                      borderRadius: 9, padding: "12px", fontSize: 14,
+                      border: "none", cursor: disabled ? "not-allowed" : "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    Withdraw to bank →
+                  </button>
+                );
+              })()}
             </>
           )}
         </div>
