@@ -410,21 +410,32 @@ export default function Convert() {
   const fmtUsdcStr = (n: number) =>
     n > 0 ? n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "";
   const fmtHtgStr = (n: number) =>
-    n > 0 ? Math.round(n).toLocaleString("en-US") : "";
+    n > 0 ? n.toLocaleString("en-US", { maximumFractionDigits: 2 }) : "";
 
   const handleHtgInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value.replace(/[^\d]/g, "");
-    let num = parseInt(raw, 10) || 0;
+    // Allow digits and a single decimal point with up to 2 decimal places
+    const cleaned = e.target.value.replace(/[^\d.]/g, "");
+    const parts = cleaned.split(".");
+    let intPart = parts[0].replace(/^0+(?=\d)/, "");
+    let decPart = parts.length > 1 ? parts.slice(1).join("").slice(0, 2) : null;
+    let normalized = decPart !== null ? `${intPart || "0"}.${decPart}` : intPart;
+    let num = parseFloat(normalized) || 0;
     // Cap HTG input so its USDC equivalent never exceeds 50,000 USDC
     if (htgReceiveMode === "usdc" && liveRate && liveRate > 0) {
       const f = totalBps / 10_000;
       const denom = 1 - f;
       const maxGross = denom > 0 ? 50_000 / denom : 50_000;
-      const maxHtg = Math.floor(maxGross * liveRate);
-      if (num > maxHtg) num = maxHtg;
+      const maxHtg = maxGross * liveRate;
+      if (num > maxHtg) {
+        num = Math.floor(maxHtg);
+        intPart = String(num);
+        decPart = null;
+      }
     }
     setHtgAmountRaw(num);
-    setHtgAmount(num ? num.toLocaleString("en-US") : "");
+    const intFormatted = intPart ? Number(intPart).toLocaleString("en-US") : "";
+    const display = decPart !== null ? `${intFormatted || "0"}.${decPart}` : intFormatted;
+    setHtgAmount(display);
     setHtgLastEdited("htg");
     if (htgReceiveMode === "usdc" && liveRate && liveRate > 0) {
       const f = totalBps / 10_000;
