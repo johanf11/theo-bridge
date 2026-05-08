@@ -41,7 +41,7 @@ const PAYOUT_STATUS_MAP: Record<string, string> = {
 export default function Transactions() {
   const [all, setAll] = useState<UnifiedTx[]>([]);
   const [loading, setLoading] = useState(true);
-  const { query } = useSearch();
+  const { query, setQuery } = useSearch();
   const highlightRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
 
   // Dropdown filter state
