@@ -217,6 +217,149 @@ export default function Dashboard() {
     customer?.company_name ||
     "there";
   const txCount = txCount30d;
+  const isMobile = useIsMobile();
+
+  if (isMobile) {
+    const cards = [
+      { label: "USDC Balance", value: `$${balance.toLocaleString("en-US", { maximumFractionDigits: 0 })}`, sub: "Theo network", bg: "hsl(var(--theo-gold))", fg: "hsl(var(--theo-blue))" },
+      { label: "HTG-C Balance", value: htgcTotal.toLocaleString("en-US", { maximumFractionDigits: 0 }), sub: "Theo network", bg: "hsl(var(--theo-cyan))", fg: "hsl(var(--theo-blue))" },
+      { label: "HTG This Month", value: convertedThisMonth.toLocaleString("en-US", { maximumFractionDigits: 0 }), sub: new Date().toLocaleString("en-US", { month: "long" }), bg: "#fff", fg: "hsl(var(--theo-blue))", border: true },
+      { label: "Transactions", value: String(txCount), sub: "Last 30 days", bg: "#fff", fg: "hsl(var(--theo-blue))", border: true },
+    ];
+    const quickActions = [
+      { label: "Convert", to: "/convert", icon: ArrowRightLeft },
+      { label: "Payout", to: "/payout", icon: SendHorizonal },
+      { label: "Balance", to: "/balance", icon: Wallet },
+      { label: "Team", to: "/settings", icon: Users },
+    ];
+    return (
+      <AppLayout>
+        {/* Hero balance */}
+        <div className="text-center mb-5 mt-1">
+          <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.14em", color: "hsl(var(--theo-mid))" }}>
+            Total USDC Balance
+          </div>
+          <div className="font-extrabold leading-none" style={{ fontSize: 44, letterSpacing: "-2px", color: "hsl(var(--theo-blue))" }}>
+            ${balance.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+          </div>
+          <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))", marginTop: 6 }}>
+            {GREETING}, {displayName}
+          </div>
+        </div>
+
+        {/* Primary actions */}
+        <div className="flex gap-2 mb-5">
+          <button
+            onClick={() => navigate("/convert")}
+            className="flex-1 flex items-center justify-center gap-1.5 font-bold text-white"
+            style={{ background: "hsl(var(--theo-blue))", borderRadius: 999, padding: "12px 16px", fontSize: 14, border: "none", fontFamily: "inherit" }}
+          >
+            <Plus className="h-4 w-4" /> Convert
+          </button>
+          <button
+            onClick={() => navigate("/payout")}
+            className="flex-1 flex items-center justify-center gap-1.5 font-bold"
+            style={{ background: "#fff", color: "hsl(var(--theo-blue))", border: "1.5px solid hsl(var(--theo-blue))", borderRadius: 999, padding: "12px 16px", fontSize: 14, fontFamily: "inherit" }}
+          >
+            <SendHorizonal className="h-4 w-4" /> Send
+          </button>
+        </div>
+
+        {/* 2x2 stat cards */}
+        <div className="grid grid-cols-2 gap-2.5 mb-5">
+          {cards.map((c) => (
+            <div
+              key={c.label}
+              className="rounded-2xl p-4"
+              style={{
+                background: c.bg,
+                border: c.border ? "1px solid hsl(var(--border))" : "none",
+                aspectRatio: "1 / 1",
+                display: "flex", flexDirection: "column", justifyContent: "space-between",
+              }}
+            >
+              <div className="font-bold uppercase" style={{ fontSize: 10, letterSpacing: "0.12em", color: c.fg, opacity: 0.6 }}>
+                {c.label}
+              </div>
+              <div>
+                <div className="font-extrabold leading-none" style={{ fontSize: 24, letterSpacing: "-1px", color: c.fg }}>
+                  {c.value}
+                </div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: c.fg, opacity: 0.55, marginTop: 4 }}>{c.sub}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Quick actions */}
+        <div className="grid grid-cols-4 gap-2 mb-6">
+          {quickActions.map(({ label, to, icon: Icon }) => (
+            <Link
+              key={to}
+              to={to}
+              className="flex flex-col items-center gap-1.5 rounded-2xl bg-card border border-border"
+              style={{ padding: "12px 4px", textDecoration: "none" }}
+            >
+              <div className="flex items-center justify-center rounded-full" style={{ width: 36, height: 36, background: "hsl(var(--theo-blue-soft))" }}>
+                <Icon className="h-4 w-4" style={{ color: "hsl(var(--theo-blue))" }} />
+              </div>
+              <span style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-blue))" }}>{label}</span>
+            </Link>
+          ))}
+        </div>
+
+        {/* Recent transactions */}
+        <div className="flex items-center justify-between mb-2">
+          <div className="font-bold" style={{ fontSize: 14, color: "hsl(var(--theo-blue))" }}>Recent activity</div>
+          <Link to="/transactions" style={{ fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-cyan))", textDecoration: "none" }}>
+            View all
+          </Link>
+        </div>
+        <div className="bg-card border border-border rounded-2xl overflow-hidden">
+          {txs.length === 0 ? (
+            <div className="py-10 text-center text-sm text-muted-foreground">
+              No transactions yet.
+            </div>
+          ) : (
+            txs.slice(0, 5).map((t) => (
+              <Link
+                key={t.id}
+                to="/transactions"
+                className="flex items-center gap-3 px-4 py-3 border-b border-border last:border-0"
+                style={{ textDecoration: "none" }}
+              >
+                <div
+                  className="flex items-center justify-center rounded-full flex-shrink-0"
+                  style={{
+                    width: 36, height: 36,
+                    background: t.type === "conversion" ? "hsl(var(--theo-gold-soft))" : "hsl(var(--theo-blue-soft))",
+                  }}
+                >
+                  {t.type === "conversion"
+                    ? <ArrowRightLeft className="h-4 w-4" style={{ color: "#7A5F00" }} />
+                    : <SendHorizonal className="h-4 w-4" style={{ color: "hsl(var(--theo-blue))" }} />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-ink))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {t.type === "conversion" ? "Conversion" : t.description}
+                  </div>
+                  <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 2 }}>
+                    {new Date(t.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · <StatusPill status={t.status} />
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
+                    ${Number(t.usdc_amount).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                  </div>
+                </div>
+                <ChevronRight className="h-4 w-4 flex-shrink-0" style={{ color: "hsl(var(--theo-mid))", opacity: 0.5 }} />
+              </Link>
+            ))
+          )}
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
