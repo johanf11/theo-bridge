@@ -277,12 +277,12 @@ export default function Transactions() {
           <Search style={{ width: 14, height: 14, color: "hsl(var(--theo-mid))" }} />
           <input
             value={query}
-            onChange={(e) => useSearchSet(e.target.value)}
+            onChange={(e) => setQuery(e.target.value)}
             placeholder="Search by reference, amount, recipient…"
             style={{ border: "none", outline: "none", background: "transparent", fontFamily: "inherit", fontSize: 14, color: "hsl(var(--theo-ink))", width: "100%" }}
           />
           {query && (
-            <button onClick={() => useSearchSet("")} style={{ background: "none", border: "none", cursor: "pointer", color: "hsl(var(--theo-mid))", fontSize: 18, lineHeight: 1, padding: 0 }}>×</button>
+            <button onClick={() => setQuery("")} style={{ background: "none", border: "none", cursor: "pointer", color: "hsl(var(--theo-mid))", fontSize: 18, lineHeight: 1, padding: 0 }}>×</button>
           )}
         </div>
 
