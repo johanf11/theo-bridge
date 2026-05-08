@@ -3,9 +3,10 @@ import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { StatusBadge } from "@/components/theo/StatusBadge";
 import { fmtUSDC, fmtHTG, fmtHTGC } from "@/lib/format";
-import { Download, FileDown } from "lucide-react";
+import { Download, FileDown, Search, ChevronRight, ArrowRightLeft, SendHorizonal, TrendingUp } from "lucide-react";
 import { useSearch } from "@/contexts/SearchContext";
 import { generateReceipt, type ReceiptData } from "@/lib/receipt";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 
 type TxType = "conversion" | "htgc_mint" | "swap" | "withdraw" | "payout" | "yield" | "yield_earned" | "transfer";
