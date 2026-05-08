@@ -570,8 +570,8 @@
 }
 
 @media (max-width: 480px) {
-  .lp-nav-actions .lp-btn { padding: 8px 12px; font-size: 12px; }
-  .lp-nav-actions .lp-btn-ghost-white { display: none; }
+  .lp-nav-actions { gap: 6px; }
+  .lp-nav-actions .lp-btn { padding: 8px 10px; font-size: 12px; }
   .lp-quote-amounts { grid-template-columns: 1fr; gap: 16px; }
   .lp-quote-meta { grid-template-columns: 1fr 1fr; gap: 14px 12px; }
 }
