@@ -509,7 +509,7 @@ export default function Balance() {
           <div className="font-bold uppercase mb-2.5" style={{ fontSize: 11, letterSpacing: "0.14em", color: "hsl(var(--theo-mid))" }}>
             Wallets
           </div>
-          <div className="grid gap-3 mb-5" style={{ gridTemplateColumns: `repeat(${Math.min(wallets.length, 3)}, 1fr)` }}>
+          <div className="grid gap-3 mb-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {wallets.map((w, i) => {
               const pos = blendPositions[w.id];
               const bal = balances[w.id] ?? 0;
@@ -636,7 +636,7 @@ export default function Balance() {
         {wallets.length === 0 && !loading ? (
           <div className="py-10 text-center text-sm text-muted-foreground">No wallets yet. Click "+ Add account" to create one.</div>
         ) : (
-          <table className="w-full border-collapse">
+          <div className="overflow-x-auto -mx-4 md:mx-0"><table className="w-full border-collapse min-w-[640px]">
             <thead>
               <tr style={{ background: "hsl(var(--theo-cream))" }}>
                 {["Account", "Account ID", "USDC Available", "HTG-C AVAILABLE", "Yield Balance"].map((h) => (
@@ -657,7 +657,7 @@ export default function Balance() {
                 />
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 

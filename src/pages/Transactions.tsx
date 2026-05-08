@@ -285,7 +285,7 @@ export default function Transactions() {
         ) : filtered.length === 0 ? (
           <div className="py-14 text-center text-sm text-muted-foreground">No matching transactions.</div>
         ) : (
-          <table className="w-full border-collapse">
+          <div className="overflow-x-auto -mx-4 md:mx-0"><table className="w-full border-collapse min-w-[640px]">
             <thead>
               <tr style={{ background: "hsl(var(--theo-cream))" }}>
                 {["Date", "Type", "Amount (USDC)", "Details", "Network", "Status", "Reference / Recipient", "Receipt ID"].map((h) => (
@@ -458,7 +458,7 @@ export default function Transactions() {
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
     </AppLayout>
