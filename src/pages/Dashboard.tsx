@@ -6,7 +6,8 @@ import { fmtUSDC, fmtHTG } from "@/lib/format";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useBlendPositions } from "@/hooks/useBlendPositions";
 import { useAuth } from "@/lib/auth";
-import { Plus } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Plus, ArrowRightLeft, SendHorizonal, Wallet, Users, ChevronRight } from "lucide-react";
 
 type Customer = {
   id: string; company_name: string; contact_name: string | null;
