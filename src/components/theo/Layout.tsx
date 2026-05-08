@@ -402,10 +402,134 @@ function GlobalSearchBar() {
   );
 }
 
+function SidebarBody({
+  isAdmin, displayName, initials, email, onSignOut, onNavigate,
+}: {
+  isAdmin: boolean; displayName: string; initials: string; email: string;
+  onSignOut: () => void; onNavigate?: () => void;
+}) {
+  return (
+    <div
+      style={{ display: "flex", flexDirection: "column", height: "100%", background: SIDEBAR_BG }}
+      onClick={(e) => {
+        // Close mobile drawer when a NavLink is clicked
+        const t = e.target as HTMLElement;
+        if (onNavigate && t.closest("a")) onNavigate();
+      }}
+    >
+      {/* Logo */}
+      <div
+        style={{
+          display: "flex", alignItems: "center", gap: 9,
+          padding: "18px 16px 16px",
+          borderBottom: "1px solid rgba(255,255,255,0.08)",
+        }}
+      >
+        <div
+          style={{
+            width: 28, height: 28, borderRadius: 7,
+            background: GOLD,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontWeight: 800, fontSize: 16, color: SIDEBAR_BG,
+            flexShrink: 0,
+          }}
+        >
+          T
+        </div>
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 16, color: "#fff", letterSpacing: "-0.4px", lineHeight: 1 }}>
+            Theo
+          </div>
+          <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.12em", marginTop: 2 }}>
+            For Business
+          </div>
+        </div>
+      </div>
+
+      {/* Main nav */}
+      <div style={{ padding: "10px 10px 4px", display: "flex", flexDirection: "column", gap: 2 }}>
+        {mainNav.filter(n => n.to !== "/settings").map((item) => (
+          <NavItem key={item.to} {...item} />
+        ))}
+      </div>
+
+      {/* Account section */}
+      <div style={{ padding: "6px 10px 4px", display: "flex", flexDirection: "column", gap: 2 }}>
+        <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "rgba(255,255,255,0.35)", padding: "10px 6px 4px" }}>
+          Account
+        </div>
+        <NavItem to="/billing" label="Billing" icon={Receipt} />
+        <NavItem to="/settings" label="Settings" icon={Settings} />
+        {isAdmin && (
+          <>
+            <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "rgba(255,255,255,0.35)", padding: "10px 6px 4px" }}>
+              Admin
+            </div>
+            <NavItem to="/admin/kyb" label="KYB Review" icon={ShieldCheck} />
+            <NavItem to="/admin/conversions" label="Orders" icon={ArrowLeftRight} />
+            <NavItem to="/admin/tools" label="Tools" icon={Wrench} />
+          </>
+        )}
+      </div>
+
+      {/* Bottom: user */}
+      <div
+        style={{
+          marginTop: "auto",
+          padding: "14px 16px",
+          borderTop: "1px solid rgba(255,255,255,0.08)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+          <div
+            style={{
+              width: 28, height: 28, borderRadius: "50%",
+              background: GOLD,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontWeight: 800, fontSize: 12, color: SIDEBAR_BG,
+              flexShrink: 0,
+            }}
+          >
+            {initials}
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.85)", lineHeight: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {displayName}
+            </div>
+            <div style={{ fontSize: 10, color: "rgba(255,255,255,0.40)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 140 }}>
+              {email}
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={onSignOut}
+          style={{
+            display: "flex", alignItems: "center", gap: 5,
+            fontSize: 11, color: "rgba(255,255,255,0.45)",
+            border: "none", background: "none", cursor: "pointer",
+            fontFamily: "inherit", marginTop: 10, padding: 0,
+            transition: "color 130ms",
+          }}
+        >
+          <LogOut style={{ width: 12, height: 12, stroke: "currentColor", fill: "none", strokeWidth: 1.8 }} />
+          Sign out
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const { isAdmin } = useRoles();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Close mobile drawer on route change
+  useEffect(() => {
+    setDrawerOpen(false);
+  }, [location.pathname]);
 
   const signOut = async () => {
     await supabase.auth.signOut();
@@ -420,121 +544,74 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "hsl(var(--theo-cream))" }}>
-      {/* ── Sidebar ───────────────────────────────── */}
+      {/* ── Desktop sidebar ───────────────────────────────── */}
       <aside
+        className="hidden md:flex"
         style={{
-          width: 196, minWidth: 196, display: "flex", flexDirection: "column",
-          height: "100vh", flexShrink: 0, background: SIDEBAR_BG,
+          width: 196, minWidth: 196, flexDirection: "column",
+          height: "100vh", flexShrink: 0,
         }}
       >
-        {/* Logo */}
-        <div
-          style={{
-            display: "flex", alignItems: "center", gap: 9,
-            padding: "18px 16px 16px",
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
-          }}
-        >
-          <div
-            style={{
-              width: 28, height: 28, borderRadius: 7,
-              background: GOLD,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontWeight: 800, fontSize: 16, color: SIDEBAR_BG,
-              flexShrink: 0,
-            }}
-          >
-            T
-          </div>
-          <div>
-            <div style={{ fontWeight: 800, fontSize: 16, color: "#fff", letterSpacing: "-0.4px", lineHeight: 1 }}>
-              Theo
-            </div>
-            <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.40)", textTransform: "uppercase", letterSpacing: "0.12em", marginTop: 2 }}>
-              For Business
-            </div>
-          </div>
-        </div>
-
-        {/* Main nav */}
-        <div style={{ padding: "10px 10px 4px", display: "flex", flexDirection: "column", gap: 2 }}>
-          {mainNav.filter(n => n.to !== "/settings").map((item) => (
-            <NavItem key={item.to} {...item} />
-          ))}
-        </div>
-
-        {/* Account section */}
-        <div style={{ padding: "6px 10px 4px", display: "flex", flexDirection: "column", gap: 2 }}>
-          <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "rgba(255,255,255,0.35)", padding: "10px 6px 4px" }}>
-            Account
-          </div>
-          <NavItem to="/billing" label="Billing" icon={Receipt} />
-          <NavItem to="/settings" label="Settings" icon={Settings} />
-          {isAdmin && (
-            <>
-              <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: "rgba(255,255,255,0.35)", padding: "10px 6px 4px" }}>
-                Admin
-              </div>
-              <NavItem to="/admin/kyb" label="KYB Review" icon={ShieldCheck} />
-              <NavItem to="/admin/conversions" label="Orders" icon={ArrowLeftRight} />
-              <NavItem to="/admin/tools" label="Tools" icon={Wrench} />
-            </>
-          )}
-        </div>
-
-        {/* Bottom: user */}
-        <div
-          style={{
-            marginTop: "auto",
-            padding: "14px 16px",
-            borderTop: "1px solid rgba(255,255,255,0.08)",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-            <div
-              style={{
-                width: 28, height: 28, borderRadius: "50%",
-                background: GOLD,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontWeight: 800, fontSize: 12, color: SIDEBAR_BG,
-                flexShrink: 0,
-              }}
-            >
-              {initials}
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.85)", lineHeight: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {displayName}
-              </div>
-              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.40)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 110 }}>
-                {user?.email ?? ""}
-              </div>
-            </div>
-          </div>
-          <button
-            onClick={signOut}
-            style={{
-              display: "flex", alignItems: "center", gap: 5,
-              fontSize: 11, color: "rgba(255,255,255,0.45)",
-              border: "none", background: "none", cursor: "pointer",
-              fontFamily: "inherit", marginTop: 10, padding: 0,
-              transition: "color 130ms",
-            }}
-            onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.75)")}
-            onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.45)")}
-          >
-            <LogOut style={{ width: 12, height: 12, stroke: "currentColor", fill: "none", strokeWidth: 1.8 }} />
-            Sign out
-          </button>
-        </div>
+        <SidebarBody
+          isAdmin={isAdmin}
+          displayName={displayName}
+          initials={initials}
+          email={user?.email ?? ""}
+          onSignOut={signOut}
+        />
       </aside>
+
+      {/* ── Mobile drawer ─────────────────────────────────── */}
+      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+        <SheetContent side="left" className="p-0 w-[260px] border-0" style={{ background: SIDEBAR_BG }}>
+          <SidebarBody
+            isAdmin={isAdmin}
+            displayName={displayName}
+            initials={initials}
+            email={user?.email ?? ""}
+            onSignOut={signOut}
+            onNavigate={() => setDrawerOpen(false)}
+          />
+        </SheetContent>
+      </Sheet>
 
       {/* ── Main ──────────────────────────────────── */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
-        {/* Topbar */}
+        {/* Mobile top bar */}
+        <header
+          className="md:hidden flex items-center justify-between px-4 py-3 flex-shrink-0"
+          style={{ background: SIDEBAR_BG, borderBottom: "1px solid rgba(255,255,255,0.08)" }}
+        >
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setDrawerOpen(true)}
+              aria-label="Open menu"
+              style={{ background: "none", border: "none", color: "#fff", padding: 4, cursor: "pointer", display: "flex" }}
+            >
+              <Menu style={{ width: 22, height: 22 }} />
+            </button>
+            <Link to="/dashboard" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
+              <div style={{ width: 24, height: 24, borderRadius: 6, background: GOLD, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 14, color: SIDEBAR_BG }}>T</div>
+              <span style={{ fontWeight: 800, fontSize: 16, color: "#fff" }}>Theo</span>
+            </Link>
+          </div>
+          <div
+            style={{
+              width: 30, height: 30, borderRadius: "50%",
+              background: GOLD,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontWeight: 800, fontSize: 12, color: SIDEBAR_BG,
+            }}
+          >
+            {initials}
+          </div>
+        </header>
+
+        {/* Desktop topbar */}
         <div
+          className="hidden md:flex"
           style={{
-            display: "flex", alignItems: "center", gap: 12,
+            alignItems: "center", gap: 12,
             padding: "10px 28px",
             background: "#ffffff",
             borderBottom: "1px solid hsl(var(--theo-light))",
@@ -557,22 +634,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        {/* Mobile header */}
-        <header
-          className="md:hidden flex items-center justify-between px-4 py-3 border-b"
-          style={{ background: SIDEBAR_BG }}
-        >
-          <Link to="/dashboard" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
-            <div style={{ width: 24, height: 24, borderRadius: 6, background: GOLD, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 14, color: SIDEBAR_BG }}>T</div>
-            <span style={{ fontWeight: 800, fontSize: 16, color: "#fff" }}>Theo</span>
-          </Link>
-          <button onClick={signOut} style={{ color: "rgba(255,255,255,0.70)", background: "none", border: "none", cursor: "pointer" }}>
-            <LogOut style={{ width: 16, height: 16 }} />
-          </button>
-        </header>
+        {/* Mobile search bar */}
+        <div className="md:hidden flex-shrink-0" style={{ padding: "8px 16px", background: "#fff", borderBottom: "1px solid hsl(var(--theo-light))" }}>
+          <GlobalSearchBar />
+        </div>
 
         {/* Content */}
-        <main style={{ flex: 1, overflowY: "auto", padding: 28 }}>
+        <main className="flex-1 overflow-y-auto" style={{ padding: "clamp(16px, 4vw, 28px)" }}>
           {children}
         </main>
       </div>
