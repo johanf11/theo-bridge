@@ -295,7 +295,7 @@ export default function Dashboard() {
       </div>
 
       {/* Chart + Quick Actions */}
-      <div className="grid mb-4" style={{ gridTemplateColumns: "7fr 3fr", gap: 14 }}>
+      <div className="grid mb-4 grid-cols-1 lg:[grid-template-columns:7fr_3fr]" style={{ gap: 14 }}>
         <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <div className="font-bold" style={{ fontSize: 14, color: "hsl(var(--theo-blue))" }}>
