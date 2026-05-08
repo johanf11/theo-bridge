@@ -288,7 +288,7 @@ export default function Balance() {
   return (
     <AppLayout>
       {/* Header */}
-      <div className="flex items-start justify-between mb-1">
+      <div className="flex items-start justify-between gap-3 mb-1 flex-wrap">
         <div>
           <div className="font-extrabold" style={{ fontSize: 22, color: "hsl(var(--theo-blue))", letterSpacing: "-0.02em" }}>
             Balance
@@ -297,7 +297,7 @@ export default function Balance() {
             Multi-wallet overview with yield.
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {can("payout_send") && wallets.length >= 2 && (
             <button
               onClick={() => openMoveModal()}
@@ -338,12 +338,15 @@ export default function Balance() {
       <div className="mb-5" style={{ width: 28, height: 3, background: "hsl(var(--theo-gold))", borderRadius: 2, marginTop: 8 }} />
 
       {/* Total balance hero */}
-      <div className="flex items-center justify-between mb-3" style={{ background: "hsl(var(--theo-blue))", borderRadius: 14, padding: "24px 28px" }}>
+      <div
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 p-5 sm:p-7"
+        style={{ background: "hsl(var(--theo-blue))", borderRadius: 14 }}
+      >
         <div>
           <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.14em", color: "hsl(var(--theo-gold))" }}>
             Total balance across all wallets
           </div>
-          <div className="font-extrabold leading-none" style={{ fontSize: 40, letterSpacing: "-2px", color: "#fff" }}>
+          <div className="font-extrabold leading-none" style={{ fontSize: "clamp(32px, 9vw, 40px)", letterSpacing: "-2px", color: "#fff" }}>
             ${fmt(total + totalEarning)}
           </div>
           <div style={{ fontSize: 13, color: "rgba(255,255,255,0.50)", marginTop: 4 }}>
