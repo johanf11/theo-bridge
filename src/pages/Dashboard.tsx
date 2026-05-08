@@ -365,7 +365,7 @@ export default function Dashboard() {
             </div>
           </div>
         ) : (
-          <table className="w-full border-collapse">
+          <div className="overflow-x-auto -mx-4 md:mx-0"><table className="w-full border-collapse min-w-[640px]">
             <thead>
               <tr style={{ background: "hsl(var(--theo-cream))" }}>
                 {["Date", "Type", "Description", "Amount", "HTG Sent", "Rate", "Status", "Ref"].map((h) => (
@@ -410,7 +410,7 @@ export default function Dashboard() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
     </AppLayout>

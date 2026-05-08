@@ -217,7 +217,7 @@ export default function AdminConversions() {
             {tab === "pending" ? "No orders awaiting payment." : "No orders in this category."}
           </div>
         ) : (
-          <table className="w-full border-collapse">
+          <div className="overflow-x-auto -mx-4 md:mx-0"><table className="w-full border-collapse min-w-[640px]">
             <thead>
               <tr style={{ background: "hsl(var(--theo-cream))" }}>
                 {["Client", "Reference", "HTG due", "USDC", "Rate", "Age", "Status", "Action"].map((h) => (
@@ -328,7 +328,7 @@ export default function AdminConversions() {
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 
