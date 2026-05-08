@@ -517,25 +517,59 @@
 
 /* ── Responsive ───────────────────────────────────────────────── */
 @media (max-width: 900px) {
-  .lp-nav { padding: 0 24px; }
+  .lp-nav { padding: 0 20px; height: 56px; }
   .lp-nav-links { display: none; }
+  .lp-nav-brand { font-size: 18px; }
+  .lp-nav-logo-tile { width: 30px; height: 30px; font-size: 18px; }
   .lp-hero {
     grid-template-columns: 1fr;
-    padding: 120px 24px 64px; gap: 48px; min-height: auto;
+    padding: 96px 20px 56px; gap: 40px; min-height: auto;
   }
-  .lp-hero-body { max-width: 100%; }
-  .lp-quote-card { max-width: 100%; }
-  .lp-stats-strip { padding: 20px 24px; flex-wrap: wrap; }
-  .lp-stat-item { flex: 1 1 50%; }
-  .lp-section { padding: 64px 24px; }
+  .lp-hero::after, .lp-hero::before { display: none; }
+  .lp-hero-headline { font-size: clamp(40px, 11vw, 56px); }
+  .lp-hero-tagline { font-size: 18px; margin-bottom: 20px; }
+  .lp-hero-body { max-width: 100%; font-size: 15px; margin-bottom: 28px; }
+  .lp-hero-actions { flex-direction: column; align-items: stretch; gap: 10px; }
+  .lp-hero-actions .lp-btn { justify-content: center; width: 100%; }
+  .lp-quote-card { max-width: 100%; padding: 24px; }
+  .lp-quote-amount-value, .lp-quote-input-prefix, .lp-quote-input {
+    font-size: 28px; letter-spacing: -1px;
+  }
+  .lp-quote-amount-value.secondary { font-size: 24px; }
+  .lp-quote-input { width: 100%; min-width: 0; }
+  .lp-stats-strip { padding: 24px 20px; flex-wrap: wrap; gap: 20px 0; }
+  .lp-stat-item { flex: 1 1 50%; padding: 8px 0; }
+  .lp-stat-item + .lp-stat-item::before { display: none; }
+  .lp-stat-value { font-size: 26px; }
+  .lp-section { padding: 64px 20px; }
+  .lp-section-headline { font-size: 32px; }
+  .lp-section-tagline { font-size: 17px; }
+  .lp-section-underline { margin-bottom: 40px; }
   .lp-features-grid,
   .lp-steps-grid,
   .lp-trust-grid { grid-template-columns: 1fr; }
-  .lp-trust-card-large { grid-row: span 1; }
-  .lp-cta { padding: 64px 24px; }
-  .lp-cta-headline { font-size: 36px; }
+  .lp-feature-card, .lp-trust-card-small { padding: 24px; }
+  .lp-step { padding: 32px 20px; }
+  .lp-step + .lp-step::before {
+    left: 20px; right: 20px; top: 0; bottom: auto;
+    width: auto; height: 1px;
+  }
+  .lp-trust-card-large { grid-row: span 1; padding: 28px; min-height: auto; }
+  .lp-trust-card-large .lp-card-headline { font-size: 28px; }
+  .lp-cta { padding: 64px 20px; }
+  .lp-cta-headline { font-size: 36px; letter-spacing: -1px; }
+  .lp-cta-actions { flex-direction: column; align-items: stretch; gap: 10px; }
+  .lp-cta-actions .lp-btn { justify-content: center; width: 100%; }
   .lp-footer {
-    flex-direction: column; gap: 24px;
-    text-align: center; padding: 36px 24px;
+    flex-direction: column; gap: 20px;
+    text-align: center; padding: 36px 20px;
   }
 }
+
+@media (max-width: 480px) {
+  .lp-nav-actions .lp-btn { padding: 8px 12px; font-size: 12px; }
+  .lp-nav-actions .lp-btn-ghost-white { display: none; }
+  .lp-quote-amounts { grid-template-columns: 1fr; gap: 16px; }
+  .lp-quote-meta { grid-template-columns: 1fr 1fr; gap: 14px 12px; }
+}
+
