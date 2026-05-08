@@ -251,7 +251,7 @@ function GlobalSearchBar() {
   const divider = (show: boolean) => show ? <div style={{ height: 1, background: "hsl(var(--theo-light))" }} /> : null;
 
   return (
-    <div style={{ position: "relative", flex: 1, maxWidth: 380 }}>
+    <div className="relative flex-1 md:max-w-[380px]">
       <div
         style={{
           display: "flex", alignItems: "center", gap: 8,
