@@ -4,9 +4,10 @@ import { useAuth, useRoles } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import {
   LayoutGrid, ArrowLeftRight, ArrowRightLeft, Wallet, SendHorizonal,
-  Settings, LogOut, ShieldCheck, Search, Wrench, BookLock, DollarSign, Receipt,
+  Settings, LogOut, ShieldCheck, Search, Wrench, BookLock, DollarSign, Receipt, Menu,
 } from "lucide-react";
 import { useSearch } from "@/contexts/SearchContext";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 const mainNav = [
   { to: "/dashboard", label: "Home", icon: LayoutGrid, keywords: ["home", "dashboard"] },
