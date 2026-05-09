@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { useSearch } from "@/contexts/SearchContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { fetchHorizonBalances } from "@/lib/balance";
+import { fmtUSDC } from "@/lib/format";
 
 type Tab = "single" | "bulk" | "global";
 
@@ -876,7 +877,7 @@ export default function Payout() {
                     </div>
                     <div className="text-right">
                       <div style={{ fontWeight: 700, fontSize: 14, color: "hsl(var(--theo-blue))" }}>
-                        ${Number(p.amount_usdc).toLocaleString()} USDC
+                        ${fmtUSDC(Number(p.amount_usdc))}
                       </div>
                       <span className="rounded-full font-bold" style={{ fontSize: 11, background: s.bg, color: s.color, padding: "2px 8px" }}>
                         {s.label}
