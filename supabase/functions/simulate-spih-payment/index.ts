@@ -165,9 +165,39 @@ Deno.serve(async (req) => {
       });
     }
 
-    admin.functions.invoke("release-usdc", { body: { orderId } }).catch((e) => {
-      console.error("release-usdc invoke failed", e);
-    });
+    // Invoke release-usdc with the caller's auth header (it requires an admin JWT).
+    // Awaited so failures surface immediately and the order doesn't get stuck in FUNDED.
+    try {
+      const releaseRes = await fetch(`${url}/functions/v1/release-usdc`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader,
+          "apikey": anon,
+        },
+        body: JSON.stringify({ orderId }),
+      });
+      if (!releaseRes.ok) {
+        const text = await releaseRes.text();
+        console.error("release-usdc failed", releaseRes.status, text);
+        // release-usdc itself marks the order FAILED on error; surface the message.
+        return new Response(JSON.stringify({ error: `release-usdc failed: ${text}` }), {
+          status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const releaseJson = await releaseRes.json().catch(() => ({}));
+      return new Response(JSON.stringify({ ok: true, status: "COMPLETED", ...releaseJson }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    } catch (e) {
+      console.error("release-usdc invoke error", e);
+      await admin.from("orders")
+        .update({ status: "FAILED", failure_reason: `release-usdc invoke error: ${(e as Error).message}`.slice(0, 1000) })
+        .eq("id", orderId);
+      return new Response(JSON.stringify({ error: (e as Error).message }), {
+        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     return new Response(JSON.stringify({ ok: true, status: "FUNDED" }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
