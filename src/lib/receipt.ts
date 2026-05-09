@@ -168,6 +168,13 @@ function _buildPdf(data: ReceiptData): void {
   const R   = PW - 18;
   let y     = 0;
 
+  // Normalise DB enum values → receipt kind
+  const rawKind = data.kind as string;
+  const kind: ReceiptData["kind"] =
+    rawKind === "usdc_conversion" ? "conversion" :
+    rawKind === "htgc_usdc_swap"  ? "swap"       :
+    data.kind;
+
   const dateStr = new Date(data.createdAt).toLocaleString("en-US", {
     month: "long", day: "numeric", year: "numeric",
     hour: "2-digit", minute: "2-digit",
@@ -182,7 +189,7 @@ function _buildPdf(data: ReceiptData): void {
 
   // Gold T badge
   fill(doc, GOLD);
-  doc.roundedRect(L, 10, 16, 16, 2, 2, "F");
+  doc.rect(L, 10, 16, 16, "F");
   ink(doc, NAVY);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
@@ -228,7 +235,7 @@ function _buildPdf(data: ReceiptData): void {
   ink(doc, NAVY);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
-  doc.text(kindLabel(data.kind), L, y);
+  doc.text(kindLabel(kind), L, y);
 
   y += 3;
   fill(doc, GOLD);
@@ -279,7 +286,7 @@ function _buildPdf(data: ReceiptData): void {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // TRANSACTION BREAKDOWN — CONVERSION
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  if (data.kind === "conversion") {
+  if (kind === "conversion") {
     y += sectionHeader(doc, "Transaction Breakdown", y, L);
     y += rule(doc, y, L, R, NAVY, 0.6);
 
@@ -322,7 +329,7 @@ function _buildPdf(data: ReceiptData): void {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // TRANSACTION BREAKDOWN — HTG-C MINT
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  if (data.kind === "htgc_mint") {
+  if (kind === "htgc_mint") {
     y += sectionHeader(doc, "Transaction Breakdown", y, L);
     y += rule(doc, y, L, R, NAVY, 0.6);
 
@@ -342,7 +349,7 @@ function _buildPdf(data: ReceiptData): void {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // TRANSACTION BREAKDOWN — SWAP
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  if (data.kind === "swap") {
+  if (kind === "swap") {
     y += sectionHeader(doc, "Transaction Breakdown", y, L);
     y += rule(doc, y, L, R, NAVY, 0.6);
 
@@ -364,7 +371,7 @@ function _buildPdf(data: ReceiptData): void {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // TRANSACTION BREAKDOWN — PAYOUT
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  if (data.kind === "payout") {
+  if (kind === "payout") {
     y += sectionHeader(doc, "Payout Details", y, L);
     y += rule(doc, y, L, R, NAVY, 0.6);
 
@@ -386,7 +393,7 @@ function _buildPdf(data: ReceiptData): void {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // TRANSACTION BREAKDOWN — WITHDRAW
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  if (data.kind === "withdraw") {
+  if (kind === "withdraw") {
     y += sectionHeader(doc, "Withdrawal Details", y, L);
     y += rule(doc, y, L, R, NAVY, 0.6);
 
@@ -403,11 +410,11 @@ function _buildPdf(data: ReceiptData): void {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // TRANSACTION BREAKDOWN — YIELD
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  if (data.kind === "yield" || data.kind === "yield_earned") {
-    y += sectionHeader(doc, data.kind === "yield" ? "Yield Deposit" : "Yield Earned", y, L);
+  if (kind === "yield" || kind === "yield_earned") {
+    y += sectionHeader(doc, kind === "yield" ? "Yield Deposit" : "Yield Earned", y, L);
     y += rule(doc, y, L, R, NAVY, 0.6);
 
-    if (data.kind === "yield") {
+    if (kind === "yield") {
       if (data.usdcAmount) y += drawRow(doc, "Principal",    `${fmtN(data.usdcAmount)} USDC`,           y, L, R, { divider: true, valueBold: true });
       if (data.walletLabel) y += drawRow(doc, "Wallet",       data.walletLabel,                          y, L, R, { divider: true });
       y += drawRow(doc, "Net APY",        `${((data.netApy ?? 0.07) * 100).toFixed(2)}%`,               y, L, R, { divider: true });
