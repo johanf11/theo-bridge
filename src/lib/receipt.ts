@@ -129,7 +129,14 @@ function sectionHeader(doc: jsPDF, label: string, y: number, L: number) {
 }
 
 // Full-width horizontal rule
-function rule(doc: jsPDF, y: number, L: number, R: number, color = LIGHT, thickness = 0.4) {
+function rule(
+  doc: jsPDF,
+  y: number,
+  L: number,
+  R: number,
+  color: readonly [number, number, number] = LIGHT,
+  thickness = 0.4,
+) {
   stroke(doc, color);
   doc.setLineWidth(thickness);
   doc.line(L, y, R, y);
