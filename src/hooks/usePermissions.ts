@@ -36,6 +36,7 @@ export function usePermissions(): PermissionsState {
       const { data: customer } = await supabase
         .from("customers")
         .select("id, user_id")
+        .eq("user_id", user.id)
         .maybeSingle();
 
       if (!customer) { setLoading(false); return; }
