@@ -159,17 +159,15 @@ function statusBadge(status: string): string {
 
 // ── Main generator ────────────────────────────────────────────────────────────
 export function generateReceipt(data: ReceiptData): void {
-  const receiptWindow = window.open("", "_blank", "noopener,noreferrer");
   try {
-    _buildPdf(data, receiptWindow);
+    _buildPdf(data);
   } catch (e) {
-    receiptWindow?.close();
     console.error("Receipt generation error:", e);
     toast.error("Could not generate receipt — " + (e as Error).message);
   }
 }
 
-function _buildPdf(data: ReceiptData, receiptWindow: Window | null): void {
+function _buildPdf(data: ReceiptData): void {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const PW  = 210;
   const PH  = 297;
@@ -534,12 +532,6 @@ function _buildPdf(data: ReceiptData, receiptWindow: Window | null): void {
   const filename = `theo-receipt-${ref}.pdf`;
   const blob = doc.output("blob");
   const url = URL.createObjectURL(blob);
-
-  if (receiptWindow) {
-    receiptWindow.location.href = url;
-    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    return;
-  }
 
   const link = document.createElement("a");
   link.href = url;
