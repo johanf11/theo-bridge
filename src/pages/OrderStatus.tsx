@@ -15,6 +15,7 @@ type Order = {
   failure_reason: string | null; created_at: string; order_kind?: string | null;
   wallet_id?: string | null;
   usdc_gross?: number | null; fee_usdc?: number | null; fee_bps?: number | null;
+  customers?: { company_name?: string | null } | null;
 };
 
 const STEPS_USDC = [
@@ -51,7 +52,7 @@ export default function OrderStatus() {
   useEffect(() => {
     if (!id) return;
     const load = async () => {
-      const { data } = await supabase.from("orders").select("*").eq("id", id).maybeSingle();
+      const { data } = await supabase.from("orders").select("*, customers(company_name)").eq("id", id).maybeSingle();
       setOrder(data as Order | null);
     };
     load();
@@ -333,6 +334,7 @@ export default function OrderStatus() {
                     rate: Number(order.rate),
                     stellarTxHash: order.stellar_tx_hash,
                     status: order.status,
+                    customerName: order.customers?.company_name ?? undefined,
                   })}
                   style={{
                     display: "flex", alignItems: "center", gap: 6,
