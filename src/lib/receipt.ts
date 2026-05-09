@@ -241,11 +241,9 @@ function _buildPdf(data: ReceiptData): void {
     ink(doc, INK);
     doc.setFont("courier", "normal");
     doc.setFontSize(7.5);
-    // Truncate to fit line width  (show first 42 chars + ellipsis + last 8)
-    const display = hash.length > 54
-      ? hash.slice(0, 42) + "…" + hash.slice(-8)
-      : hash;
-    doc.text(display, L + 9, y + 17);
+    // Stellar tx hashes are 64 hex chars. At 7.5pt Courier (~4.5pt/char),
+    // 64 × 4.5 = 288pt — well within the 505pt available. Show in full.
+    doc.text(hash, L + 9, y + 17);
 
     y += HASH_H;
   }
