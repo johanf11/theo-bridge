@@ -47,7 +47,9 @@ export function WalletKeys() {
 
   useEffect(() => {
     (async () => {
-      const { data: c } = await supabase.from("customers").select("id").maybeSingle();
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user) { setLoading(false); return; }
+      const { data: c } = await supabase.from("customers").select("id").eq("user_id", auth.user.id).maybeSingle();
       if (!c) {
         setLoading(false);
         return;

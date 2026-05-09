@@ -14,7 +14,9 @@ export function useCustomerBalance() {
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    const { data: c } = await supabase.from("customers").select("id").maybeSingle();
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth.user) { setTotal(0); setHtgcTotal(0); setLoading(false); return; }
+    const { data: c } = await supabase.from("customers").select("id").eq("user_id", auth.user.id).maybeSingle();
     if (!c) {
       setTotal(0);
       setHtgcTotal(0);

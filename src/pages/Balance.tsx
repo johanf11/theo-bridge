@@ -131,7 +131,9 @@ export default function Balance() {
 
   const loadWallets = async () => {
     setLoading(true);
-    const { data: c } = await supabase.from("customers").select("id, stellar_wallet_address").maybeSingle();
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth.user) { setLoading(false); return; }
+    const { data: c } = await supabase.from("customers").select("id, stellar_wallet_address").eq("user_id", auth.user.id).maybeSingle();
     if (!c) { setLoading(false); return; }
 
     let { data: w } = await supabase

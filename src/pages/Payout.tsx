@@ -132,7 +132,8 @@ export default function Payout() {
   }, []);
 
   const loadAll = async () => {
-    const { data: customer } = await supabase.from("customers").select("id").maybeSingle();
+    const { data: au } = await supabase.auth.getUser();
+    const { data: customer } = await supabase.from("customers").select("id").eq("user_id", au.user?.id ?? "").maybeSingle();
     if (!customer) return;
     setCustomerId(customer.id);
     await Promise.all([

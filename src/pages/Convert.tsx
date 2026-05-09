@@ -335,7 +335,9 @@ export default function Convert() {
   };
 
   const loadBankAccounts = async () => {
-    const { data: c } = await supabase.from("customers").select("id").maybeSingle();
+    const { data: au } = await supabase.auth.getUser();
+    if (!au.user) return;
+    const { data: c } = await supabase.from("customers").select("id").eq("user_id", au.user.id).maybeSingle();
     if (!c) return;
     const { data: banks } = await supabase
       .from("bank_accounts")
@@ -354,7 +356,8 @@ export default function Convert() {
       return;
     }
     setAddBankBusy(true);
-    const { data: c } = await supabase.from("customers").select("id").maybeSingle();
+    const { data: au } = await supabase.auth.getUser();
+    const { data: c } = await supabase.from("customers").select("id").eq("user_id", au.user?.id ?? "").maybeSingle();
     if (!c) { toast.error("Customer not found"); setAddBankBusy(false); return; }
 
     const isFirst = bankAccounts.length === 0;
@@ -389,7 +392,8 @@ export default function Convert() {
     if (!wallet) { toast.error("No wallet selected"); return; }
     setOffBusy(true);
     try {
-      const { data: c } = await supabase.from("customers").select("id").maybeSingle();
+      const { data: au } = await supabase.auth.getUser();
+      const { data: c } = await supabase.from("customers").select("id").eq("user_id", au.user?.id ?? "").maybeSingle();
       if (!c?.id) { toast.error("Customer not found"); return; }
       const { data, error } = await supabase.functions.invoke("withdraw-htgc", {
         body: {
