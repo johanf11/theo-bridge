@@ -356,7 +356,8 @@ export default function Convert() {
       return;
     }
     setAddBankBusy(true);
-    const { data: c } = await supabase.from("customers").select("id").maybeSingle();
+    const { data: au } = await supabase.auth.getUser();
+    const { data: c } = await supabase.from("customers").select("id").eq("user_id", au.user?.id ?? "").maybeSingle();
     if (!c) { toast.error("Customer not found"); setAddBankBusy(false); return; }
 
     const isFirst = bankAccounts.length === 0;
