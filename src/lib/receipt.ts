@@ -2,24 +2,32 @@ import jsPDF from "jspdf";
 import { toast } from "sonner";
 
 // ── Brand colours ─────────────────────────────────────────────────────────────
-const NAVY  = [51,  53,  154] as const;   // #33359A
-const GOLD  = [253, 207,   0] as const;   // #FDCF00
-const INK   = [26,  26,   58] as const;   // ~#1A1A3A
-const MID   = [107, 107, 138] as const;   // #6B6B8A
-const CREAM = [247, 247, 251] as const;   // ~#F7F7FB
-const WHITE = [255, 255, 255] as const;
-const GREEN = [26,  127,  55] as const;   // #1A7F37
+const NAVY   = [51,  53,  154] as const;   // #33359A
+const GOLD   = [253, 207,   0] as const;   // #FDCF00
+const INK    = [26,  26,   58] as const;   // #1A1A3A
+const MID    = [107, 107, 138] as const;   // #6B6B8A
+const LIGHT  = [232, 232, 245] as const;   // divider lines
+const CREAM  = [247, 247, 251] as const;   // subtle row bg
+const WHITE  = [255, 255, 255] as const;
+const GREEN  = [26,  127,  55] as const;   // #1A7F37
+const RED    = [185,  28,  28] as const;   // fee deduction colour
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export type ReceiptData = {
   kind: "conversion" | "htgc_mint" | "swap" | "withdraw" | "payout" | "yield" | "yield_earned";
   referenceNumber?: string;
+  poReference?: string;      // purchase order / external reference
+  initiatedBy?: string;      // name of the user who initiated
   createdAt: string;
   htgAmount?: number;
-  usdcAmount?: number;   // net USDC received (after fee)
-  usdcGross?: number;    // pre-fee USDC notional
-  feeUsdc?: number;      // total fee in USDC
-  feeBps?: number;       // total fee in basis points
+  usdcAmount?: number;       // net USDC received (after fee)
+  usdcGross?: number;        // pre-fee USDC notional
+  feeUsdc?: number;          // total fee in USDC
+  feeBps?: number;           // total fee in basis points
+  theoFeeUsdc?: number;      // Theo service fee portion
+  theoFeeBps?: number;       // Theo service fee bps
+  corridorFeeUsdc?: number;  // corridor/settlement fee portion
+  corridorFeeBps?: number;   // corridor fee bps
   rate?: number;
   stellarTxHash?: string | null;
   status?: string;
@@ -42,14 +50,12 @@ function ink(doc: jsPDF, c: readonly [number, number, number]) {
 function stroke(doc: jsPDF, c: readonly [number, number, number]) {
   doc.setDrawColor(c[0], c[1], c[2]);
 }
-
 function fmtN(n: number, decimals = 2) {
   return new Intl.NumberFormat("en-US", {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   }).format(n);
 }
-
 function kindLabel(kind: ReceiptData["kind"]) {
   const map: Record<ReceiptData["kind"], string> = {
     conversion:   "HTG → USDC Conversion",
@@ -63,6 +69,87 @@ function kindLabel(kind: ReceiptData["kind"]) {
   return map[kind] ?? "Transaction";
 }
 
+// ── Row drawing ───────────────────────────────────────────────────────────────
+type RowOpts = {
+  highlight?: boolean;   // navy bg, gold value — used for NET TOTAL
+  deduction?: boolean;   // red value — used for fees
+  labelBold?: boolean;
+  valueBold?: boolean;
+  divider?: boolean;     // draw bottom rule
+  indent?: number;       // left indent for sub-items
+  valueSize?: number;
+};
+
+function drawRow(
+  doc: jsPDF,
+  label: string,
+  value: string,
+  y: number,
+  L: number,
+  R: number,
+  opts: RowOpts = {},
+): number {
+  const ROW_H  = 10;
+  const indent = opts.indent ?? 0;
+
+  if (opts.highlight) {
+    fill(doc, NAVY);
+    doc.rect(L, y, R - L, ROW_H + 2, "F");
+  }
+
+  // Label
+  ink(doc, opts.highlight ? WHITE : MID);
+  doc.setFont("helvetica", opts.labelBold || opts.highlight ? "bold" : "normal");
+  doc.setFontSize(opts.highlight ? 8.5 : 7.5);
+  doc.text(label.toUpperCase(), L + 4 + indent, y + (opts.highlight ? 7.5 : 6.5));
+
+  // Value
+  const valColor = opts.highlight ? GOLD : opts.deduction ? RED : INK;
+  ink(doc, valColor);
+  doc.setFont("helvetica", opts.valueBold || opts.highlight ? "bold" : "normal");
+  doc.setFontSize(opts.highlight ? (opts.valueSize ?? 13) : (opts.valueSize ?? 9));
+  doc.text(value, R - 4, y + (opts.highlight ? 7.5 : 6.5), { align: "right" });
+
+  if (opts.divider) {
+    stroke(doc, LIGHT);
+    doc.setLineWidth(0.25);
+    doc.line(L, y + ROW_H + 1.5, R, y + ROW_H + 1.5);
+  }
+
+  return opts.highlight ? ROW_H + 4 : ROW_H + 1;
+}
+
+// Thin section-header label above a block
+function sectionHeader(doc: jsPDF, label: string, y: number, L: number) {
+  ink(doc, MID);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(7);
+  doc.text(label.toUpperCase(), L, y);
+  return 5;
+}
+
+// Full-width horizontal rule
+function rule(doc: jsPDF, y: number, L: number, R: number, color = LIGHT, thickness = 0.4) {
+  stroke(doc, color);
+  doc.setLineWidth(thickness);
+  doc.line(L, y, R, y);
+  return 4;
+}
+
+// Status pill — inline coloured text with dot
+function statusBadge(status: string): string {
+  const labels: Record<string, string> = {
+    COMPLETED: "● SETTLED",
+    FAILED:    "● FAILED",
+    EXPIRED:   "● EXPIRED",
+    QUOTED:    "● PENDING",
+    FUNDED:    "● PROCESSING",
+    RELEASING: "● RELEASING",
+    PENDING:   "● PENDING",
+  };
+  return labels[status] ?? `● ${status}`;
+}
+
 // ── Main generator ────────────────────────────────────────────────────────────
 export function generateReceipt(data: ReceiptData): void {
   try {
@@ -74,263 +161,341 @@ export function generateReceipt(data: ReceiptData): void {
 }
 
 function _buildPdf(data: ReceiptData): void {
-  const doc  = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  const PW   = 210;   // page width
-  const PH   = 297;   // page height
-  const L    = 18;    // left margin
-  const R    = PW - 18;
-  const W    = R - L; // content width
-  let y      = 0;
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const PW  = 210;
+  const PH  = 297;
+  const L   = 18;
+  const R   = PW - 18;
+  let y     = 0;
 
-  // ── Navy header ─────────────────────────────────────────────────────────────
-  fill(doc, NAVY);
-  doc.rect(0, 0, PW, 40, "F");
-
-  // Gold "T" badge
-  fill(doc, GOLD);
-  doc.rect(L, 10, 14, 14, "F");
-  ink(doc, NAVY);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.text("T", L + 7, 20, { align: "center" });
-
-  // "Theo for Business"
-  ink(doc, WHITE);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(15);
-  doc.text("Theo", L + 20, 19);
-  ink(doc, MID);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.text("FOR BUSINESS", L + 20, 24);
-
-  // "OFFICIAL RECEIPT" — top right
-  ink(doc, GOLD);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.text("OFFICIAL RECEIPT", R, 15, { align: "right" });
-  ink(doc, MID);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.5);
   const dateStr = new Date(data.createdAt).toLocaleString("en-US", {
     month: "long", day: "numeric", year: "numeric",
     hour: "2-digit", minute: "2-digit",
+    timeZoneName: "short",
   });
-  doc.text(dateStr, R, 21, { align: "right" });
 
-  // Gold rule
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // HEADER
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  fill(doc, NAVY);
+  doc.rect(0, 0, PW, 46, "F");
+
+  // Gold T badge
   fill(doc, GOLD);
-  doc.rect(0, 40, PW, 3, "F");
-
-  y = 52;
-
-  // ── Kind + reference ─────────────────────────────────────────────────────
-  ink(doc, MID);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.5);
-  doc.text("TRANSACTION TYPE", L, y);
-  if (data.referenceNumber) doc.text("REFERENCE", L + W / 2, y);
-
-  y += 5;
+  doc.roundedRect(L, 10, 16, 16, 2, 2, "F");
   ink(doc, NAVY);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.text(kindLabel(data.kind), L, y);
-  if (data.referenceNumber) {
-    doc.setFontSize(13);
-    doc.text(data.referenceNumber, L + W / 2, y);
-  }
+  doc.setFontSize(14);
+  doc.text("T", L + 8, 22, { align: "center" });
 
-  y += 3;
-  fill(doc, GOLD);
-  doc.rect(L, y, 24, 2, "F");
-  y += 8;
-
-  // ── Hero amount box ──────────────────────────────────────────────────────
-  fill(doc, NAVY);
-  doc.rect(L, y, W, 20, "F");
-
-  // Primary amount
-  const primLabel = (() => {
-    if (data.kind === "htgc_mint") return "HTG DEPOSITED";
-    if (data.kind === "yield" || data.kind === "yield_earned") return "AMOUNT";
-    return "USDC AMOUNT";
-  })();
-  const primValue = (() => {
-    if (data.kind === "htgc_mint") return `${fmtN(data.htgAmount ?? 0)} HTG`;
-    if (data.kind === "yield_earned") return `+${fmtN(data.accruedAmount ?? data.usdcAmount ?? 0)} USDC`;
-    if (data.kind === "yield") return `${fmtN(data.usdcAmount ?? 0)} USDC`;
-    return `${fmtN(data.usdcAmount ?? 0)} USDC`;
-  })();
-
+  // Brand name
   ink(doc, WHITE);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(7);
-  doc.text(primLabel, L + 6, y + 6);
-  ink(doc, GOLD);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(17);
-  doc.text(primValue, L + 6, y + 15);
-
-  // Secondary amount (right side)
-  const secLabel = (() => {
-    if (data.kind === "conversion") return data.feeUsdc != null ? "THEO FEE" : "HTG SENT";
-    if (data.kind === "htgc_mint") return "HTG-C MINTED";
-    if (data.kind === "swap") return "HTG-C BURNED";
-    if (data.kind === "yield") return "NET APY";
-    return null;
-  })();
-  const secValue = (() => {
-    if (data.kind === "conversion") return data.feeUsdc != null
-      ? `${fmtN(data.feeUsdc)} USDC`
-      : `${fmtN(data.htgAmount ?? 0)} HTG`;
-    if (data.kind === "htgc_mint") return `${fmtN(data.htgAmount ?? 0, 0)} HTG-C`;
-    if (data.kind === "swap") return `${fmtN(data.htgAmount ?? 0, 0)} HTG-C`;
-    if (data.kind === "yield") return `${((data.netApy ?? 0.07) * 100).toFixed(2)}%`;
-    return null;
-  })();
-  if (secLabel && secValue) {
-    ink(doc, WHITE);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7);
-    doc.text(secLabel, R - 6, y + 6, { align: "right" });
-    doc.setFontSize(17);
-    doc.text(secValue, R - 6, y + 15, { align: "right" });
-  }
-
-  y += 26;
-
-  // ── Detail rows ──────────────────────────────────────────────────────────
-  const rows: Array<[string, string]> = [];
-
-  rows.push(["Date", dateStr]);
-  rows.push(["Status", data.status ?? "COMPLETED"]);
-
-  if (data.kind === "conversion") {
-    if (data.rate)       rows.push(["Exchange Rate", `${fmtN(data.rate, 2)} HTG / USDC`]);
-    if (data.htgAmount)  rows.push(["HTG Sent", `${fmtN(data.htgAmount)} HTG`]);
-    if (data.usdcGross != null)
-                         rows.push(["USDC (gross)", `${fmtN(data.usdcGross)} USDC`]);
-    if (data.feeUsdc != null) {
-      const bpsLabel = data.feeBps != null ? ` (${(data.feeBps / 100).toFixed(2)}%)` : "";
-      rows.push(["Theo Fee" + bpsLabel, `${fmtN(data.feeUsdc)} USDC`]);
-    }
-    if (data.usdcAmount) rows.push(["USDC Received", `${fmtN(data.usdcAmount)} USDC`]);
-  }
-  if (data.kind === "htgc_mint") {
-    if (data.htgAmount) {
-      rows.push(["HTG Deposited",  `${fmtN(data.htgAmount)} HTG`]);
-      rows.push(["HTG-C Minted",   `${fmtN(data.htgAmount, 0)} HTG-C`]);
-    }
-    rows.push(["Peg Ratio", "1 : 1  (1 HTG-C = 1 HTG)"]);
-  }
-  if (data.kind === "swap") {
-    if (data.htgAmount)  rows.push(["HTG-C Burned",   `${fmtN(data.htgAmount, 0)} HTG-C`]);
-    if (data.usdcAmount) rows.push(["USDC Received",  `${fmtN(data.usdcAmount)} USDC`]);
-  }
-  if (data.kind === "withdraw") {
-    if (data.usdcAmount) rows.push(["HTG-C Withdrawn", `${fmtN(data.usdcAmount, 0)} HTG-C`]);
-    rows.push(["Destination", "Bank account on file"]);
-  }
-  if (data.kind === "payout") {
-    if (data.usdcAmount)   rows.push(["USDC Sent",   `${fmtN(data.usdcAmount)} USDC`]);
-    if (data.recipientName) rows.push(["Recipient",  data.recipientName]);
-    if (data.memo)          rows.push(["Memo",       data.memo]);
-  }
-  if (data.kind === "yield") {
-    if (data.usdcAmount) rows.push(["Principal", `${fmtN(data.usdcAmount)} USDC`]);
-    if (data.walletLabel) rows.push(["Wallet", data.walletLabel]);
-    rows.push(["Net APY", `${((data.netApy ?? 0.07) * 100).toFixed(2)}%`]);
-    if (data.depositedAt) rows.push(["Deposit Date", new Date(data.depositedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })]);
-  }
-  if (data.kind === "yield_earned") {
-    if (data.accruedAmount !== undefined) rows.push(["Yield Earned", `${fmtN(data.accruedAmount)} USDC`]);
-    if (data.walletLabel)  rows.push(["Wallet", data.walletLabel]);
-    rows.push(["Net APY", `${((data.netApy ?? 0.07) * 100).toFixed(2)}%`]);
-    if (data.depositedAt)  rows.push(["Earning Since", new Date(data.depositedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })]);
-  }
-  if (data.referenceNumber) rows.push(["Reference", data.referenceNumber]);
-  if (data.customerName)    rows.push(["Account",   data.customerName]);
-
-  // Draw rows as a simple table
-  const ROW_H    = 11;
-  const COL_W    = (W - 4) / 2;
-  let rowStart   = y;
-
-  rows.forEach(([label, value], i) => {
-    const col = i % 2;          // 0 = left, 1 = right
-    const row = Math.floor(i / 2);
-    const rx  = L + col * (COL_W + 4);
-    const ry  = rowStart + row * (ROW_H + 2);
-
-    // Background alternating
-    fill(doc, row % 2 === 0 ? CREAM : WHITE);
-    doc.rect(rx, ry, COL_W, ROW_H, "F");
-    stroke(doc, [235, 235, 245]);
-    doc.rect(rx, ry, COL_W, ROW_H, "S");
-
-    ink(doc, MID);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(6.5);
-    doc.text(label.toUpperCase(), rx + 3, ry + 4);
-
-    ink(doc, INK);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.5);
-    // Truncate if needed
-    const maxChars = Math.floor(COL_W / 2.1);
-    const display  = value.length > maxChars ? value.slice(0, maxChars - 1) + "…" : value;
-    doc.text(display, rx + 3, ry + 9);
-  });
-
-  const totalRows = Math.ceil(rows.length / 2);
-  y = rowStart + totalRows * (ROW_H + 2) + 8;
-
-  // ── Stellar TX hash ──────────────────────────────────────────────────────
-  if (data.stellarTxHash) {
-    fill(doc, [239, 246, 255]);
-    stroke(doc, [191, 219, 254]);
-    doc.rect(L, y, W, 15, "FD");
-
-    ink(doc, MID);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7);
-    doc.text("STELLAR TRANSACTION", L + 4, y + 5);
-
-    ink(doc, NAVY);
-    doc.setFont("courier", "normal");
-    doc.setFontSize(7.5);
-    // Truncate long hash to fit
-    const hash = data.stellarTxHash;
-    doc.text(hash.slice(0, 32) + "…" + hash.slice(-8), L + 4, y + 11);
-
-    y += 21;
-  }
-
-  // ── Settlement note ──────────────────────────────────────────────────────
-  fill(doc, CREAM);
-  stroke(doc, [235, 235, 245]);
-  doc.rect(L, y, W, 11, "FD");
+  doc.setFontSize(16);
+  doc.text("Theo", L + 22, 20);
   ink(doc, MID);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
-  doc.text("This receipt is automatically generated by Theo. Settlement on the Stellar network.", L + 4, y + 5);
-  doc.text("Questions? support@theofinance.com  ·  theofinance.com", L + 4, y + 10);
-  y += 17;
+  doc.text("FOR BUSINESS", L + 22, 25.5);
 
-  // ── Stellar confirmed row (if hash present) ──────────────────────────────
-  if (data.stellarTxHash) {
-    ink(doc, GREEN);
+  // Right: OFFICIAL RECEIPT + ref
+  ink(doc, GOLD);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9.5);
+  doc.text("OFFICIAL RECEIPT", R, 16, { align: "right" });
+
+  if (data.referenceNumber) {
+    ink(doc, WHITE);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    fill(doc, GREEN);
-    doc.circle(L + 2, y - 2, 1.5, "F");
-    ink(doc, GREEN);
-    doc.text("Confirmed on Stellar testnet", L + 6, y - 0.5);
-    y += 6;
+    doc.setFontSize(12);
+    doc.text(data.referenceNumber, R, 25, { align: "right" });
   }
 
-  // ── Footer bar ───────────────────────────────────────────────────────────
+  ink(doc, MID);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  doc.text(dateStr, R, 31, { align: "right" });
+
+  // Gold rule
+  fill(doc, GOLD);
+  doc.rect(0, 46, PW, 3, "F");
+
+  y = 58;
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // TRANSACTION TYPE TITLE
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ink(doc, NAVY);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.text(kindLabel(data.kind), L, y);
+
+  y += 3;
+  fill(doc, GOLD);
+  doc.rect(L, y, 28, 2.5, "F");
+  y += 9;
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ACCOUNT DETAILS SECTION
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  y += sectionHeader(doc, "Account", y, L);
+  y += rule(doc, y, L, R, NAVY, 0.6);
+
+  const statusStr = statusBadge(data.status ?? "COMPLETED");
+  const statusColor = (data.status ?? "COMPLETED") === "COMPLETED" ? GREEN
+    : (data.status === "FAILED" || data.status === "EXPIRED") ? RED
+    : GOLD;
+
+  if (data.customerName) {
+    y += drawRow(doc, "Client", data.customerName, y, L, R, { valueBold: true, divider: true });
+  }
+  y += drawRow(doc, "Transaction Date", dateStr, y, L, R, { divider: true });
+
+  // Status row — custom colour
+  fill(doc, CREAM);
+  doc.rect(L, y, R - L, 11, "F");
+  ink(doc, MID);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.5);
+  doc.text("STATUS", L + 4, y + 6.5);
+  ink(doc, statusColor);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.text(statusStr, R - 4, y + 6.5, { align: "right" });
+  stroke(doc, LIGHT);
+  doc.setLineWidth(0.25);
+  doc.line(L, y + 11 + 1.5, R, y + 11 + 1.5);
+  y += 12;
+
+  if (data.poReference) {
+    y += drawRow(doc, "Purchase Order / Reference", data.poReference, y, L, R, { valueBold: true, divider: true });
+  }
+  if (data.initiatedBy) {
+    y += drawRow(doc, "Initiated By", data.initiatedBy, y, L, R, { divider: false });
+  }
+
+  y += 10;
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // TRANSACTION BREAKDOWN — CONVERSION
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  if (data.kind === "conversion") {
+    y += sectionHeader(doc, "Transaction Breakdown", y, L);
+    y += rule(doc, y, L, R, NAVY, 0.6);
+
+    if (data.htgAmount) {
+      y += drawRow(doc, "HTG Submitted", `${fmtN(data.htgAmount)} HTG`, y, L, R, { divider: true, valueBold: true });
+    }
+    if (data.rate) {
+      y += drawRow(doc, "Exchange Rate (BRH)", `${fmtN(data.rate, 2)} HTG / USDC`, y, L, R, { divider: true });
+    }
+    if (data.usdcGross != null) {
+      y += drawRow(doc, "USDC Gross", `${fmtN(data.usdcGross)} USDC`, y, L, R, { divider: true });
+    }
+
+    // Fee rows — itemised if we have the breakdown, total if not
+    const hasItemisedFees = data.theoFeeUsdc != null && data.corridorFeeUsdc != null;
+
+    if (hasItemisedFees) {
+      const theoBps   = data.theoFeeBps   != null ? ` (${(data.theoFeeBps / 100).toFixed(2)}%)` : "";
+      const corridorBps = data.corridorFeeBps != null ? ` (${(data.corridorFeeBps / 100).toFixed(2)}%)` : "";
+      y += drawRow(doc, `Theo Service Fee${theoBps}`,   `−${fmtN(data.theoFeeUsdc!)} USDC`,     y, L, R, { deduction: true, divider: true, indent: 6 });
+      y += drawRow(doc, `Settlement Corridor${corridorBps}`, `−${fmtN(data.corridorFeeUsdc!)} USDC`, y, L, R, { deduction: true, divider: true, indent: 6 });
+    } else if (data.feeUsdc != null) {
+      const bpsLabel = data.feeBps != null ? ` (${(data.feeBps / 100).toFixed(2)}%)` : "";
+      y += drawRow(doc, `Theo Fee${bpsLabel}`, `−${fmtN(data.feeUsdc)} USDC`, y, L, R, { deduction: true, divider: true, indent: 6 });
+    }
+
+    // Thick rule before total
+    y += 1;
+    y += rule(doc, y, L, R, NAVY, 0.8);
+    y += 1;
+
+    // NET RECEIVED — highlighted hero row
+    if (data.usdcAmount != null) {
+      y += drawRow(doc, "Net USDC Received", `${fmtN(data.usdcAmount)} USDC`, y, L, R, { highlight: true, valueSize: 14 });
+    }
+
+    y += 10;
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // TRANSACTION BREAKDOWN — HTG-C MINT
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  if (data.kind === "htgc_mint") {
+    y += sectionHeader(doc, "Transaction Breakdown", y, L);
+    y += rule(doc, y, L, R, NAVY, 0.6);
+
+    if (data.htgAmount) {
+      y += drawRow(doc, "HTG Deposited",  `${fmtN(data.htgAmount)} HTG`,   y, L, R, { divider: true, valueBold: true });
+      y += drawRow(doc, "Peg Ratio",      "1 : 1  (1 HTG-C = 1 HTG)",      y, L, R, { divider: true });
+    }
+    y += 1;
+    y += rule(doc, y, L, R, NAVY, 0.8);
+    y += 1;
+    if (data.htgAmount) {
+      y += drawRow(doc, "HTG-C Minted", `${fmtN(data.htgAmount, 0)} HTG-C`, y, L, R, { highlight: true });
+    }
+    y += 10;
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // TRANSACTION BREAKDOWN — SWAP
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  if (data.kind === "swap") {
+    y += sectionHeader(doc, "Transaction Breakdown", y, L);
+    y += rule(doc, y, L, R, NAVY, 0.6);
+
+    if (data.htgAmount) {
+      y += drawRow(doc, "HTG-C Redeemed", `${fmtN(data.htgAmount, 0)} HTG-C`, y, L, R, { divider: true, valueBold: true });
+    }
+    if (data.rate) {
+      y += drawRow(doc, "Exchange Rate", `${fmtN(data.rate, 2)} HTG / USDC`, y, L, R, { divider: true });
+    }
+    y += 1;
+    y += rule(doc, y, L, R, NAVY, 0.8);
+    y += 1;
+    if (data.usdcAmount) {
+      y += drawRow(doc, "USDC Received", `${fmtN(data.usdcAmount)} USDC`, y, L, R, { highlight: true });
+    }
+    y += 10;
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // TRANSACTION BREAKDOWN — PAYOUT
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  if (data.kind === "payout") {
+    y += sectionHeader(doc, "Payout Details", y, L);
+    y += rule(doc, y, L, R, NAVY, 0.6);
+
+    if (data.recipientName) {
+      y += drawRow(doc, "Recipient",   data.recipientName,                y, L, R, { divider: true, valueBold: true });
+    }
+    if (data.memo) {
+      y += drawRow(doc, "Memo / Reference", data.memo,                    y, L, R, { divider: true });
+    }
+    y += 1;
+    y += rule(doc, y, L, R, NAVY, 0.8);
+    y += 1;
+    if (data.usdcAmount) {
+      y += drawRow(doc, "USDC Sent",   `${fmtN(data.usdcAmount)} USDC`,  y, L, R, { highlight: true });
+    }
+    y += 10;
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // TRANSACTION BREAKDOWN — WITHDRAW
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  if (data.kind === "withdraw") {
+    y += sectionHeader(doc, "Withdrawal Details", y, L);
+    y += rule(doc, y, L, R, NAVY, 0.6);
+
+    y += drawRow(doc, "Destination", "Bank account on file", y, L, R, { divider: true });
+    y += 1;
+    y += rule(doc, y, L, R, NAVY, 0.8);
+    y += 1;
+    if (data.usdcAmount) {
+      y += drawRow(doc, "HTG-C Withdrawn", `${fmtN(data.usdcAmount, 0)} HTG-C`, y, L, R, { highlight: true });
+    }
+    y += 10;
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // TRANSACTION BREAKDOWN — YIELD
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  if (data.kind === "yield" || data.kind === "yield_earned") {
+    y += sectionHeader(doc, data.kind === "yield" ? "Yield Deposit" : "Yield Earned", y, L);
+    y += rule(doc, y, L, R, NAVY, 0.6);
+
+    if (data.kind === "yield") {
+      if (data.usdcAmount) y += drawRow(doc, "Principal",    `${fmtN(data.usdcAmount)} USDC`,           y, L, R, { divider: true, valueBold: true });
+      if (data.walletLabel) y += drawRow(doc, "Wallet",       data.walletLabel,                          y, L, R, { divider: true });
+      y += drawRow(doc, "Net APY",        `${((data.netApy ?? 0.07) * 100).toFixed(2)}%`,               y, L, R, { divider: true });
+      if (data.depositedAt) y += drawRow(doc, "Deposit Date", new Date(data.depositedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }), y, L, R, { divider: false });
+    } else {
+      if (data.walletLabel)  y += drawRow(doc, "Wallet",      data.walletLabel,                          y, L, R, { divider: true });
+      y += drawRow(doc, "Net APY",        `${((data.netApy ?? 0.07) * 100).toFixed(2)}%`,               y, L, R, { divider: true });
+      if (data.depositedAt)  y += drawRow(doc, "Earning Since", new Date(data.depositedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }), y, L, R, { divider: true });
+      y += 1;
+      y += rule(doc, y, L, R, NAVY, 0.8);
+      y += 1;
+      const earnedAmt = data.accruedAmount ?? data.usdcAmount ?? 0;
+      y += drawRow(doc, "Yield Earned",  `+${fmtN(earnedAmt)} USDC`,                                   y, L, R, { highlight: true });
+    }
+    y += 10;
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // SETTLEMENT VERIFICATION
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  y += sectionHeader(doc, "Settlement Verification", y, L);
+  y += rule(doc, y, L, R, NAVY, 0.6);
+
+  y += drawRow(doc, "Network", "Stellar Network (Testnet)", y, L, R, { divider: true });
+
+  if (data.stellarTxHash) {
+    // Confirmed status
+    fill(doc, [240, 253, 244]);
+    doc.rect(L, y, R - L, 11, "F");
+    stroke(doc, [187, 247, 208]);
+    doc.rect(L, y, R - L, 11, "S");
+    ink(doc, MID);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.text("SETTLEMENT STATUS", L + 4, y + 6.5);
+    ink(doc, GREEN);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.text("● CONFIRMED ON-CHAIN", R - 4, y + 6.5, { align: "right" });
+    stroke(doc, LIGHT);
+    doc.setLineWidth(0.25);
+    doc.line(L, y + 12.5, R, y + 12.5);
+    y += 13;
+
+    // TX hash — full width, monospace
+    fill(doc, CREAM);
+    doc.rect(L, y, R - L, 13, "F");
+    ink(doc, MID);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.text("TRANSACTION HASH", L + 4, y + 5);
+    ink(doc, NAVY);
+    doc.setFont("courier", "normal");
+    doc.setFontSize(7.5);
+    const hash = data.stellarTxHash;
+    doc.text(hash.slice(0, 32) + "…" + hash.slice(-8), L + 4, y + 10.5);
+    stroke(doc, LIGHT);
+    doc.setLineWidth(0.25);
+    doc.line(L, y + 14.5, R, y + 14.5);
+    y += 16;
+  } else {
+    y += drawRow(doc, "Settlement Status", "Pending / Unconfirmed", y, L, R, { divider: false });
+  }
+
+  y += 10;
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // FOOTER NOTE
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  fill(doc, CREAM);
+  stroke(doc, LIGHT);
+  doc.setLineWidth(0.3);
+  doc.rect(L, y, R - L, 14, "FD");
+  ink(doc, MID);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  doc.text(
+    "This receipt is an automatically generated record of the above transaction processed by Theo.",
+    L + 4, y + 5,
+  );
+  doc.text(
+    "For disputes or queries, contact support@theo.ht  ·  theo.ht  ·  Theo Finance S.A., Port-au-Prince, Haiti",
+    L + 4, y + 10,
+  );
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // FOOTER BAR
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   fill(doc, GOLD);
   doc.rect(0, PH - 20, PW, 3, "F");
   fill(doc, NAVY);
@@ -340,12 +505,15 @@ function _buildPdf(data: ReceiptData): void {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
   doc.text("Theo for Business", L, PH - 6);
+
   ink(doc, MID);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7);
   doc.text("Haiti HTG / USDC Corridor  ·  Powered by Stellar", R, PH - 6, { align: "right" });
 
-  // ── Save ─────────────────────────────────────────────────────────────────
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // SAVE
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   const ref = data.referenceNumber ?? new Date(data.createdAt).toISOString().slice(0, 10);
   doc.save(`theo-receipt-${ref}.pdf`);
 }
