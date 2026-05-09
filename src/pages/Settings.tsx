@@ -206,9 +206,11 @@ export default function Settings() {
   };
 
   useEffect(() => {
+    if (!user) return;
     supabase
       .from("customers")
       .select("id, company_name, kyb_status, legal_name, registration_number, country")
+      .eq("user_id", user.id)
       .maybeSingle()
       .then(({ data }) => {
         const c = data as Customer | null;
