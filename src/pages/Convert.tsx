@@ -335,7 +335,9 @@ export default function Convert() {
   };
 
   const loadBankAccounts = async () => {
-    const { data: c } = await supabase.from("customers").select("id").maybeSingle();
+    const { data: au } = await supabase.auth.getUser();
+    if (!au.user) return;
+    const { data: c } = await supabase.from("customers").select("id").eq("user_id", au.user.id).maybeSingle();
     if (!c) return;
     const { data: banks } = await supabase
       .from("bank_accounts")
