@@ -529,5 +529,15 @@ function _buildPdf(data: ReceiptData): void {
   // SAVE
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   const ref = data.referenceNumber ?? new Date(data.createdAt).toISOString().slice(0, 10);
-  doc.save(`theo-receipt-${ref}.pdf`);
+  const filename = `theo-receipt-${ref}.pdf`;
+  const blob = doc.output("blob");
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }
