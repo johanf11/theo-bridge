@@ -183,7 +183,7 @@ export default function AdminKyb() {
             Nothing to review.
           </div>
         ) : (
-          <div className="overflow-x-auto -mx-4 md:mx-0"><table className="w-full border-collapse min-w-[640px]">
+          <table className="w-full border-collapse">
             <thead>
               <tr style={{ background: "hsl(var(--theo-cream))" }}>
                 {["Business", "Contact", "Registration", "Country", "Submitted", "Status", "Actions"].map((h) => (
@@ -337,7 +337,7 @@ export default function AdminKyb() {
                 );
               })}
             </tbody>
-          </table></div>
+          </table>
         )}
       </div>
     </AppLayout>

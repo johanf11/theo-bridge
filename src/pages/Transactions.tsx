@@ -3,10 +3,9 @@ import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { StatusBadge } from "@/components/theo/StatusBadge";
 import { fmtUSDC, fmtHTG, fmtHTGC } from "@/lib/format";
-import { Download, FileDown, Search, ChevronRight, ArrowRightLeft, SendHorizonal, TrendingUp } from "lucide-react";
+import { Download, FileDown } from "lucide-react";
 import { useSearch } from "@/contexts/SearchContext";
 import { generateReceipt, type ReceiptData } from "@/lib/receipt";
-import { useIsMobile } from "@/hooks/use-mobile";
 
 
 type TxType = "conversion" | "htgc_mint" | "swap" | "withdraw" | "payout" | "yield" | "yield_earned" | "transfer";
@@ -41,7 +40,7 @@ const PAYOUT_STATUS_MAP: Record<string, string> = {
 export default function Transactions() {
   const [all, setAll] = useState<UnifiedTx[]>([]);
   const [loading, setLoading] = useState(true);
-  const { query, setQuery } = useSearch();
+  const { query } = useSearch();
   const highlightRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
 
   // Dropdown filter state
@@ -233,171 +232,6 @@ export default function Transactions() {
     appearance: "none", outline: "none", cursor: "pointer",
   };
 
-  const isMobile = useIsMobile();
-
-  if (isMobile) {
-    const typeIcon = (type: TxType) => {
-      if (type === "conversion" || type === "swap" || type === "htgc_mint") return <ArrowRightLeft className="h-4 w-4" style={{ color: "#7A5F00" }} />;
-      if (type === "yield" || type === "yield_earned") return <TrendingUp className="h-4 w-4" style={{ color: "hsl(150 70% 25%)" }} />;
-      return <SendHorizonal className="h-4 w-4" style={{ color: "hsl(var(--theo-blue))" }} />;
-    };
-    const typeBg = (type: TxType) => {
-      if (type === "conversion" || type === "swap" || type === "htgc_mint") return "hsl(var(--theo-gold-soft))";
-      if (type === "yield" || type === "yield_earned") return "hsl(140 60% 92%)";
-      return "hsl(var(--theo-blue-soft))";
-    };
-    const typeLabels: { value: string; short: string }[] = [
-      { value: "All types", short: "All" },
-      { value: "Conversion", short: "Convert" },
-      { value: "Payout", short: "Payouts" },
-      { value: "Yield", short: "Yield" },
-      { value: "Transfer", short: "Transfers" },
-    ];
-    const datePresets = ["Last 30 days", "Last 90 days", "This year"];
-
-    return (
-      <AppLayout>
-        <div className="mb-3">
-          <div className="font-extrabold" style={{ fontSize: 26, color: "hsl(var(--theo-blue))", letterSpacing: "-0.02em" }}>
-            Transactions
-          </div>
-          <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))", marginTop: 2 }}>
-            {filtered.length} {filtered.length === 1 ? "result" : "results"} · {dateFilter}
-          </div>
-        </div>
-
-        {/* Search bar (Square style) */}
-        <div
-          className="flex items-center gap-2 mb-3"
-          style={{
-            background: "#fff", border: "1px solid hsl(var(--theo-light))",
-            borderRadius: 12, padding: "10px 12px",
-          }}
-        >
-          <Search style={{ width: 14, height: 14, color: "hsl(var(--theo-mid))" }} />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by reference, amount, recipient…"
-            style={{ border: "none", outline: "none", background: "transparent", fontFamily: "inherit", fontSize: 14, color: "hsl(var(--theo-ink))", width: "100%" }}
-          />
-          {query && (
-            <button onClick={() => setQuery("")} style={{ background: "none", border: "none", cursor: "pointer", color: "hsl(var(--theo-mid))", fontSize: 18, lineHeight: 1, padding: 0 }}>×</button>
-          )}
-        </div>
-
-        {/* Type filter chips */}
-        <div className="flex gap-1.5 mb-3 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-          {typeLabels.map((t) => (
-            <button
-              key={t.value}
-              onClick={() => setTypeFilter(t.value)}
-              style={{
-                flexShrink: 0,
-                padding: "6px 12px", borderRadius: 999,
-                fontSize: 12, fontWeight: 700, fontFamily: "inherit", cursor: "pointer",
-                background: typeFilter === t.value ? "hsl(var(--theo-blue))" : "#fff",
-                color: typeFilter === t.value ? "#fff" : "hsl(var(--theo-blue))",
-                border: typeFilter === t.value ? "none" : "1px solid hsl(var(--theo-light))",
-              }}
-            >
-              {t.short}
-            </button>
-          ))}
-        </div>
-
-        {/* Date chips */}
-        <div className="flex gap-1.5 mb-4">
-          {datePresets.map((d) => (
-            <button
-              key={d}
-              onClick={() => setDateFilter(d)}
-              style={{
-                flex: 1,
-                padding: "6px 8px", borderRadius: 8,
-                fontSize: 11, fontWeight: 600, fontFamily: "inherit", cursor: "pointer",
-                background: dateFilter === d ? "hsl(var(--theo-blue-soft))" : "transparent",
-                color: dateFilter === d ? "hsl(var(--theo-blue))" : "hsl(var(--theo-mid))",
-                border: "1px solid " + (dateFilter === d ? "hsl(var(--theo-blue-soft))" : "hsl(var(--theo-light))"),
-              }}
-            >
-              {d}
-            </button>
-          ))}
-        </div>
-
-        {/* List */}
-        <div className="bg-card border border-border rounded-2xl overflow-hidden">
-          {loading ? (
-            <div className="py-12 text-center text-sm text-muted-foreground">Loading…</div>
-          ) : filtered.length === 0 ? (
-            <div className="py-12 text-center text-sm text-muted-foreground">
-              {all.length === 0 ? "No transactions yet." : "No matching transactions."}
-            </div>
-          ) : (
-            filtered.map((tx) => {
-              const title =
-                tx.type === "conversion" ? "Conversion" :
-                tx.type === "htgc_mint" ? "HTG-C Mint" :
-                tx.type === "swap" ? "Swap" :
-                tx.type === "yield" ? "Yield deposit" :
-                tx.type === "yield_earned" ? "Yield earned" :
-                tx.type === "transfer" ? `Transfer · ${tx.wallet_label ?? ""}` :
-                tx.recipient_name ?? "Payout";
-              const sub =
-                tx.type === "conversion" ? fmtHTG(tx.htg_amount ?? 0) :
-                tx.type === "yield" || tx.type === "yield_earned" ? (tx.wallet_label ?? "Wallet") :
-                tx.memo ? tx.memo : new Date(tx.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-              const amountColor = tx.type === "yield_earned" ? "hsl(150 70% 25%)" : "hsl(var(--theo-blue))";
-              const amountPrefix = tx.type === "yield_earned" ? "+" : "";
-              return (
-                <div
-                  key={tx.id}
-                  className="flex items-center gap-3 px-4 py-3 border-b border-border last:border-0"
-                >
-                  <div
-                    className="flex items-center justify-center rounded-full flex-shrink-0"
-                    style={{ width: 38, height: 38, background: typeBg(tx.type) }}
-                  >
-                    {typeIcon(tx.type)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-ink))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {title}
-                    </div>
-                    <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {new Date(tx.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {sub}
-                    </div>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <div style={{ fontSize: 14, fontWeight: 800, color: amountColor }}>
-                      {amountPrefix}{fmtUSDC(tx.usdc_amount)}
-                    </div>
-                    <div style={{ marginTop: 3 }}>
-                      <StatusBadge status={tx.status} />
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        <button
-          onClick={exportCsv}
-          className="flex items-center justify-center gap-1.5 font-bold mt-4 w-full"
-          style={{
-            background: "transparent", border: "1.5px solid hsl(var(--theo-blue))",
-            color: "hsl(var(--theo-blue))", borderRadius: 10, padding: "10px",
-            fontSize: 13, cursor: "pointer", fontFamily: "inherit",
-          }}
-        >
-          <Download className="h-3.5 w-3.5" /> Export CSV
-        </button>
-      </AppLayout>
-    );
-  }
-
   return (
     <AppLayout>
       <div className="flex items-start justify-between mb-1">
@@ -451,7 +285,7 @@ export default function Transactions() {
         ) : filtered.length === 0 ? (
           <div className="py-14 text-center text-sm text-muted-foreground">No matching transactions.</div>
         ) : (
-          <div className="overflow-x-auto -mx-4 md:mx-0"><table className="w-full border-collapse min-w-[640px]">
+          <table className="w-full border-collapse">
             <thead>
               <tr style={{ background: "hsl(var(--theo-cream))" }}>
                 {["Date", "Type", "Amount (USDC)", "Details", "Network", "Status", "Reference / Recipient", "Receipt ID"].map((h) => (
@@ -624,7 +458,7 @@ export default function Transactions() {
                 );
               })}
             </tbody>
-          </table></div>
+          </table>
         )}
       </div>
     </AppLayout>

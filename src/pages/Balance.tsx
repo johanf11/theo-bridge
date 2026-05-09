@@ -288,7 +288,7 @@ export default function Balance() {
   return (
     <AppLayout>
       {/* Header */}
-      <div className="flex items-start justify-between gap-3 mb-1 flex-wrap">
+      <div className="flex items-start justify-between mb-1">
         <div>
           <div className="font-extrabold" style={{ fontSize: 22, color: "hsl(var(--theo-blue))", letterSpacing: "-0.02em" }}>
             Balance
@@ -297,7 +297,7 @@ export default function Balance() {
             Multi-wallet overview with yield.
           </div>
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2">
           {can("payout_send") && wallets.length >= 2 && (
             <button
               onClick={() => openMoveModal()}
@@ -338,15 +338,12 @@ export default function Balance() {
       <div className="mb-5" style={{ width: 28, height: 3, background: "hsl(var(--theo-gold))", borderRadius: 2, marginTop: 8 }} />
 
       {/* Total balance hero */}
-      <div
-        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 p-5 sm:p-7"
-        style={{ background: "hsl(var(--theo-blue))", borderRadius: 14 }}
-      >
+      <div className="flex items-center justify-between mb-3" style={{ background: "hsl(var(--theo-blue))", borderRadius: 14, padding: "24px 28px" }}>
         <div>
           <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.14em", color: "hsl(var(--theo-gold))" }}>
             Total balance across all wallets
           </div>
-          <div className="font-extrabold leading-none" style={{ fontSize: "clamp(32px, 9vw, 40px)", letterSpacing: "-2px", color: "#fff" }}>
+          <div className="font-extrabold leading-none" style={{ fontSize: 40, letterSpacing: "-2px", color: "#fff" }}>
             ${fmt(total + totalEarning)}
           </div>
           <div style={{ fontSize: 13, color: "rgba(255,255,255,0.50)", marginTop: 4 }}>
@@ -512,7 +509,7 @@ export default function Balance() {
           <div className="font-bold uppercase mb-2.5" style={{ fontSize: 11, letterSpacing: "0.14em", color: "hsl(var(--theo-mid))" }}>
             Wallets
           </div>
-          <div className="grid gap-3 mb-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 mb-5" style={{ gridTemplateColumns: `repeat(${Math.min(wallets.length, 3)}, 1fr)` }}>
             {wallets.map((w, i) => {
               const pos = blendPositions[w.id];
               const bal = balances[w.id] ?? 0;
@@ -639,7 +636,7 @@ export default function Balance() {
         {wallets.length === 0 && !loading ? (
           <div className="py-10 text-center text-sm text-muted-foreground">No wallets yet. Click "+ Add account" to create one.</div>
         ) : (
-          <div className="overflow-x-auto -mx-4 md:mx-0"><table className="w-full border-collapse min-w-[640px]">
+          <table className="w-full border-collapse">
             <thead>
               <tr style={{ background: "hsl(var(--theo-cream))" }}>
                 {["Account", "Account ID", "USDC Available", "HTG-C AVAILABLE", "Yield Balance"].map((h) => (
@@ -660,7 +657,7 @@ export default function Balance() {
                 />
               ))}
             </tbody>
-          </table></div>
+          </table>
         )}
       </div>
 

@@ -294,7 +294,7 @@ export default function Payout() {
       </div>
       <div className="mb-5" style={{ width: 28, height: 3, background: "hsl(var(--theo-gold))", borderRadius: 2, marginTop: 8 }} />
 
-      <div className="grid gap-4 grid-cols-1 lg:[grid-template-columns:3fr_2fr]">
+      <div className="grid gap-4" style={{ gridTemplateColumns: "3fr 2fr" }}>
         {/* Payout form */}
         <div className="bg-card border border-border rounded-xl shadow-xs self-start" style={{ padding: "16px 20px 14px" }}>
           <div className="font-bold mb-1" style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>New payout</div>
@@ -433,7 +433,7 @@ export default function Payout() {
               </div>
 
               {/* ── Recipient fields ────────────────────────────────── */}
-              <div className="grid gap-3 mb-2.5 grid-cols-1 sm:grid-cols-2">
+              <div className="grid gap-3 mb-2.5" style={{ gridTemplateColumns: "1fr 1fr" }}>
                 <div>
                   <label style={labelStyle}>Recipient name</label>
                   <input

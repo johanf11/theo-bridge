@@ -649,7 +649,7 @@ export default function Convert() {
       </div>
       <div className="mb-5" style={{ width: 28, height: 3, background: "hsl(var(--theo-gold))", borderRadius: 2, marginTop: 8 }} />
 
-      <div className="grid gap-4 grid-cols-1 lg:[grid-template-columns:3fr_2fr]">
+      <div className="grid gap-4" style={{ gridTemplateColumns: "3fr 2fr" }}>
         {/* Main form */}
         <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
           <div className="flex border-b border-border mb-4" style={{ overflowX: "auto" }}>
@@ -1480,7 +1480,7 @@ export default function Convert() {
                   <input style={inputStyle} value={wireRecipientName} onChange={(e) => setWireRecipientName(e.target.value)} placeholder="Jane Doe" />
                 </div>
 
-                <div className="grid gap-3 grid-cols-1 sm:grid-cols-2" style={{ marginBottom: 12 }}>
+                <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr", marginBottom: 12 }}>
                   <div>
                     <label style={labelStyle}>Bank SWIFT / BIC <span style={{ color: "#C00" }}>*</span></label>
                     <input style={inputStyle} value={wireSwift} onChange={(e) => setWireSwift(e.target.value.toUpperCase())} placeholder="HSBCGB2L" />
