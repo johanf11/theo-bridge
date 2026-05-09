@@ -221,7 +221,7 @@ export default function Settings() {
           setCountry(c.country ?? "Haiti");
         }
       });
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!customer) return;
