@@ -128,10 +128,15 @@ export default function Dashboard() {
 
   useEffect(() => {
     (async () => {
-      const { data: c } = await supabase
+      const { data: authData } = await supabase.auth.getUser();
+      if (!authData.user) return;
+      const { data: customers } = await supabase
         .from("customers")
         .select("id, company_name, contact_name, kyb_status, fee_bps, corridor_bps")
-        .maybeSingle();
+        .eq("user_id", authData.user.id)
+        .order("created_at", { ascending: true })
+        .limit(1);
+      const c = customers?.[0] ?? null;
       setCustomer(c as Customer | null);
       if (!c) return;
 

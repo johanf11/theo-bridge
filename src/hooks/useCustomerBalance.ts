@@ -16,7 +16,8 @@ export function useCustomerBalance() {
     setLoading(true);
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) { setTotal(0); setHtgcTotal(0); setLoading(false); return; }
-    const { data: c } = await supabase.from("customers").select("id").eq("user_id", auth.user.id).maybeSingle();
+    const { data: customers } = await supabase.from("customers").select("id").eq("user_id", auth.user.id).order("created_at", { ascending: true }).limit(1);
+    const c = customers?.[0] ?? null;
     if (!c) {
       setTotal(0);
       setHtgcTotal(0);
