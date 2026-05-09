@@ -58,7 +58,8 @@ export default function Transactions() {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const { data: c } = await supabase.from("customers").select("id").maybeSingle();
+      const { data: au } = await supabase.auth.getUser();
+      const { data: c } = await supabase.from("customers").select("id").eq("user_id", au.user?.id ?? "").maybeSingle();
       if (!c) { setLoading(false); return; }
 
       const cutoff = dateCutoff(dateFilter);
