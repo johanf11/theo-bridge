@@ -345,7 +345,21 @@ function _buildPdf(data: ReceiptData): void {
   doc.setFontSize(7);
   doc.text("Haiti HTG / USDC Corridor  ·  Powered by Stellar", R, PH - 6, { align: "right" });
 
-  // ── Save ─────────────────────────────────────────────────────────────────
+  // ── Save — manual synchronous download to preserve user-gesture context ──
+  // jsPDF's doc.save() wraps the anchor click in setTimeout(), which exits
+  // the browser's user-gesture window and causes downloads to be silently
+  // blocked in sandboxed iframes. We bypass it by triggering synchronously.
   const ref = data.referenceNumber ?? new Date(data.createdAt).toISOString().slice(0, 10);
-  doc.save(`theo-receipt-${ref}.pdf`);
+  const filename = `theo-receipt-${ref}.pdf`;
+  const blob = doc.output("blob");
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = filename;
+  a.rel      = "noopener";
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
