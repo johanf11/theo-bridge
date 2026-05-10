@@ -106,7 +106,7 @@ export default function Payout() {
   const [sourceWalletId, setSourceWalletId] = useState("");
   const [memo, setMemo] = useState("");
   const [sending, setSending] = useState(false);
-  type TrustStatus = "idle" | "checking" | "ready" | "no_trust" | "not_found";
+  type TrustStatus = "idle" | "checking" | "ready" | "no_trust" | "not_authorized" | "not_found";
   const [trustStatus, setTrustStatus] = useState<TrustStatus>("idle");
 
   // Recent payouts
@@ -147,8 +147,8 @@ export default function Payout() {
         if (res.status === 404) { setTrustStatus("not_found"); return; }
         if (!res.ok) { setTrustStatus("idle"); return; }
         const data = await res.json();
-        const hasUsdc = (data.balances ?? []).some((b: { asset_code?: string }) => b.asset_code === "USDC");
-        setTrustStatus(hasUsdc ? "ready" : "no_trust");
+        const usdcTrust = (data.balances ?? []).find((b: { asset_code?: string }) => b.asset_code === "USDC");
+        setTrustStatus(!usdcTrust ? "no_trust" : usdcTrust.is_authorized === false ? "not_authorized" : "ready");
       } catch {
         if (!cancelled) setTrustStatus("idle");
       }
