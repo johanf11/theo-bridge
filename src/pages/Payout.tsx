@@ -10,6 +10,45 @@ import { fetchHorizonBalances } from "@/lib/balance";
 import { fmtUSDC } from "@/lib/format";
 
 type Tab = "single" | "bulk" | "global";
+type Chain = "stellar" | "solana" | "ethereum" | "base" | "bsc";
+
+const CHAINS: {
+  id: Chain; name: string; ticker: string; color: string;
+  placeholder: string; hint: string;
+  status: "live" | "soon";
+  validate: (addr: string) => "empty" | "valid" | "incomplete" | "invalid";
+}[] = [
+  {
+    id: "stellar", name: "Stellar", ticker: "XLM", color: "#33359A",
+    placeholder: "G… (56 characters)", hint: "Stellar addresses start with G and are 56 characters long",
+    status: "live",
+    validate: (a) => !a ? "empty" : (a.startsWith("G") && a.length === 56) ? "valid" : (a.startsWith("G") && a.length < 56) ? "incomplete" : "invalid",
+  },
+  {
+    id: "solana", name: "Solana", ticker: "SOL", color: "#9945FF",
+    placeholder: "Base58 address (32–44 characters)", hint: "Solana addresses are base58 encoded, 32–44 characters",
+    status: "soon",
+    validate: (a) => !a ? "empty" : /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(a) ? "valid" : a.length < 32 ? "incomplete" : "invalid",
+  },
+  {
+    id: "ethereum", name: "Ethereum", ticker: "ETH", color: "#627EEA",
+    placeholder: "0x… (42 characters)", hint: "Ethereum addresses start with 0x and are 42 characters long",
+    status: "soon",
+    validate: (a) => !a ? "empty" : /^0x[0-9a-fA-F]{40}$/.test(a) ? "valid" : a.startsWith("0x") && a.length < 42 ? "incomplete" : "invalid",
+  },
+  {
+    id: "base", name: "Base", ticker: "BASE", color: "#0052FF",
+    placeholder: "0x… (42 characters)", hint: "Base addresses start with 0x and are 42 characters long",
+    status: "soon",
+    validate: (a) => !a ? "empty" : /^0x[0-9a-fA-F]{40}$/.test(a) ? "valid" : a.startsWith("0x") && a.length < 42 ? "incomplete" : "invalid",
+  },
+  {
+    id: "bsc", name: "BNB Chain", ticker: "BSC", color: "#F3BA2F",
+    placeholder: "0x… (42 characters)", hint: "BNB Chain addresses start with 0x and are 42 characters long",
+    status: "soon",
+    validate: (a) => !a ? "empty" : /^0x[0-9a-fA-F]{40}$/.test(a) ? "valid" : a.startsWith("0x") && a.length < 42 ? "incomplete" : "invalid",
+  },
+];
 
 type Wallet = { id: string; label: string; stellar_address: string; usdc_balance: number };
 
@@ -60,6 +99,9 @@ export default function Payout() {
   // Form state
   const [recipientName, setRecipientName] = useState("");
   const [recipientAddress, setRecipientAddress] = useState("");
+  const [destinationChain, setDestinationChain] = useState<Chain>("stellar");
+  const [chainDropdownOpen, setChainDropdownOpen] = useState(false);
+  const chainDropdownRef = useRef<HTMLDivElement>(null);
   const [amount, setAmount] = useState("");
   const [sourceWalletId, setSourceWalletId] = useState("");
   const [memo, setMemo] = useState("");
@@ -83,15 +125,10 @@ export default function Payout() {
     (r) => r.stellar_address === recipientAddress.trim()
   );
 
-  // Stellar address validation
+  // Chain-aware address validation
   const addrTrimmed = recipientAddress.trim();
-  type AddrState = "empty" | "valid" | "incomplete" | "wrong_chain";
-  const addrState: AddrState = (() => {
-    if (!addrTrimmed) return "empty";
-    if (addrTrimmed.startsWith("G") && addrTrimmed.length === 56) return "valid";
-    if (addrTrimmed.startsWith("G") && addrTrimmed.length < 56) return "incomplete";
-    return "wrong_chain";
-  })();
+  const selectedChain = CHAINS.find((c) => c.id === destinationChain) ?? CHAINS[0];
+  const addrState = selectedChain.validate(addrTrimmed);
 
   // Filter recent payouts by search query
   const filteredPayouts = query.trim()
@@ -120,12 +157,15 @@ export default function Payout() {
     loadAll();
   }, [user]);
 
-  // Close dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setDropdownOpen(false);
         setRecipientSearch("");
+      }
+      if (chainDropdownRef.current && !chainDropdownRef.current.contains(e.target as Node)) {
+        setChainDropdownOpen(false);
       }
     };
     document.addEventListener("mousedown", handler);
@@ -217,12 +257,12 @@ export default function Payout() {
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!sourceWalletId) { toast.error("Select a source account"); return; }
-    if (addrState === "wrong_chain") {
-      toast.error("Cross-chain payouts are not yet supported. Please use a Stellar address (starts with G).");
+    if (selectedChain.status === "soon") {
+      toast.error(`${selectedChain.name} payouts are coming soon via Allbridge. Use Stellar for now.`);
       return;
     }
     if (addrState !== "valid") {
-      toast.error("Enter a valid Stellar account ID — starts with G, 56 characters");
+      toast.error(`Enter a valid ${selectedChain.name} address — ${selectedChain.hint.toLowerCase()}`);
       return;
     }
     const parsedAmount = parseFloat(amount);
@@ -448,62 +488,138 @@ export default function Payout() {
                   />
                 </div>
                 <div>
+                  {/* Label row with chain selector */}
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
                     <label style={{ ...labelStyle, marginBottom: 0 }}>Recipient account ID</label>
-                    <span style={{
-                      display: "inline-flex", alignItems: "center", gap: 4,
-                      fontSize: 10, fontWeight: 700, letterSpacing: "0.06em",
-                      background: "hsl(var(--theo-gold))", color: "hsl(var(--theo-blue))",
-                      borderRadius: 99, padding: "2px 7px", border: "none",
-                    }}>
-                      <svg width="8" height="8" viewBox="0 0 24 24" fill="hsl(var(--theo-blue))"><circle cx="12" cy="12" r="10"/></svg>
-                      Stellar only
-                    </span>
+
+                    {/* Chain selector pill dropdown */}
+                    <div style={{ position: "relative" }} ref={chainDropdownRef}>
+                      <button
+                        type="button"
+                        onClick={() => setChainDropdownOpen((v) => !v)}
+                        style={{
+                          display: "inline-flex", alignItems: "center", gap: 5,
+                          fontSize: 10, fontWeight: 700, letterSpacing: "0.06em",
+                          background: selectedChain.status === "soon" ? "hsl(var(--theo-cream))" : "hsl(var(--theo-gold))",
+                          color: "hsl(var(--theo-blue))",
+                          borderRadius: 99, padding: "3px 9px 3px 7px",
+                          border: "1.5px solid " + (selectedChain.status === "soon" ? "hsl(var(--theo-light))" : "transparent"),
+                          cursor: "pointer", fontFamily: "inherit",
+                        }}
+                      >
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: selectedChain.color, display: "inline-block", flexShrink: 0 }} />
+                        {selectedChain.name}
+                        <ChevronDown style={{ width: 9, height: 9, flexShrink: 0 }} />
+                      </button>
+
+                      {chainDropdownOpen && (
+                        <div style={{
+                          position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 200,
+                          background: "#fff", borderRadius: 10, border: "1px solid hsl(var(--theo-light))",
+                          boxShadow: "0 8px 24px rgba(51,53,154,0.13)", overflow: "hidden", minWidth: 180,
+                        }}>
+                          {/* Header */}
+                          <div style={{ padding: "8px 12px 6px", borderBottom: "1px solid hsl(var(--theo-light))" }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: "hsl(var(--theo-mid))" }}>
+                              Destination chain
+                            </div>
+                          </div>
+                          {CHAINS.map((chain) => (
+                            <button
+                              key={chain.id}
+                              type="button"
+                              onClick={() => {
+                                setDestinationChain(chain.id);
+                                setRecipientAddress("");
+                                setChainDropdownOpen(false);
+                              }}
+                              style={{
+                                display: "flex", alignItems: "center", justifyContent: "space-between",
+                                width: "100%", padding: "9px 12px",
+                                border: "none", borderBottom: "1px solid hsl(var(--theo-light))",
+                                background: destinationChain === chain.id ? "hsl(var(--theo-blue-soft))" : "transparent",
+                                cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+                                transition: "background 80ms",
+                              }}
+                              onMouseEnter={(e) => { if (destinationChain !== chain.id) (e.currentTarget as HTMLElement).style.background = "hsl(var(--theo-cream))"; }}
+                              onMouseLeave={(e) => { if (destinationChain !== chain.id) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                            >
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ width: 10, height: 10, borderRadius: "50%", background: chain.color, display: "inline-block", flexShrink: 0 }} />
+                                <div>
+                                  <div style={{ fontSize: 12, fontWeight: 600, color: "hsl(var(--theo-blue))" }}>{chain.name}</div>
+                                  <div style={{ fontSize: 10, color: "hsl(var(--theo-mid))" }}>{chain.ticker}</div>
+                                </div>
+                              </div>
+                              {chain.status === "soon" ? (
+                                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", background: "hsl(var(--theo-cream))", color: "hsl(var(--theo-mid))", borderRadius: 99, padding: "2px 6px", border: "1px solid hsl(var(--theo-light))" }}>
+                                  SOON
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", background: "#EFFBF3", color: "#1A7F37", borderRadius: 99, padding: "2px 6px" }}>
+                                  LIVE
+                                </span>
+                              )}
+                            </button>
+                          ))}
+                          {/* Allbridge footnote */}
+                          <div style={{ padding: "7px 12px", fontSize: 10, color: "hsl(var(--theo-mid))", borderTop: "1px solid hsl(var(--theo-light))", lineHeight: 1.5 }}>
+                            Cross-chain via <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>Allbridge</span> — coming soon
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
+
+                  {/* Address input */}
                   <input
                     style={{
                       ...inputStyle, marginBottom: 0,
                       borderColor: addrState === "valid" ? "#22C55E"
-                        : addrState === "wrong_chain" ? "#F59E0B"
-                        : addrState === "incomplete" ? "#F59E0B"
+                        : addrState === "incomplete" || addrState === "invalid" ? "#F59E0B"
                         : "hsl(var(--theo-light))",
                     }}
                     type="text"
-                    placeholder="G… (56 characters)"
+                    placeholder={selectedChain.placeholder}
                     value={recipientAddress}
                     onChange={(e) => setRecipientAddress(e.target.value)}
-                    required
+                    required={selectedChain.status === "live"}
                   />
-                  {/* Inline feedback */}
-                  {addrState === "valid" && (
+
+                  {/* Coming soon banner for non-Stellar */}
+                  {selectedChain.status === "soon" && (
+                    <div style={{ marginTop: 6, padding: "8px 10px", borderRadius: 7, background: "hsl(var(--theo-blue-soft))", border: "1px solid hsl(var(--theo-light))", display: "flex", alignItems: "flex-start", gap: 7 }}>
+                      <Info size={12} style={{ color: "hsl(var(--theo-blue))", flexShrink: 0, marginTop: 1 }} />
+                      <div style={{ fontSize: 11, color: "hsl(var(--theo-blue))", lineHeight: 1.5 }}>
+                        <span style={{ fontWeight: 700 }}>{selectedChain.name} payouts coming soon</span> via Allbridge.{" "}
+                        You can enter the address now — it will be saved with the recipient.
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Inline address feedback (live chains only) */}
+                  {selectedChain.status === "live" && addrState === "valid" && (
                     <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 5, fontSize: 11, color: "#16A34A", fontWeight: 600 }}>
                       <CheckCircle2 size={12} />
-                      Valid Stellar address
+                      Valid {selectedChain.name} address
                     </div>
                   )}
-                  {addrState === "incomplete" && (
+                  {selectedChain.status === "live" && addrState === "incomplete" && (
                     <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 5, fontSize: 11, color: "#D97706", fontWeight: 600 }}>
                       <Info size={12} />
-                      Address looks incomplete — Stellar IDs are 56 characters
+                      Address looks incomplete — {selectedChain.hint.toLowerCase()}
                     </div>
                   )}
-                  {addrState === "wrong_chain" && (
-                    <div style={{ marginTop: 6, padding: "8px 10px", borderRadius: 7, background: "#FFFBEB", border: "1px solid #FDE68A", display: "flex", alignItems: "flex-start", gap: 7 }}>
-                      <AlertTriangle size={13} style={{ color: "#D97706", flexShrink: 0, marginTop: 1 }} />
-                      <div>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: "#92400E" }}>
-                          Non-Stellar address detected
-                        </div>
-                        <div style={{ fontSize: 11, color: "#92400E", marginTop: 2, lineHeight: 1.5 }}>
-                          Payouts run on the Stellar network. Cross-chain payouts (Solana, Ethereum, etc.) are coming soon. Ask your recipient for their Stellar address or use a Stellar-compatible wallet.
-                        </div>
-                      </div>
+                  {selectedChain.status === "live" && addrState === "invalid" && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 5, fontSize: 11, color: "#D97706", fontWeight: 600 }}>
+                      <AlertTriangle size={12} />
+                      Invalid address format for {selectedChain.name}
                     </div>
                   )}
                   {addrState === "empty" && (
                     <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 5, fontSize: 11, color: "hsl(var(--theo-mid))" }}>
                       <Info size={11} />
-                      Stellar addresses start with G and are 56 characters long
+                      {selectedChain.hint}
                     </div>
                   )}
                 </div>
