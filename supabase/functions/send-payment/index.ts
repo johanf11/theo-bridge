@@ -15,6 +15,16 @@ const corsHeaders = {
 
 const HORIZON_URL = "https://horizon-testnet.stellar.org";
 
+type StellarBalance = {
+  asset_type: string;
+  asset_code?: string;
+  asset_issuer?: string;
+  is_authorized?: boolean;
+};
+
+const recipientNoTrustMessage = "Recipient wallet has not enabled USDC. Ask them to add a USDC trustline on their Stellar wallet before you can send.";
+const recipientUnauthorizedMessage = "Recipient's USDC trustline is not authorized by the issuer yet. The recipient must complete issuer authorization before they can receive USDC.";
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -97,11 +107,12 @@ Deno.serve(async (req) => {
     // Check Horizon first (cheap read). If missing, try to auto-heal if the
     // recipient is a Theo-managed wallet. Otherwise surface a clear error.
     try {
-      const recipientAccount = await server.loadAccount(recipientAddress.trim());
-      const hasTrust = (recipientAccount.balances as { asset_type: string; asset_code?: string; asset_issuer?: string }[])
-        .some((b) => b.asset_type !== "native" && b.asset_code === "USDC" && b.asset_issuer === usdcIssuer);
+      let recipientAccount = await server.loadAccount(recipientAddress.trim());
+      const findUsdcTrust = () => (recipientAccount.balances as StellarBalance[])
+        .find((b) => b.asset_type !== "native" && b.asset_code === "USDC" && b.asset_issuer === usdcIssuer);
+      let usdcTrust = findUsdcTrust();
 
-      if (!hasTrust) {
+      if (!usdcTrust) {
         // Look up the recipient in our wallets table — if we own it, we can fix it
         const { data: recipientWallet } = await admin
           .from("wallets")
@@ -121,6 +132,8 @@ Deno.serve(async (req) => {
             await admin.from("payouts").update({ status: "FAILED", failure_reason: ready.error }).eq("id", payout.id);
             return json({ error: `Could not establish USDC trust line for recipient: ${ready.error}` }, 502);
           }
+          recipientAccount = await server.loadAccount(recipientAddress.trim());
+          usdcTrust = findUsdcTrust();
         } else {
           // External wallet — we can't sign for them
           await admin.from("payouts").update({
@@ -128,9 +141,23 @@ Deno.serve(async (req) => {
             failure_reason: "Recipient has no USDC trust line",
           }).eq("id", payout.id);
           return json({
-            error: "Recipient wallet has not enabled USDC. Ask them to add USDC to their Stellar wallet before you can send.",
-          }, 422);
+            ok: false,
+            code: "recipient_no_usdc_trustline",
+            error: recipientNoTrustMessage,
+          });
         }
+      }
+
+      if (usdcTrust?.is_authorized === false) {
+        await admin.from("payouts").update({
+          status: "FAILED",
+          failure_reason: recipientUnauthorizedMessage,
+        }).eq("id", payout.id);
+        return json({
+          ok: false,
+          code: "recipient_usdc_trustline_not_authorized",
+          error: recipientUnauthorizedMessage,
+        });
       }
     } catch (horizonErr: unknown) {
       // loadAccount failed → recipient account doesn't exist on Stellar at all
