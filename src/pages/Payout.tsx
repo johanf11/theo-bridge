@@ -657,12 +657,12 @@ export default function Payout() {
                       </div>
                     );
                     if (trustStatus === "not_authorized") return (
-                      <div style={{ marginTop: 6, padding: "8px 10px", borderRadius: 7, background: "#FFFBEB", border: "1px solid #FDE68A", display: "flex", alignItems: "flex-start", gap: 7 }}>
-                        <AlertTriangle size={13} style={{ color: "#D97706", flexShrink: 0, marginTop: 1 }} />
+                      <div style={{ marginTop: 6, padding: "8px 10px", borderRadius: 7, background: "#EFF6FF", border: "1px solid #BFDBFE", display: "flex", alignItems: "flex-start", gap: 7 }}>
+                        <Info size={13} style={{ color: "#1D4ED8", flexShrink: 0, marginTop: 1 }} />
                         <div>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: "#92400E" }}>USDC trustline is not authorized</div>
-                          <div style={{ fontSize: 11, color: "#92400E", marginTop: 2, lineHeight: 1.5 }}>
-                            The recipient must complete issuer authorization before this wallet can receive USDC.
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "#1E3A8A" }}>Trust line pending authorization</div>
+                          <div style={{ fontSize: 11, color: "#1E3A8A", marginTop: 2, lineHeight: 1.5 }}>
+                            Wallet found — Theo will authorize the USDC trust line automatically when you send.
                           </div>
                         </div>
                       </div>
@@ -814,9 +814,9 @@ export default function Payout() {
                   )}
                   <button
                     type="submit"
-                    disabled={sending || wallets.length === 0 || !can("payout_send") || trustStatus === "not_found" || trustStatus === "not_authorized" || trustStatus === "checking"}
+                    disabled={sending || wallets.length === 0 || !can("payout_send") || trustStatus === "not_found" || trustStatus === "checking"}
                     className="flex items-center gap-1.5 font-bold text-white"
-                    style={{ background: "hsl(var(--theo-blue))", borderRadius: 8, padding: "8px 16px", fontSize: 13, border: "none", cursor: (sending || !can("payout_send") || trustStatus === "not_found" || trustStatus === "not_authorized" || trustStatus === "checking") ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: (sending || !can("payout_send") || trustStatus === "not_found" || trustStatus === "not_authorized" || trustStatus === "checking") ? 0.5 : 1 }}
+                    style={{ background: "hsl(var(--theo-blue))", borderRadius: 8, padding: "8px 16px", fontSize: 13, border: "none", cursor: (sending || !can("payout_send") || trustStatus === "not_found" || trustStatus === "checking") ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: (sending || !can("payout_send") || trustStatus === "not_found" || trustStatus === "checking") ? 0.5 : 1 }}
                   >
                     {sending ? <><Loader2 style={{ width: 13, height: 13, animation: "spin 1s linear infinite" }} /> Sending…</> : "Send payout"}
                   </button>

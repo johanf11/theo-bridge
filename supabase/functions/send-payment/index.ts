@@ -149,15 +149,30 @@ Deno.serve(async (req) => {
       }
 
       if (usdcTrust?.is_authorized === false) {
-        await admin.from("payouts").update({
-          status: "FAILED",
-          failure_reason: recipientUnauthorizedMessage,
-        }).eq("id", payout.id);
-        return json({
-          ok: false,
-          code: "recipient_usdc_trustline_not_authorized",
-          error: recipientUnauthorizedMessage,
-        });
+        // Trust line exists but not yet authorized — Theo auto-authorizes as USDC issuer
+        const usdcIssuerSecret = Deno.env.get("STELLAR_USDC_ISSUER_SECRET");
+        if (!usdcIssuerSecret) {
+          await admin.from("payouts").update({ status: "FAILED", failure_reason: recipientUnauthorizedMessage }).eq("id", payout.id);
+          return json({ error: "Recipient USDC trust line is pending authorization. Contact Theo support." }, 422);
+        }
+        try {
+          const issuerKp = Keypair.fromSecret(usdcIssuerSecret);
+          const issuerAccount = await server.loadAccount(issuerKp.publicKey());
+          const authTx = new TransactionBuilder(issuerAccount, { fee: BASE_FEE, networkPassphrase: Networks.TESTNET })
+            .addOperation(Operation.setTrustLineFlags({
+              trustor: recipientAddress.trim(),
+              asset: usdc,
+              flags: { authorized: true },
+            }))
+            .setTimeout(60)
+            .build();
+          authTx.sign(issuerKp);
+          await server.submitTransaction(authTx);
+        } catch (authErr: unknown) {
+          const msg = `USDC trust line authorization failed: ${(authErr as Error).message}`;
+          await admin.from("payouts").update({ status: "FAILED", failure_reason: msg }).eq("id", payout.id);
+          return json({ error: msg }, 502);
+        }
       }
     } catch (horizonErr: unknown) {
       // loadAccount failed → recipient account doesn't exist on Stellar at all
