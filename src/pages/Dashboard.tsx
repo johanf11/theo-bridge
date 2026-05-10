@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,8 +30,85 @@ type UnifiedTx = {
   created_at: string;
 };
 
-type MonthlyBar = { month: string; conversions: number; payouts: number };
+type Period = "7D" | "30D" | "60D" | "YTD" | "1Y";
+type Bar = { label: string; conversions: number; payouts: number };
 type SplitSlice = { name: string; value: number };
+type RawOrder  = { usdc_amount: number; created_at: string; status: string };
+type RawPayout = { amount_usdc: number; created_at: string; status: string };
+
+// ── Chart bucketing ───────────────────────────────────────────────────────────
+
+function buildBuckets(
+  orders: RawOrder[], payouts: RawPayout[], period: Period
+): Bar[] {
+  const now = new Date();
+  const buckets: { label: string; start: Date; end: Date }[] = [];
+
+  if (period === "7D") {
+    // 7 daily buckets
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      d.setHours(0, 0, 0, 0);
+      const end = new Date(d); end.setDate(end.getDate() + 1);
+      buckets.push({ label: d.toLocaleDateString("en-US", { weekday: "short" }), start: d, end });
+    }
+  } else if (period === "30D" || period === "60D") {
+    // Weekly buckets
+    const weeks = period === "30D" ? 4 : 9;
+    for (let i = weeks - 1; i >= 0; i--) {
+      const end = new Date(now);
+      end.setDate(end.getDate() - i * 7);
+      end.setHours(23, 59, 59, 999);
+      const start = new Date(end);
+      start.setDate(start.getDate() - 6);
+      start.setHours(0, 0, 0, 0);
+      buckets.push({
+        label: start.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        start, end,
+      });
+    }
+  } else if (period === "YTD") {
+    // Monthly from Jan to current month
+    const yr = now.getFullYear();
+    for (let m = 0; m <= now.getMonth(); m++) {
+      const start = new Date(yr, m, 1);
+      const end   = new Date(yr, m + 1, 1);
+      buckets.push({ label: start.toLocaleString("en-US", { month: "short" }), start, end });
+    }
+  } else {
+    // 1Y — last 12 months
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const end = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+      buckets.push({ label: d.toLocaleString("en-US", { month: "short" }), start: d, end });
+    }
+  }
+
+  return buckets.map(({ label, start, end }) => ({
+    label,
+    conversions: Math.round(
+      orders
+        .filter(o => o.status === "COMPLETED" && new Date(o.created_at) >= start && new Date(o.created_at) < end)
+        .reduce((s, o) => s + Number(o.usdc_amount), 0)
+    ),
+    payouts: Math.round(
+      payouts
+        .filter(p => p.status === "COMPLETED" && new Date(p.created_at) >= start && new Date(p.created_at) < end)
+        .reduce((s, p) => s + Number(p.amount_usdc), 0)
+    ),
+  }));
+}
+
+function periodStart(period: Period): Date {
+  const now = new Date();
+  if (period === "7D")  { const d = new Date(now); d.setDate(d.getDate() - 7);   return d; }
+  if (period === "30D") { const d = new Date(now); d.setDate(d.getDate() - 30);  return d; }
+  if (period === "60D") { const d = new Date(now); d.setDate(d.getDate() - 60);  return d; }
+  if (period === "YTD") return new Date(now.getFullYear(), 0, 1);
+  // 1Y
+  const d = new Date(now); d.setFullYear(d.getFullYear() - 1); return d;
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -122,8 +199,26 @@ export default function Dashboard() {
   const hasYield = yieldPositions.length > 0;
 
   // Chart data
-  const [volumeData, setVolumeData] = useState<MonthlyBar[]>([]);
-  const [splitData, setSplitData] = useState<SplitSlice[]>([]);
+  const [period, setPeriod] = useState<Period>("YTD");
+  const [rawOrders, setRawOrders]   = useState<RawOrder[]>([]);
+  const [rawPayouts, setRawPayouts] = useState<RawPayout[]>([]);
+
+  // Derived chart data — recomputes when period or raw data changes
+  const volumeData = useMemo(() => buildBuckets(rawOrders, rawPayouts, period), [rawOrders, rawPayouts, period]);
+  const splitData: SplitSlice[] = useMemo(() => {
+    const start = periodStart(period);
+    const conv = rawOrders
+      .filter(o => o.status === "COMPLETED" && new Date(o.created_at) >= start)
+      .reduce((s, o) => s + Number(o.usdc_amount), 0);
+    const pays = rawPayouts
+      .filter(p => p.status === "COMPLETED" && new Date(p.created_at) >= start)
+      .reduce((s, p) => s + Number(p.amount_usdc), 0);
+    if (conv === 0 && pays === 0) return [];
+    return [
+      { name: "Conversions", value: Math.round(conv) },
+      { name: "Payouts",     value: Math.round(pays) },
+    ];
+  }, [rawOrders, rawPayouts, period]);
 
   // Invoice stats
   const [invoiceStats, setInvoiceStats] = useState({
@@ -150,21 +245,9 @@ export default function Dashboard() {
       const monthStart = new Date();
       monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-
-      // Build last-6-month labels
-      const months: { label: string; start: Date; end: Date }[] = [];
-      for (let i = 5; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(1); d.setHours(0, 0, 0, 0);
-        d.setMonth(d.getMonth() - i);
-        const end = new Date(d);
-        end.setMonth(end.getMonth() + 1);
-        months.push({
-          label: d.toLocaleString("en-US", { month: "short" }),
-          start: d,
-          end,
-        });
-      }
+      // Fetch 1 full year of data so all period filters work client-side
+      const oneYearAgo = new Date();
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
       const [
         { data: orders },
@@ -172,8 +255,8 @@ export default function Dashboard() {
         { data: monthOrders },
         { count: orderCount30d },
         { count: payoutCount30d },
-        { data: allOrders6m },
-        { data: allPayouts6m },
+        { data: allOrders1y },
+        { data: allPayouts1y },
         { data: invoices },
       ] = await Promise.all([
         supabase
@@ -204,18 +287,18 @@ export default function Dashboard() {
           .select("id", { count: "exact", head: true })
           .eq("customer_id", c.id)
           .gte("created_at", thirtyDaysAgo.toISOString()),
-        // All orders in last 6 months for chart
+        // Full year of orders for chart — period filtering is client-side
         supabase
           .from("orders")
           .select("usdc_amount, created_at, status")
           .eq("customer_id", c.id)
-          .gte("created_at", months[0].start.toISOString()),
-        // All payouts in last 6 months for chart
+          .gte("created_at", oneYearAgo.toISOString()),
+        // Full year of payouts for chart
         supabase
           .from("payouts")
           .select("amount_usdc, created_at, status")
           .eq("customer_id", c.id)
-          .gte("created_at", months[0].start.toISOString()),
+          .gte("created_at", oneYearAgo.toISOString()),
         // Invoices for stats
         supabase
           .from("invoices")
@@ -256,27 +339,9 @@ export default function Dashboard() {
       );
       setTxCount30d((orderCount30d ?? 0) + (payoutCount30d ?? 0));
 
-      // ── Monthly volume chart ───────────────────────────────────────────────
-      const bars: MonthlyBar[] = months.map(({ label, start, end }) => {
-        const convTotal = (allOrders6m ?? [])
-          .filter((o) => o.status === "COMPLETED" && new Date(o.created_at) >= start && new Date(o.created_at) < end)
-          .reduce((s, o) => s + Number(o.usdc_amount ?? 0), 0);
-        const payTotal = (allPayouts6m ?? [])
-          .filter((p) => p.status === "COMPLETED" && new Date(p.created_at) >= start && new Date(p.created_at) < end)
-          .reduce((s, p) => s + Number(p.amount_usdc ?? 0), 0);
-        return { month: label, conversions: Math.round(convTotal), payouts: Math.round(payTotal) };
-      });
-      setVolumeData(bars);
-
-      // ── Split donut ────────────────────────────────────────────────────────
-      const totalConv = (allOrders6m ?? []).filter(o => o.status === "COMPLETED").reduce((s, o) => s + Number(o.usdc_amount ?? 0), 0);
-      const totalPay  = (allPayouts6m ?? []).filter(p => p.status === "COMPLETED").reduce((s, p) => s + Number(p.amount_usdc ?? 0), 0);
-      if (totalConv > 0 || totalPay > 0) {
-        setSplitData([
-          { name: "Conversions", value: Math.round(totalConv) },
-          { name: "Payouts",     value: Math.round(totalPay) },
-        ]);
-      }
+      // Cache raw data — chart is computed reactively via useMemo
+      setRawOrders((allOrders1y ?? []) as RawOrder[]);
+      setRawPayouts((allPayouts1y ?? []) as RawPayout[]);
 
       // ── Invoice stats ──────────────────────────────────────────────────────
       const today = new Date();
@@ -418,31 +483,51 @@ export default function Dashboard() {
 
         {/* Monthly volume bar chart — REAL DATA */}
         <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-3">
             <div>
-              <div className="font-bold" style={{ fontSize: 14, color: "hsl(var(--theo-blue))" }}>Monthly volume</div>
-              <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 2 }}>USDC · last 6 months</div>
+              <div className="font-bold" style={{ fontSize: 14, color: "hsl(var(--theo-blue))" }}>Volume</div>
+              <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 2 }}>USDC · conversions &amp; payouts</div>
             </div>
-            <div style={{ display: "flex", gap: 10, fontSize: 11 }}>
-              <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <span style={{ width: 10, height: 10, borderRadius: 2, background: "hsl(var(--theo-blue))", display: "inline-block" }} />
-                <span style={{ color: "hsl(var(--theo-mid))" }}>Conversions</span>
-              </span>
-              <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <span style={{ width: 10, height: 10, borderRadius: 2, background: "hsl(var(--theo-gold))", display: "inline-block" }} />
-                <span style={{ color: "hsl(var(--theo-mid))" }}>Payouts</span>
-              </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {/* Legend */}
+              <div style={{ display: "flex", gap: 8, fontSize: 11 }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: "hsl(var(--theo-blue))", display: "inline-block" }} />
+                  <span style={{ color: "hsl(var(--theo-mid))" }}>Conv</span>
+                </span>
+                <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: "hsl(var(--theo-gold))", display: "inline-block" }} />
+                  <span style={{ color: "hsl(var(--theo-mid))" }}>Payouts</span>
+                </span>
+              </div>
+              {/* Period selector */}
+              <div style={{ display: "flex", borderRadius: 7, border: "1px solid hsl(var(--theo-light))", overflow: "hidden" }}>
+                {(["7D", "30D", "60D", "YTD", "1Y"] as Period[]).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setPeriod(p)}
+                    style={{
+                      padding: "4px 9px", border: "none", fontSize: 11, fontWeight: 700,
+                      cursor: "pointer", fontFamily: "inherit", transition: "all 120ms",
+                      background: period === p ? "hsl(var(--theo-blue))" : "transparent",
+                      color: period === p ? "#fff" : "hsl(var(--theo-mid))",
+                    }}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-          {volumeData.length > 0 ? (
+          {volumeData.some(b => b.conversions > 0 || b.payouts > 0) ? (
             <ResponsiveContainer width="100%" height={140}>
-              <BarChart data={volumeData} barSize={16} barGap={4}>
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--theo-mid))" }} axisLine={false} tickLine={false} />
+              <BarChart data={volumeData} barSize={period === "7D" ? 22 : period === "1Y" ? 14 : 16} barGap={3}>
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: "hsl(var(--theo-mid))" }} axisLine={false} tickLine={false} />
                 <YAxis
                   tick={{ fontSize: 10, fill: "hsl(var(--theo-mid))" }}
                   axisLine={false} tickLine={false}
-                  tickFormatter={(v) => v >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`}
-                  width={38}
+                  tickFormatter={(v) => v >= 1_000_000 ? `$${(v / 1_000_000).toFixed(1)}M` : v >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`}
+                  width={42}
                 />
                 <Tooltip content={<VolumeTooltip />} cursor={{ fill: "hsl(var(--theo-cream))", radius: 4 }} />
                 <Bar dataKey="conversions" name="Conversions" fill="hsl(var(--theo-blue))" radius={[4, 4, 0, 0]} />
@@ -451,7 +536,7 @@ export default function Dashboard() {
             </ResponsiveContainer>
           ) : (
             <div style={{ height: 140, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: "hsl(var(--theo-mid))" }}>
-              No transaction data yet
+              No activity in this period
             </div>
           )}
         </div>
@@ -459,7 +544,7 @@ export default function Dashboard() {
         {/* Volume split — inline breakdown */}
         <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
           <div className="font-bold mb-1" style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>Volume split</div>
-          <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginBottom: 12 }}>6-month USDC mix</div>
+          <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginBottom: 12 }}>{period} USDC mix</div>
           {splitData.length > 0 ? (() => {
             const total = splitData.reduce((s, d) => s + d.value, 0);
             const conv = splitData.find(d => d.name === "Conversions")?.value ?? 0;
