@@ -294,6 +294,16 @@ export default function Payout() {
     const parsedAmount = parseFloat(amount);
     if (!parsedAmount || parsedAmount <= 0) { toast.error("Enter a valid amount"); return; }
 
+    // Pre-send balance check — compare against live balance already loaded
+    const sourceWallet = wallets.find((w) => w.id === sourceWalletId);
+    const availableBalance = Number(sourceWallet?.usdc_balance ?? 0);
+    if (parsedAmount > availableBalance) {
+      toast.error(
+        `Insufficient balance — you have ${availableBalance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC available`
+      );
+      return;
+    }
+
     setSending(true);
     try {
       const res = await supabase.functions.invoke("send-payment", {
@@ -311,6 +321,9 @@ export default function Payout() {
       if (res.data?.error) throw new Error(res.data.error);
 
       toast.success("Payment sent successfully");
+
+      // Refresh wallet balance so the tag reflects the deducted amount immediately
+      if (customerId) loadWallets(customerId);
 
       // Save recipient if checked and not already saved
       if (saveAfterSend && !isAlreadySaved && customerId) {
