@@ -300,6 +300,12 @@ export default function Payout() {
         body: { sourceWalletId, recipientAddress, recipientName, amount: parsedAmount, memo },
       });
 
+      if (res.data && (res.data as { ok?: boolean }).ok === false) {
+        toast.error((res.data as { error?: string }).error ?? "Payment could not be sent");
+        if (customerId) loadPayouts(customerId);
+        return;
+      }
+
       // res.data still contains the JSON body even on non-2xx — prefer that message
       if (res.error) throw new Error((res.data as { error?: string } | null)?.error ?? res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
