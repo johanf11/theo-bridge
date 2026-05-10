@@ -106,7 +106,7 @@ export default function Payout() {
   const [sourceWalletId, setSourceWalletId] = useState("");
   const [memo, setMemo] = useState("");
   const [sending, setSending] = useState(false);
-  type TrustStatus = "idle" | "checking" | "ready" | "no_trust" | "not_found";
+  type TrustStatus = "idle" | "checking" | "ready" | "no_trust" | "not_authorized" | "not_found";
   const [trustStatus, setTrustStatus] = useState<TrustStatus>("idle");
 
   // Recent payouts
@@ -147,8 +147,8 @@ export default function Payout() {
         if (res.status === 404) { setTrustStatus("not_found"); return; }
         if (!res.ok) { setTrustStatus("idle"); return; }
         const data = await res.json();
-        const hasUsdc = (data.balances ?? []).some((b: { asset_code?: string }) => b.asset_code === "USDC");
-        setTrustStatus(hasUsdc ? "ready" : "no_trust");
+        const usdcTrust = (data.balances ?? []).find((b: { asset_code?: string }) => b.asset_code === "USDC");
+        setTrustStatus(!usdcTrust ? "no_trust" : usdcTrust.is_authorized === false ? "not_authorized" : "ready");
       } catch {
         if (!cancelled) setTrustStatus("idle");
       }
@@ -299,6 +299,12 @@ export default function Payout() {
       const res = await supabase.functions.invoke("send-payment", {
         body: { sourceWalletId, recipientAddress, recipientName, amount: parsedAmount, memo },
       });
+
+      if (res.data && (res.data as { ok?: boolean }).ok === false) {
+        toast.error((res.data as { error?: string }).error ?? "Payment could not be sent");
+        if (customerId) loadPayouts(customerId);
+        return;
+      }
 
       // res.data still contains the JSON body even on non-2xx — prefer that message
       if (res.error) throw new Error((res.data as { error?: string } | null)?.error ?? res.error.message);
@@ -650,6 +656,17 @@ export default function Payout() {
                         </div>
                       </div>
                     );
+                    if (trustStatus === "not_authorized") return (
+                      <div style={{ marginTop: 6, padding: "8px 10px", borderRadius: 7, background: "#FFFBEB", border: "1px solid #FDE68A", display: "flex", alignItems: "flex-start", gap: 7 }}>
+                        <AlertTriangle size={13} style={{ color: "#D97706", flexShrink: 0, marginTop: 1 }} />
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "#92400E" }}>USDC trustline is not authorized</div>
+                          <div style={{ fontSize: 11, color: "#92400E", marginTop: 2, lineHeight: 1.5 }}>
+                            The recipient must complete issuer authorization before this wallet can receive USDC.
+                          </div>
+                        </div>
+                      </div>
+                    );
                     if (trustStatus === "not_found") return (
                       <div style={{ marginTop: 6, padding: "8px 10px", borderRadius: 7, background: "#FEE2E2", border: "1px solid #FECACA", display: "flex", alignItems: "flex-start", gap: 7 }}>
                         <AlertTriangle size={13} style={{ color: "#B91C1C", flexShrink: 0, marginTop: 1 }} />
@@ -797,9 +814,9 @@ export default function Payout() {
                   )}
                   <button
                     type="submit"
-                    disabled={sending || wallets.length === 0 || !can("payout_send") || trustStatus === "not_found" || trustStatus === "checking"}
+                    disabled={sending || wallets.length === 0 || !can("payout_send") || trustStatus === "not_found" || trustStatus === "not_authorized" || trustStatus === "checking"}
                     className="flex items-center gap-1.5 font-bold text-white"
-                    style={{ background: "hsl(var(--theo-blue))", borderRadius: 8, padding: "8px 16px", fontSize: 13, border: "none", cursor: (sending || !can("payout_send") || trustStatus === "not_found" || trustStatus === "checking") ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: (sending || !can("payout_send") || trustStatus === "not_found" || trustStatus === "checking") ? 0.5 : 1 }}
+                    style={{ background: "hsl(var(--theo-blue))", borderRadius: 8, padding: "8px 16px", fontSize: 13, border: "none", cursor: (sending || !can("payout_send") || trustStatus === "not_found" || trustStatus === "not_authorized" || trustStatus === "checking") ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: (sending || !can("payout_send") || trustStatus === "not_found" || trustStatus === "not_authorized" || trustStatus === "checking") ? 0.5 : 1 }}
                   >
                     {sending ? <><Loader2 style={{ width: 13, height: 13, animation: "spin 1s linear infinite" }} /> Sending…</> : "Send payout"}
                   </button>
