@@ -165,9 +165,22 @@ Deno.serve(async (req) => {
       const result = await server.submitTransaction(tx);
       hash = (result as { hash: string }).hash;
     } catch (stellarErr: unknown) {
-      const msg = (stellarErr as { response?: { data?: unknown } })?.response?.data
-        ? JSON.stringify((stellarErr as { response: { data: unknown } }).response.data)
-        : (stellarErr as Error).message;
+      const data = (stellarErr as { response?: { data?: unknown } })?.response?.data as
+        | { extras?: { result_codes?: { operations?: string[]; transaction?: string } } }
+        | undefined;
+      const opCodes = data?.extras?.result_codes?.operations ?? [];
+      const msg = data ? JSON.stringify(data) : (stellarErr as Error).message;
+
+      // Friendlier handling for the most common recipient-side failure.
+      if (opCodes.includes("op_no_trust")) {
+        const friendly =
+          "Recipient wallet has not enabled USDC. Ask them to add a USDC trustline on their Stellar wallet before you can send.";
+        await admin.from("payouts").update({
+          status: "FAILED",
+          failure_reason: friendly,
+        }).eq("id", payout.id);
+        return json({ error: friendly }, 422);
+      }
 
       await admin.from("payouts").update({
         status: "FAILED",
