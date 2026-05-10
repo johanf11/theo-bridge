@@ -106,6 +106,8 @@ export default function Payout() {
   const [sourceWalletId, setSourceWalletId] = useState("");
   const [memo, setMemo] = useState("");
   const [sending, setSending] = useState(false);
+  type TrustStatus = "idle" | "checking" | "ready" | "no_trust" | "not_found";
+  const [trustStatus, setTrustStatus] = useState<TrustStatus>("idle");
 
   // Recent payouts
   const [payouts, setPayouts] = useState<Payout[]>([]);
@@ -129,6 +131,30 @@ export default function Payout() {
   const addrTrimmed = recipientAddress.trim();
   const selectedChain = CHAINS.find((c) => c.id === destinationChain) ?? CHAINS[0];
   const addrState = selectedChain.validate(addrTrimmed);
+
+  // Real-time trust line check — fires when Stellar address becomes valid
+  useEffect(() => {
+    if (destinationChain !== "stellar" || addrState !== "valid") {
+      setTrustStatus("idle");
+      return;
+    }
+    let cancelled = false;
+    setTrustStatus("checking");
+    (async () => {
+      try {
+        const res = await fetch(`https://horizon-testnet.stellar.org/accounts/${addrTrimmed}`);
+        if (cancelled) return;
+        if (res.status === 404) { setTrustStatus("not_found"); return; }
+        if (!res.ok) { setTrustStatus("idle"); return; }
+        const data = await res.json();
+        const hasUsdc = (data.balances ?? []).some((b: { asset_code?: string }) => b.asset_code === "USDC");
+        setTrustStatus(hasUsdc ? "ready" : "no_trust");
+      } catch {
+        if (!cancelled) setTrustStatus("idle");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [addrTrimmed, destinationChain, addrState]);
 
   // Filter recent payouts by search query
   const filteredPayouts = query.trim()
@@ -532,6 +558,7 @@ export default function Payout() {
                               onClick={() => {
                                 setDestinationChain(chain.id);
                                 setRecipientAddress("");
+                                setTrustStatus("idle");
                                 setChainDropdownOpen(false);
                               }}
                               style={{
@@ -599,12 +626,49 @@ export default function Payout() {
                   )}
 
                   {/* Inline address feedback (live chains only) */}
-                  {selectedChain.status === "live" && addrState === "valid" && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 5, fontSize: 11, color: "#16A34A", fontWeight: 600 }}>
-                      <CheckCircle2 size={12} />
-                      Valid {selectedChain.name} address
-                    </div>
-                  )}
+                  {selectedChain.status === "live" && addrState === "valid" && (() => {
+                    if (trustStatus === "checking") return (
+                      <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 5, fontSize: 11, color: "hsl(var(--theo-mid))", fontWeight: 600 }}>
+                        <Loader2 size={11} style={{ animation: "spin 1s linear infinite" }} />
+                        Verifying wallet…
+                      </div>
+                    );
+                    if (trustStatus === "ready") return (
+                      <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 5, fontSize: 11, color: "#16A34A", fontWeight: 600 }}>
+                        <CheckCircle2 size={12} />
+                        Ready to receive USDC
+                      </div>
+                    );
+                    if (trustStatus === "no_trust") return (
+                      <div style={{ marginTop: 6, padding: "8px 10px", borderRadius: 7, background: "#FFFBEB", border: "1px solid #FDE68A", display: "flex", alignItems: "flex-start", gap: 7 }}>
+                        <AlertTriangle size={13} style={{ color: "#D97706", flexShrink: 0, marginTop: 1 }} />
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "#92400E" }}>USDC not enabled on this wallet</div>
+                          <div style={{ fontSize: 11, color: "#92400E", marginTop: 2, lineHeight: 1.5 }}>
+                            The recipient needs to add a USDC trust line before they can receive funds. If this is a Theo wallet, it will be set up automatically on send.
+                          </div>
+                        </div>
+                      </div>
+                    );
+                    if (trustStatus === "not_found") return (
+                      <div style={{ marginTop: 6, padding: "8px 10px", borderRadius: 7, background: "#FEE2E2", border: "1px solid #FECACA", display: "flex", alignItems: "flex-start", gap: 7 }}>
+                        <AlertTriangle size={13} style={{ color: "#B91C1C", flexShrink: 0, marginTop: 1 }} />
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "#7F1D1D" }}>Account not found on Stellar</div>
+                          <div style={{ fontSize: 11, color: "#7F1D1D", marginTop: 2, lineHeight: 1.5 }}>
+                            This address hasn't been activated yet. The recipient needs to receive at least 1 XLM to create their account.
+                          </div>
+                        </div>
+                      </div>
+                    );
+                    // idle fallback
+                    return (
+                      <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 5, fontSize: 11, color: "#16A34A", fontWeight: 600 }}>
+                        <CheckCircle2 size={12} />
+                        Valid Stellar address
+                      </div>
+                    );
+                  })()}
                   {selectedChain.status === "live" && addrState === "incomplete" && (
                     <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 5, fontSize: 11, color: "#D97706", fontWeight: 600 }}>
                       <Info size={12} />
@@ -733,9 +797,9 @@ export default function Payout() {
                   )}
                   <button
                     type="submit"
-                    disabled={sending || wallets.length === 0 || !can("payout_send")}
+                    disabled={sending || wallets.length === 0 || !can("payout_send") || trustStatus === "not_found" || trustStatus === "checking"}
                     className="flex items-center gap-1.5 font-bold text-white"
-                    style={{ background: "hsl(var(--theo-blue))", borderRadius: 8, padding: "8px 16px", fontSize: 13, border: "none", cursor: (sending || !can("payout_send")) ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: (sending || !can("payout_send")) ? 0.5 : 1 }}
+                    style={{ background: "hsl(var(--theo-blue))", borderRadius: 8, padding: "8px 16px", fontSize: 13, border: "none", cursor: (sending || !can("payout_send") || trustStatus === "not_found" || trustStatus === "checking") ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: (sending || !can("payout_send") || trustStatus === "not_found" || trustStatus === "checking") ? 0.5 : 1 }}
                   >
                     {sending ? <><Loader2 style={{ width: 13, height: 13, animation: "spin 1s linear infinite" }} /> Sending…</> : "Send payout"}
                   </button>
