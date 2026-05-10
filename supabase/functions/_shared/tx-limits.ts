@@ -2,7 +2,7 @@
 // Adjust values here; do NOT duplicate limits inside individual functions.
 
 export const MIN_SINGLE_USDC = 1; // reject dust transactions
-export const MAX_SINGLE_USDC = 50_000; // single-payment ceiling (~$50k)
+export const MAX_SINGLE_USDC = 1_000_000; // single-payment ceiling (~$1M)
 
 export function assertWithinLimits(amount: number, label = "Amount"): void {
   if (amount < MIN_SINGLE_USDC) {
