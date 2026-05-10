@@ -5,6 +5,7 @@ import {
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { signWithSecret } from "../_shared/stellar-signer.ts";
 import { assertWithinLimits } from "../_shared/tx-limits.ts";
+import { ensureWalletReady } from "../_shared/ensure-wallet-ready.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -91,6 +92,55 @@ Deno.serve(async (req) => {
     const sourceKp = Keypair.fromSecret(wallet.stellar_secret);
     const sourceAccount = await server.loadAccount(sourceKp.publicKey());
     const usdc = new Asset("USDC", usdcIssuer);
+
+    // ── Pre-flight: ensure recipient has a USDC trust line ────────────────────
+    // Check Horizon first (cheap read). If missing, try to auto-heal if the
+    // recipient is a Theo-managed wallet. Otherwise surface a clear error.
+    try {
+      const recipientAccount = await server.loadAccount(recipientAddress.trim());
+      const hasTrust = (recipientAccount.balances as { asset_type: string; asset_code?: string; asset_issuer?: string }[])
+        .some((b) => b.asset_type !== "native" && b.asset_code === "USDC" && b.asset_issuer === usdcIssuer);
+
+      if (!hasTrust) {
+        // Look up the recipient in our wallets table — if we own it, we can fix it
+        const { data: recipientWallet } = await admin
+          .from("wallets")
+          .select("stellar_secret")
+          .eq("stellar_address", recipientAddress.trim())
+          .maybeSingle();
+
+        if (recipientWallet?.stellar_secret) {
+          // Theo-managed wallet — auto-establish trust line silently
+          const ready = await ensureWalletReady({
+            server,
+            address: recipientAddress.trim(),
+            secret: recipientWallet.stellar_secret,
+            usdcIssuer,
+          });
+          if (!ready.ok) {
+            await admin.from("payouts").update({ status: "FAILED", failure_reason: ready.error }).eq("id", payout.id);
+            return json({ error: `Could not establish USDC trust line for recipient: ${ready.error}` }, 502);
+          }
+        } else {
+          // External wallet — we can't sign for them
+          await admin.from("payouts").update({
+            status: "FAILED",
+            failure_reason: "Recipient has no USDC trust line",
+          }).eq("id", payout.id);
+          return json({
+            error: "Recipient wallet has not enabled USDC. Ask them to add USDC to their Stellar wallet before you can send.",
+          }, 422);
+        }
+      }
+    } catch (horizonErr: unknown) {
+      // loadAccount failed → recipient account doesn't exist on Stellar at all
+      const msg = (horizonErr as { response?: { status?: number } })?.response?.status === 404
+        ? "Recipient Stellar account does not exist. It needs to be funded with at least 1 XLM first."
+        : `Could not verify recipient account: ${(horizonErr as Error).message}`;
+      await admin.from("payouts").update({ status: "FAILED", failure_reason: msg }).eq("id", payout.id);
+      return json({ error: msg }, 422);
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     const txBuilder = new TransactionBuilder(sourceAccount, {
       fee: BASE_FEE,
