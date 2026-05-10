@@ -2,11 +2,16 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
-import { fmtUSDC, fmtHTG } from "@/lib/format";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useBlendPositions } from "@/hooks/useBlendPositions";
 import { useAuth } from "@/lib/auth";
-import { Plus } from "lucide-react";
+import { Plus, FileText, AlertTriangle } from "lucide-react";
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend,
+} from "recharts";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type Customer = {
   id: string; company_name: string; contact_name: string | null;
@@ -26,46 +31,10 @@ type UnifiedTx = {
   created_at: string;
 };
 
-const CHART_DATA: Record<string, { vals: number[]; labels: string[]; active: number }> = {
-  "7D": { vals: [45, 60, 38, 72, 55, 80, 65], labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], active: 5 },
-  "1M": {
-    vals: [20,35,28,45,38,52,42,60,55,48,62,58,70,65,72,68,80,75,85,78,90,82,88,95,87,92,98,88,94,100],
-    labels: Array.from({ length: 30 }, (_, i) => String(i + 1)),
-    active: 25,
-  },
-  "6M": { vals: [40, 55, 48, 62, 70, 85], labels: ["Nov", "Dec", "Jan", "Feb", "Mar", "Apr"], active: 5 },
-  "1Y": { vals: [30,35,42,38,50,45,55,60,52,65,70,85], labels: ["M","A","M","J","J","A","S","O","N","D","J","F"], active: 11 },
-};
+type MonthlyBar = { month: string; conversions: number; payouts: number };
+type SplitSlice = { name: string; value: number };
 
-function BarChart({ period }: { period: string }) {
-  const d = CHART_DATA[period];
-  const max = Math.max(...d.vals);
-  return (
-    <div>
-      <div className="flex items-end gap-1.5" style={{ height: 120 }}>
-        {d.vals.map((v, i) => (
-          <div key={i} className="flex-1 flex flex-col items-center justify-end h-full">
-            <div
-              className="w-full rounded-t-[5px] transition-all duration-200"
-              style={{
-                height: `${Math.round((v / max) * 100)}%`,
-                minHeight: 4,
-                background: i === d.active ? "hsl(var(--theo-gold))" : "hsl(var(--theo-blue-chip))",
-              }}
-            />
-          </div>
-        ))}
-      </div>
-      <div className="flex gap-1.5 mt-1.5">
-        {d.labels.map((l, i) => (
-          <div key={i} className="flex-1 text-center" style={{ fontSize: 9, color: "hsl(var(--theo-mid))", fontWeight: 500 }}>
-            {l}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 const GREETING = (() => {
   const h = new Date().getHours();
@@ -103,6 +72,10 @@ const QUICK_ACTIONS = [
     icon: <svg viewBox="0 0 24 24" style={{ width: 14, height: 14, stroke: "hsl(var(--theo-blue))", fill: "none", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, flexShrink: 0, opacity: 0.7 }}><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
   },
   {
+    label: "Create invoice", to: "/invoices",
+    icon: <svg viewBox="0 0 24 24" style={{ width: 14, height: 14, stroke: "hsl(var(--theo-blue))", fill: "none", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, flexShrink: 0, opacity: 0.7 }}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>,
+  },
+  {
     label: "View balances", to: "/balance",
     icon: <svg viewBox="0 0 24 24" style={{ width: 14, height: 14, stroke: "hsl(var(--theo-blue))", fill: "none", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, flexShrink: 0, opacity: 0.7 }}><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>,
   },
@@ -111,6 +84,30 @@ const QUICK_ACTIONS = [
     icon: <svg viewBox="0 0 24 24" style={{ width: 14, height: 14, stroke: "hsl(var(--theo-blue))", fill: "none", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, flexShrink: 0, opacity: 0.7 }}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
   },
 ];
+
+// ── Tooltip for bar chart ─────────────────────────────────────────────────────
+
+const VolumeTooltip = ({ active, payload, label }: {
+  active?: boolean; payload?: { value: number; name: string; color: string }[]; label?: string;
+}) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{ background: "#fff", border: "1px solid hsl(var(--theo-light))", borderRadius: 8, padding: "8px 12px", fontSize: 12, boxShadow: "0 4px 12px rgba(51,53,154,0.10)" }}>
+      <div style={{ fontWeight: 700, color: "hsl(var(--theo-blue))", marginBottom: 4 }}>{label}</div>
+      {payload.map((p) => (
+        <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+          <span style={{ width: 8, height: 8, borderRadius: 2, background: p.color, display: "inline-block" }} />
+          <span style={{ color: "hsl(var(--theo-mid))" }}>{p.name}:</span>
+          <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
+            ${p.value.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ── Main component ────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -124,7 +121,18 @@ export default function Dashboard() {
   const totalEarning = yieldPositions.reduce((s, p) => s + p.deposited + p.accrued, 0);
   const totalAccrued = yieldPositions.reduce((s, p) => s + p.accrued, 0);
   const hasYield = yieldPositions.length > 0;
-  const [chartPeriod, setChartPeriod] = useState("1M");
+
+  // Chart data
+  const [volumeData, setVolumeData] = useState<MonthlyBar[]>([]);
+  const [splitData, setSplitData] = useState<SplitSlice[]>([]);
+
+  // Invoice stats
+  const [invoiceStats, setInvoiceStats] = useState({
+    outstanding: 0,      // total USDC in SENT invoices
+    overdueCount: 0,
+    overdueAmount: 0,
+    paidThisMonth: 0,
+  });
 
   useEffect(() => {
     (async () => {
@@ -144,12 +152,30 @@ export default function Dashboard() {
       monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
+      // Build last-6-month labels
+      const months: { label: string; start: Date; end: Date }[] = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(1); d.setHours(0, 0, 0, 0);
+        d.setMonth(d.getMonth() - i);
+        const end = new Date(d);
+        end.setMonth(end.getMonth() + 1);
+        months.push({
+          label: d.toLocaleString("en-US", { month: "short" }),
+          start: d,
+          end,
+        });
+      }
+
       const [
         { data: orders },
         { data: payouts },
         { data: monthOrders },
         { count: orderCount30d },
         { count: payoutCount30d },
+        { data: allOrders6m },
+        { data: allPayouts6m },
+        { data: invoices },
       ] = await Promise.all([
         supabase
           .from("orders")
@@ -179,10 +205,28 @@ export default function Dashboard() {
           .select("id", { count: "exact", head: true })
           .eq("customer_id", c.id)
           .gte("created_at", thirtyDaysAgo.toISOString()),
+        // All orders in last 6 months for chart
+        supabase
+          .from("orders")
+          .select("usdc_amount, created_at, status")
+          .eq("customer_id", c.id)
+          .gte("created_at", months[0].start.toISOString()),
+        // All payouts in last 6 months for chart
+        supabase
+          .from("payouts")
+          .select("amount_usdc, created_at, status")
+          .eq("customer_id", c.id)
+          .gte("created_at", months[0].start.toISOString()),
+        // Invoices for stats
+        supabase
+          .from("invoices")
+          .select("status, total, paid_at")
+          .eq("customer_id", c.id),
       ]);
 
-      const orderTxs: UnifiedTx[] = (orders ?? []).map((o: any) => ({
-        id: o.id, type: "conversion",
+      // ── Merge recent transactions ──────────────────────────────────────────
+      const orderTxs: UnifiedTx[] = (orders ?? []).map((o) => ({
+        id: o.id, type: "conversion" as const,
         status: o.status,
         usdc_amount: Number(o.usdc_amount),
         htg_amount: Number(o.htg_amount),
@@ -192,8 +236,8 @@ export default function Dashboard() {
         created_at: o.created_at,
       }));
 
-      const payoutTxs: UnifiedTx[] = (payouts ?? []).map((p: any) => ({
-        id: p.id, type: "payout",
+      const payoutTxs: UnifiedTx[] = (payouts ?? []).map((p) => ({
+        id: p.id, type: "payout" as const,
         status: p.status,
         usdc_amount: Number(p.amount_usdc),
         htg_amount: null,
@@ -206,12 +250,52 @@ export default function Dashboard() {
       const merged = [...orderTxs, ...payoutTxs]
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         .slice(0, 6);
-
       setTxs(merged);
+
       setConvertedThisMonth(
-        (monthOrders ?? []).reduce((s, o: any) => s + Number(o.htg_amount ?? 0), 0)
+        (monthOrders ?? []).reduce((s, o) => s + Number(o.htg_amount ?? 0), 0)
       );
       setTxCount30d((orderCount30d ?? 0) + (payoutCount30d ?? 0));
+
+      // ── Monthly volume chart ───────────────────────────────────────────────
+      const bars: MonthlyBar[] = months.map(({ label, start, end }) => {
+        const convTotal = (allOrders6m ?? [])
+          .filter((o) => o.status === "COMPLETED" && new Date(o.created_at) >= start && new Date(o.created_at) < end)
+          .reduce((s, o) => s + Number(o.usdc_amount ?? 0), 0);
+        const payTotal = (allPayouts6m ?? [])
+          .filter((p) => p.status === "COMPLETED" && new Date(p.created_at) >= start && new Date(p.created_at) < end)
+          .reduce((s, p) => s + Number(p.amount_usdc ?? 0), 0);
+        return { month: label, conversions: Math.round(convTotal), payouts: Math.round(payTotal) };
+      });
+      setVolumeData(bars);
+
+      // ── Split donut ────────────────────────────────────────────────────────
+      const totalConv = (allOrders6m ?? []).filter(o => o.status === "COMPLETED").reduce((s, o) => s + Number(o.usdc_amount ?? 0), 0);
+      const totalPay  = (allPayouts6m ?? []).filter(p => p.status === "COMPLETED").reduce((s, p) => s + Number(p.amount_usdc ?? 0), 0);
+      if (totalConv > 0 || totalPay > 0) {
+        setSplitData([
+          { name: "Conversions", value: Math.round(totalConv) },
+          { name: "Payouts",     value: Math.round(totalPay) },
+        ]);
+      }
+
+      // ── Invoice stats ──────────────────────────────────────────────────────
+      const today = new Date();
+      const invList = (invoices ?? []) as { status: string; total: number; paid_at: string | null }[];
+      const outstanding = invList
+        .filter((i) => i.status === "SENT")
+        .reduce((s, i) => s + Number(i.total ?? 0), 0);
+      const overdue = invList.filter((i) => i.status === "OVERDUE");
+      const paidThisMonth = invList
+        .filter((i) => i.status === "PAID" && i.paid_at && new Date(i.paid_at) >= monthStart)
+        .reduce((s, i) => s + Number(i.total ?? 0), 0);
+
+      setInvoiceStats({
+        outstanding,
+        overdueCount: overdue.length,
+        overdueAmount: overdue.reduce((s, i) => s + Number(i.total ?? 0), 0),
+        paidThisMonth,
+      });
     })();
   }, []);
 
@@ -220,7 +304,6 @@ export default function Dashboard() {
     customer?.contact_name ||
     customer?.company_name ||
     "there";
-  const txCount = txCount30d;
 
   return (
     <AppLayout>
@@ -247,24 +330,28 @@ export default function Dashboard() {
       </div>
       <div className="mb-4" style={{ width: 28, height: 3, background: "hsl(var(--theo-gold))", borderRadius: 2, marginTop: 8 }} />
 
-      {/* Stat cards */}
-      <div className={`grid ${hasYield ? "grid-cols-5" : "grid-cols-4"} gap-3.5 mb-4`}>
+      {/* ── Stat cards ──────────────────────────────────────────────────────── */}
+      <div className={`grid gap-3.5 mb-4`} style={{ gridTemplateColumns: `repeat(${hasYield ? 6 : 5}, 1fr)` }}>
+
+        {/* USDC balance */}
         <div className="rounded-xl p-4 shadow-xs" style={{ background: "hsl(var(--theo-gold))" }}>
-          <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "rgba(51,53,154,0.55)" }}>Total USDC Balance</div>
-          <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1.5px", color: "hsl(var(--theo-blue))" }}>
-            ${(balance + totalEarning).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+          <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "rgba(51,53,154,0.55)" }}>USDC Balance</div>
+          <div className="font-extrabold leading-none" style={{ fontSize: 24, letterSpacing: "-1px", color: "hsl(var(--theo-blue))" }}>
+            ${(balance + totalEarning).toLocaleString("en-US", { maximumFractionDigits: 0 })}
           </div>
           <div style={{ fontSize: 11, fontWeight: 600, color: "#1A7F37", marginTop: 6 }}>↑ Theo network</div>
         </div>
 
+        {/* HTG-C balance */}
         <div className="rounded-xl p-4 shadow-xs" style={{ background: "hsl(var(--theo-cyan))" }}>
-          <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "rgba(15,29,84,0.50)" }}>Total HTG-C Balance</div>
-          <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1.5px", color: "hsl(var(--theo-blue))" }}>
+          <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "rgba(15,29,84,0.50)" }}>HTG-C Balance</div>
+          <div className="font-extrabold leading-none" style={{ fontSize: 24, letterSpacing: "-1px", color: "hsl(var(--theo-blue))" }}>
             {htgcTotal.toLocaleString("en-US", { maximumFractionDigits: 0 })}
           </div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-blue))", marginTop: 6, opacity: 0.6 }}>↑ Theo network</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-blue))", marginTop: 6, opacity: 0.6 }}>Gourde</div>
         </div>
 
+        {/* Yield */}
         {hasYield && (
           <Link
             to="/balance"
@@ -272,18 +359,19 @@ export default function Dashboard() {
             style={{ textDecoration: "none" }}
           >
             <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>Yield Earned</div>
-            <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1.5px", color: "hsl(150 70% 25%)" }}>
+            <div className="font-extrabold leading-none" style={{ fontSize: 24, letterSpacing: "-1px", color: "hsl(150 70% 25%)" }}>
               +${totalAccrued.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             <div style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-mid))", marginTop: 6 }}>
-              ${totalEarning.toLocaleString("en-US", { maximumFractionDigits: 2 })} earning · {(netApy * 100).toFixed(2)}% APY
+              {(netApy * 100).toFixed(2)}% APY
             </div>
           </Link>
         )}
 
+        {/* HTG converted */}
         <div className="rounded-xl p-4 shadow-xs bg-card border border-border">
-          <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>HTG Converted This Month</div>
-          <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1.5px", color: "hsl(var(--theo-blue))" }}>
+          <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>HTG Converted</div>
+          <div className="font-extrabold leading-none" style={{ fontSize: 24, letterSpacing: "-1px", color: "hsl(var(--theo-blue))" }}>
             {convertedThisMonth.toLocaleString("en-US", { maximumFractionDigits: 0 })}
           </div>
           <div style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-mid))", marginTop: 6 }}>
@@ -291,43 +379,116 @@ export default function Dashboard() {
           </div>
         </div>
 
-
+        {/* Transactions */}
         <div className="rounded-xl p-4 shadow-xs bg-card border border-border">
           <div className="font-bold uppercase mb-2" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>Transactions</div>
-          <div className="font-extrabold leading-none" style={{ fontSize: 28, letterSpacing: "-1.5px", color: "hsl(var(--theo-blue))" }}>{txCount}</div>
+          <div className="font-extrabold leading-none" style={{ fontSize: 24, letterSpacing: "-1px", color: "hsl(var(--theo-blue))" }}>{txCount30d}</div>
           <div style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-mid))", marginTop: 6 }}>Last 30 days</div>
         </div>
+
+        {/* Invoice receivables */}
+        <Link
+          to="/invoices"
+          className="rounded-xl p-4 shadow-xs bg-card border border-border transition-colors"
+          style={{ textDecoration: "none" }}
+          onMouseEnter={e => (e.currentTarget.style.borderColor = "hsl(var(--theo-blue))")}
+          onMouseLeave={e => (e.currentTarget.style.borderColor = "")}
+        >
+          <div className="font-bold uppercase mb-2 flex items-center gap-1.5" style={{ fontSize: 10, letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>
+            <FileText size={10} />
+            Receivables
+          </div>
+          <div className="font-extrabold leading-none" style={{ fontSize: 24, letterSpacing: "-1px", color: "hsl(var(--theo-blue))" }}>
+            ${invoiceStats.outstanding.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 600, marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}>
+            {invoiceStats.overdueCount > 0 ? (
+              <span style={{ color: "#B91C1C", display: "flex", alignItems: "center", gap: 3 }}>
+                <AlertTriangle size={10} />
+                {invoiceStats.overdueCount} overdue
+              </span>
+            ) : (
+              <span style={{ color: "#1A7F37" }}>All current</span>
+            )}
+          </div>
+        </Link>
       </div>
 
-      {/* Chart + Quick Actions */}
-      <div className="grid mb-4" style={{ gridTemplateColumns: "7fr 3fr", gap: 14 }}>
+      {/* ── Charts row ──────────────────────────────────────────────────────── */}
+      <div className="grid mb-4" style={{ gridTemplateColumns: "5fr 2fr 2fr", gap: 14 }}>
+
+        {/* Monthly volume bar chart — REAL DATA */}
         <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
           <div className="flex items-center justify-between mb-4">
-            <div className="font-bold" style={{ fontSize: 14, color: "hsl(var(--theo-blue))" }}>
-              Gross volume{" "}
-              <span style={{ fontSize: 11, fontWeight: 400, color: "hsl(var(--theo-mid))", marginLeft: 6 }}>HTG → USDC</span>
+            <div>
+              <div className="font-bold" style={{ fontSize: 14, color: "hsl(var(--theo-blue))" }}>Monthly volume</div>
+              <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 2 }}>USDC · last 6 months</div>
             </div>
-            <div className="flex gap-0.5">
-              {["7D", "1M", "6M", "1Y"].map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setChartPeriod(p)}
-                  className="font-bold transition-all"
-                  style={{
-                    padding: "4px 9px", borderRadius: 6, fontSize: 11, border: "none",
-                    cursor: "pointer", fontFamily: "inherit",
-                    background: chartPeriod === p ? "hsl(var(--theo-blue))" : "transparent",
-                    color: chartPeriod === p ? "#fff" : "hsl(var(--theo-mid))",
-                  }}
-                >
-                  {p}
-                </button>
-              ))}
+            <div style={{ display: "flex", gap: 10, fontSize: 11 }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: "hsl(var(--theo-blue))", display: "inline-block" }} />
+                <span style={{ color: "hsl(var(--theo-mid))" }}>Conversions</span>
+              </span>
+              <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: "hsl(var(--theo-gold))", display: "inline-block" }} />
+                <span style={{ color: "hsl(var(--theo-mid))" }}>Payouts</span>
+              </span>
             </div>
           </div>
-          <BarChart period={chartPeriod} />
+          {volumeData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={140}>
+              <BarChart data={volumeData} barSize={16} barGap={4}>
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--theo-mid))" }} axisLine={false} tickLine={false} />
+                <YAxis
+                  tick={{ fontSize: 10, fill: "hsl(var(--theo-mid))" }}
+                  axisLine={false} tickLine={false}
+                  tickFormatter={(v) => v >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`}
+                  width={38}
+                />
+                <Tooltip content={<VolumeTooltip />} cursor={{ fill: "hsl(var(--theo-cream))", radius: 4 }} />
+                <Bar dataKey="conversions" name="Conversions" fill="hsl(var(--theo-blue))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="payouts"     name="Payouts"     fill="hsl(var(--theo-gold))" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div style={{ height: 140, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: "hsl(var(--theo-mid))" }}>
+              No transaction data yet
+            </div>
+          )}
         </div>
 
+        {/* Volume split donut */}
+        <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
+          <div className="font-bold mb-1" style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>Volume split</div>
+          <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginBottom: 8 }}>6-month mix</div>
+          {splitData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={130}>
+              <PieChart>
+                <Pie
+                  data={splitData}
+                  cx="50%" cy="50%"
+                  innerRadius={32} outerRadius={50}
+                  paddingAngle={3}
+                  dataKey="value"
+                >
+                  <Cell fill="hsl(var(--theo-blue))" />
+                  <Cell fill="hsl(var(--theo-gold))" />
+                </Pie>
+                <Tooltip
+                  formatter={(v: number) => [`$${v.toLocaleString()}`, ""]}
+                  contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid hsl(var(--theo-light))" }}
+                />
+                <Legend iconType="square" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div style={{ height: 130, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "hsl(var(--theo-mid))" }}>
+              No data yet
+            </div>
+          )}
+        </div>
+
+        {/* Quick Actions */}
         <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
           <div className="font-bold mb-3" style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>Quick Actions</div>
           <div className="flex flex-col gap-0.5">
@@ -336,7 +497,7 @@ export default function Dashboard() {
                 key={to}
                 to={to}
                 className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition-colors"
-                style={{ fontSize: 13, color: "hsl(var(--theo-blue))", fontWeight: 500, textDecoration: "none" }}
+                style={{ fontSize: 12, color: "hsl(var(--theo-blue))", fontWeight: 500, textDecoration: "none" }}
                 onMouseEnter={e => (e.currentTarget.style.background = "hsl(var(--theo-blue-soft))")}
                 onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
               >
@@ -348,7 +509,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Recent transactions */}
+      {/* ── Recent transactions ──────────────────────────────────────────────── */}
       <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
           <div className="font-bold" style={{ fontSize: 14, color: "hsl(var(--theo-blue))" }}>Recent transactions</div>

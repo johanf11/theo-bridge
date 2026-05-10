@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/theo/Layout";
-import { RefreshCw, CheckCircle2, AlertTriangle, ExternalLink, FileText } from "lucide-react";
+import { RefreshCw, CheckCircle2, AlertTriangle, ExternalLink, FileText, Flame, Coins, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useRoles } from "@/lib/auth";
+import { toast } from "sonner";
 
 const HTGC_DISTRIBUTOR = "GCP6VMZS3SJ4CSOT3ZVMMJIOXOHTMJK47YQ4RTUJN7P2KYKDVRCUBS2X";
 const HTGC_ISSUER      = "GDSRYZWTLQLBECKCL4TV7ZRGBZGBMSPD4V47B7Y7JSQVDJRSEXQTFCQT";
@@ -88,7 +90,12 @@ const TD: React.CSSProperties = {
 };
 
 // ── Main page ─────────────────────────────────────────────────────────────────
+// ── Mint/Burn form types ──────────────────────────────────────────────────────
+type IssuanceAction = "mint" | "burn";
+type Wallet = { id: string; label: string; stellar_address: string };
+
 export default function Compliance() {
+  const { isAdmin } = useRoles();
   const [state,      setState]      = useState<ReserveState>("idle");
   const [reserve,    setReserve]    = useState<ReserveData | null>(null);
   const [fetchedAt,  setFetchedAt]  = useState<Date | null>(null);
@@ -138,7 +145,59 @@ export default function Compliance() {
     }
   };
 
-  useEffect(() => { fetchReserve(); fetchAttestation(); }, []);
+  // ── Mint/Burn state ─────────────────────────────────────────────────────────
+  const [issuanceTab, setIssuanceTab] = useState<IssuanceAction>("mint");
+  const [wallets, setWallets] = useState<Wallet[]>([]);
+  const [issuanceWallet, setIssuanceWallet] = useState("");
+  const [issuanceAmount, setIssuanceAmount] = useState("");
+  const [issuanceMemo, setIssuanceMemo] = useState("");
+  const [issuanceBusy, setIssuanceBusy] = useState(false);
+  const [lastTxHash, setLastTxHash] = useState<string | null>(null);
+
+  const loadWallets = async () => {
+    const { data: au } = await supabase.auth.getUser();
+    const { data: customer } = await supabase
+      .from("customers").select("id").eq("user_id", au.user?.id ?? "").maybeSingle();
+    if (!customer) return;
+    const { data } = await supabase
+      .from("wallets").select("id, label, stellar_address")
+      .eq("customer_id", customer.id).order("created_at", { ascending: true });
+    const list = (data ?? []) as Wallet[];
+    setWallets(list);
+    if (list.length > 0) setIssuanceWallet(list[0].stellar_address);
+  };
+
+  const handleIssuance = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amount = parseFloat(issuanceAmount);
+    if (!amount || amount <= 0) { toast.error("Enter a valid amount"); return; }
+    if (!issuanceWallet) { toast.error("Select a wallet"); return; }
+
+    setIssuanceBusy(true);
+    setLastTxHash(null);
+    try {
+      const body = issuanceTab === "mint"
+        ? { action: "mint", destinationAddress: issuanceWallet, amount, memo: issuanceMemo }
+        : { action: "burn", sourceAddress: issuanceWallet, amount, memo: issuanceMemo };
+
+      const res = await supabase.functions.invoke("htgc-issuance", { body });
+      if (res.error || res.data?.error) throw new Error((res.data as { error?: string } | null)?.error ?? res.error?.message);
+
+      const hash = (res.data as { hash?: string })?.hash;
+      setLastTxHash(hash ?? null);
+      toast.success(`${issuanceTab === "mint" ? "Minted" : "Burned"} ${amount.toLocaleString()} HTG-C successfully`);
+      setIssuanceAmount("");
+      setIssuanceMemo("");
+      // Refresh reserve data
+      await fetchReserve();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setIssuanceBusy(false);
+    }
+  };
+
+  useEffect(() => { fetchReserve(); fetchAttestation(); if (isAdmin) loadWallets(); }, [isAdmin]);
 
   const displayedHtgBalance = reserve ? reserve.totalMinted : null;
   const ratio = (reserve && reserve.totalMinted > 0)
@@ -219,6 +278,140 @@ export default function Compliance() {
           <div style={{ padding: "12px 16px", borderRadius: 10, background: R_BG, border: `1px solid ${R_BD}`, color: R_FG, fontSize: 13, marginBottom: 18 }}>
             <span style={{ fontWeight: 700 }}>Network error: </span>{error}
           </div>
+        )}
+
+        {/* ── 0. MINT / BURN (admin only) ──────────────────────────── */}
+        {isAdmin && (
+          <Panel>
+            <PanelHead title="HTG-C Issuance controls" meta="Admin only · Stellar Testnet" />
+            <div style={{ padding: "20px 22px" }}>
+
+              {/* Tab toggle */}
+              <div style={{ display: "flex", borderRadius: 9, border: `1px solid ${LT}`, overflow: "hidden", width: "fit-content", marginBottom: 18 }}>
+                {([["mint", "Mint HTG-C"], ["burn", "Burn HTG-C"]] as [IssuanceAction, string][]).map(([action, label]) => (
+                  <button
+                    key={action}
+                    type="button"
+                    onClick={() => { setIssuanceTab(action); setLastTxHash(null); }}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 6,
+                      padding: "8px 16px", border: "none", fontFamily: "inherit",
+                      fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all 120ms",
+                      background: issuanceTab === action ? (action === "mint" ? N : "#B91C1C") : "#fff",
+                      color: issuanceTab === action ? "#fff" : MID,
+                    }}
+                  >
+                    {action === "mint" ? <Coins size={13} /> : <Flame size={13} />}
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Context description */}
+              <div style={{ padding: "10px 14px", borderRadius: 8, marginBottom: 16,
+                background: issuanceTab === "mint" ? "hsl(var(--theo-blue-soft))" : "#FEF2F2",
+                border: `1px solid ${issuanceTab === "mint" ? LT : "#FECACA"}`,
+                fontSize: 12, color: issuanceTab === "mint" ? N : "#B91C1C", lineHeight: 1.6 }}>
+                {issuanceTab === "mint"
+                  ? <><strong>Mint:</strong> Issue new HTG-C from the issuer account into a Theo client wallet. Use when a client has deposited HTG cash at the SPIH bank account and the reserve is confirmed.</>
+                  : <><strong>Burn:</strong> Send HTG-C from a Theo wallet back to the issuer, permanently destroying those tokens. Use when a client redeems HTG-C for physical HTG cash.</>
+                }
+              </div>
+
+              <form onSubmit={handleIssuance}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
+                  {/* Wallet selector */}
+                  <div>
+                    <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.10em", color: MID, marginBottom: 5 }}>
+                      {issuanceTab === "mint" ? "Destination wallet" : "Source wallet"}
+                    </label>
+                    {wallets.length === 0 ? (
+                      <div style={{ fontSize: 13, color: MID }}>No wallets found</div>
+                    ) : (
+                      <select
+                        value={issuanceWallet}
+                        onChange={(e) => setIssuanceWallet(e.target.value)}
+                        style={{ width: "100%", fontFamily: "inherit", fontSize: 13, padding: "8px 10px", borderRadius: 8, border: `1.5px solid ${LT}`, background: "#fff", color: INK, outline: "none", cursor: "pointer" }}
+                      >
+                        {wallets.map((w) => (
+                          <option key={w.id} value={w.stellar_address}>{w.label} ({w.stellar_address.slice(0, 6)}…{w.stellar_address.slice(-4)})</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
+                  {/* Amount */}
+                  <div>
+                    <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.10em", color: MID, marginBottom: 5 }}>
+                      Amount (HTG-C)
+                    </label>
+                    <div style={{ position: "relative" }}>
+                      <input
+                        type="number"
+                        min={0.0000001}
+                        step={0.01}
+                        placeholder="0.00"
+                        value={issuanceAmount}
+                        onChange={(e) => setIssuanceAmount(e.target.value)}
+                        required
+                        style={{ width: "100%", fontFamily: "inherit", fontSize: 13, padding: "8px 52px 8px 10px", borderRadius: 8, border: `1.5px solid ${LT}`, background: "#fff", color: INK, outline: "none", boxSizing: "border-box" }}
+                      />
+                      <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 11, fontWeight: 700, color: MID }}>HTG-C</span>
+                    </div>
+                  </div>
+
+                  {/* Memo */}
+                  <div>
+                    <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.10em", color: MID, marginBottom: 5 }}>
+                      Memo (optional)
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={28}
+                      placeholder="SPIH-REF-2026-001"
+                      value={issuanceMemo}
+                      onChange={(e) => setIssuanceMemo(e.target.value)}
+                      style={{ width: "100%", fontFamily: "inherit", fontSize: 13, padding: "8px 10px", borderRadius: 8, border: `1.5px solid ${LT}`, background: "#fff", color: INK, outline: "none", boxSizing: "border-box" }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <button
+                    type="submit"
+                    disabled={issuanceBusy}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 7,
+                      padding: "9px 20px", borderRadius: 8, border: "none",
+                      background: issuanceBusy ? LT : issuanceTab === "mint" ? N : "#B91C1C",
+                      color: issuanceBusy ? MID : "#fff",
+                      fontSize: 13, fontWeight: 700, cursor: issuanceBusy ? "not-allowed" : "pointer",
+                      fontFamily: "inherit", transition: "all 130ms",
+                    }}
+                  >
+                    {issuanceBusy
+                      ? <><Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} /> Processing…</>
+                      : issuanceTab === "mint"
+                      ? <><Coins size={13} /> Mint HTG-C on Stellar</>
+                      : <><Flame size={13} /> Burn HTG-C on Stellar</>
+                    }
+                  </button>
+
+                  {lastTxHash && (
+                    <a
+                      href={`https://stellar.expert/explorer/testnet/tx/${lastTxHash}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ fontSize: 12, fontWeight: 700, color: G_FG, display: "flex", alignItems: "center", gap: 5 }}
+                    >
+                      <CheckCircle2 size={13} />
+                      View on Stellar Expert ↗
+                    </a>
+                  )}
+                </div>
+              </form>
+            </div>
+          </Panel>
         )}
 
         {/* ── 1. PROOF OF RESERVE ──────────────────────────────────── */}
