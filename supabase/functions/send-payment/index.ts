@@ -201,13 +201,17 @@ Deno.serve(async (req) => {
       // Friendlier handling for the most common recipient-side failures.
       if (opCodes.includes("op_no_trust") || opCodes.includes("op_not_authorized")) {
         const friendly = opCodes.includes("op_no_trust")
-          ? "Recipient wallet has not enabled USDC. Ask them to add a USDC trustline on their Stellar wallet before you can send."
-          : "Recipient's USDC trustline is not authorized by the issuer yet. The recipient must complete issuer authorization before they can receive USDC.";
+          ? recipientNoTrustMessage
+          : recipientUnauthorizedMessage;
         await admin.from("payouts").update({
           status: "FAILED",
           failure_reason: friendly,
         }).eq("id", payout.id);
-        return json({ error: friendly }, 422);
+        return json({
+          ok: false,
+          code: opCodes.includes("op_no_trust") ? "recipient_no_usdc_trustline" : "recipient_usdc_trustline_not_authorized",
+          error: friendly,
+        });
       }
 
       await admin.from("payouts").update({
