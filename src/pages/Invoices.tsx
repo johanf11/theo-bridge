@@ -257,7 +257,7 @@ export default function Invoices() {
   };
 
   const copyPaymentLink = async (id: string) => {
-    const link = `https://pay.theo.ht/inv/${id}`;
+    const link = `${window.location.origin}/inv/${id}`;
     await navigator.clipboard.writeText(link);
     setCopiedId(id);
     toast.success("Payment link copied");
