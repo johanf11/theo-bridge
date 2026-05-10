@@ -213,7 +213,7 @@ Deno.serve(async (req) => {
       const opCodes = data?.extras?.result_codes?.operations ?? [];
       const msg = data ? JSON.stringify(data) : (stellarErr as Error).message;
 
-      // Friendlier handling for the most common recipient-side failures.
+      // Friendlier handling for the most common failures.
       if (opCodes.includes("op_no_trust") || opCodes.includes("op_not_authorized")) {
         const friendly = opCodes.includes("op_no_trust")
           ? recipientNoTrustMessage
@@ -225,6 +225,19 @@ Deno.serve(async (req) => {
         return json({
           ok: false,
           code: opCodes.includes("op_no_trust") ? "recipient_no_usdc_trustline" : "recipient_usdc_trustline_not_authorized",
+          error: friendly,
+        });
+      }
+
+      if (opCodes.includes("op_underfunded")) {
+        const friendly = `Insufficient USDC balance in source wallet to send ${parsedAmount} USDC.`;
+        await admin.from("payouts").update({
+          status: "FAILED",
+          failure_reason: friendly,
+        }).eq("id", payout.id);
+        return json({
+          ok: false,
+          code: "source_wallet_underfunded",
           error: friendly,
         });
       }
