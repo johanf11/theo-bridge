@@ -164,6 +164,84 @@ export type Database = {
         }
         Relationships: []
       }
+      invoices: {
+        Row: {
+          client_email: string | null
+          client_name: string
+          created_at: string
+          currency: string
+          customer_id: string
+          discount_type: string | null
+          discount_value: number
+          due_date: string | null
+          id: string
+          invoice_number: string
+          line_items: Json
+          note: string | null
+          paid_at: string | null
+          payment_wallet_id: string | null
+          status: string
+          subtotal: number
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          client_email?: string | null
+          client_name: string
+          created_at?: string
+          currency?: string
+          customer_id: string
+          discount_type?: string | null
+          discount_value?: number
+          due_date?: string | null
+          id?: string
+          invoice_number: string
+          line_items?: Json
+          note?: string | null
+          paid_at?: string | null
+          payment_wallet_id?: string | null
+          status?: string
+          subtotal?: number
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          client_email?: string | null
+          client_name?: string
+          created_at?: string
+          currency?: string
+          customer_id?: string
+          discount_type?: string | null
+          discount_value?: number
+          due_date?: string | null
+          id?: string
+          invoice_number?: string
+          line_items?: Json
+          note?: string | null
+          paid_at?: string | null
+          payment_wallet_id?: string | null
+          status?: string
+          subtotal?: number
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_payment_wallet_id_fkey"
+            columns: ["payment_wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_queue: {
         Row: {
           attempts: number
