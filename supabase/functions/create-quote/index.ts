@@ -17,14 +17,28 @@ const MAX_USDC_NET = 50000;   // max USDC the customer receives (net of fees)
 const MAX_USDC     = 52000;   // gross ceiling — covers up to ~3.8% fee on 50K net
 const QUOTE_TTL_MIN = 15;
 
-function generateReference(): string {
-  // THEO-XXXXXX (uppercase alphanumeric, no ambiguous chars)
+const ORDER_KIND_CODE: Record<string, string> = {
+  usdc_conversion:  "CNV",  // HTG → USDC auto-convert
+  htgc_deposit:     "DEP",  // HTG deposit, keep as HTG-C
+  htgc_to_usdc:     "BUY",  // HTG-C → USDC swap
+  usdc_to_htgc:     "SEL",  // USDC → HTG-C swap
+  htgc_usdc_swap:   "BUY",  // legacy swap kind → BUY
+  withdrawal:       "WDR",  // withdrawal to bank
+  wire:             "WIR",  // global wire
+  payment:          "PAY",  // single payment
+  disbursement:     "DSB",  // bulk payroll / disbursement
+  p2p:              "P2P",  // wallet-to-wallet transfer
+};
+
+function generateReference(orderKind: string): string {
+  // THEO-[TYPE]-XXXXXX (uppercase alphanumeric, no ambiguous chars)
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let s = "";
   const buf = new Uint8Array(6);
   crypto.getRandomValues(buf);
   for (const b of buf) s += chars[b % chars.length];
-  return `THEO-${s}`;
+  const typeCode = ORDER_KIND_CODE[orderKind] ?? "TXN";
+  return `THEO-${typeCode}-${s}`;
 }
 
 Deno.serve(async (req) => {
@@ -109,7 +123,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const referenceNumber = generateReference();
+    const referenceNumber = generateReference(orderKind);
     const expiresAt = new Date(Date.now() + QUOTE_TTL_MIN * 60 * 1000).toISOString();
 
     let htgRequired = 0;

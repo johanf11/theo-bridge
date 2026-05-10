@@ -44,6 +44,7 @@ export type ReceiptData = {
   netApy?: number;
   depositedAt?: string;
   accruedAmount?: number;
+  principalBalance?: number; // account balance that earned the yield
   customerName?: string;
 };
 
@@ -402,11 +403,20 @@ function _buildPdf(data: ReceiptData): void {
     drawStatus(data.status);
     if (data.referenceNumber) drawRow("Reference",    data.referenceNumber);
 
+    // Derive principal balance if not explicitly stored:
+    // principal = yield_earned / (apy * period_days / 365)
+    const yieldEarned = data.accruedAmount ?? data.usdcAmount ?? 0;
+    let displayBalance = data.principalBalance ?? null;
+    if (displayBalance == null && data.netApy && data.netApy > 0 && yieldEarned > 0 && data.depositedAt) {
+      const days = (new Date(data.createdAt).getTime() - new Date(data.depositedAt).getTime()) / 86_400_000;
+      if (days > 0) displayBalance = Math.round((yieldEarned / (data.netApy * days / 365)) * 100) / 100;
+    }
+
     secGap();
     drawSection("Earnings Breakdown");
-    if (data.usdcAmount)    drawRow("Average Balance", fmtUsdc(data.usdcAmount));
-    if (data.netApy != null) drawRow("APY",            (data.netApy * 100).toFixed(2) + "%");
-    drawTotal("Yield Earned (USDC)", fmtUsdc(data.accruedAmount ?? data.usdcAmount ?? 0));
+    if (displayBalance != null) drawRow("Balance",        fmtUsdc(displayBalance));
+    if (data.netApy != null)    drawRow("APY",            (data.netApy * 100).toFixed(2) + "%");
+    drawTotal("Yield Earned (USDC)", fmtUsdc(yieldEarned));
 
     secGap();
     drawSection("Settlement");

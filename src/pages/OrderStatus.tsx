@@ -15,6 +15,9 @@ type Order = {
   failure_reason: string | null; created_at: string; order_kind?: string | null;
   wallet_id?: string | null;
   usdc_gross?: number | null; fee_usdc?: number | null; fee_bps?: number | null;
+  principal_balance?: number | null;  // balance earning yield (yield orders only)
+  net_apy?: number | null;            // APY as decimal (0.07 = 7%)
+  accrued_amount?: number | null;     // yield earned (yield orders only)
   customers?: { company_name?: string | null } | null;
 };
 
@@ -331,6 +334,9 @@ export default function OrderStatus() {
                     usdcGross: order.usdc_gross != null ? Number(order.usdc_gross) : undefined,
                     feeUsdc: order.fee_usdc != null ? Number(order.fee_usdc) : undefined,
                     feeBps: order.fee_bps != null ? Number(order.fee_bps) : undefined,
+                    principalBalance: order.principal_balance != null ? Number(order.principal_balance) : undefined,
+                    netApy: order.net_apy != null ? Number(order.net_apy) : undefined,
+                    accruedAmount: order.accrued_amount != null ? Number(order.accrued_amount) : undefined,
                     rate: Number(order.rate),
                     stellarTxHash: order.stellar_tx_hash,
                     status: order.status,

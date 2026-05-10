@@ -793,7 +793,7 @@ export default function Convert() {
                     {/* You send · HTG */}
                     <div style={{ padding: "12px 14px", order: htgFlipped ? 2 : 0 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: "hsl(var(--theo-mid))", marginBottom: 6 }}>
-                        {htgFlipped ? "You receive" : "You send"}
+                        You send
                       </div>
                       <div className="flex items-center justify-between gap-3">
                         <input
@@ -819,7 +819,7 @@ export default function Convert() {
                     {/* You receive · USDC */}
                     <div style={{ padding: "12px 14px", order: htgFlipped ? 0 : 2 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: "hsl(var(--theo-mid))", marginBottom: 6 }}>
-                        {htgFlipped ? "You send" : "You receive"}
+                        You receive
                       </div>
                       <div className="flex items-center justify-between gap-3">
                         <input

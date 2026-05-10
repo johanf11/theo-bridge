@@ -212,7 +212,6 @@ export default function Compliance() {
           <StatusPill label="KYB Active" />
           <StatusPill label="Reserves Verified" />
           <StatusPill label="Stellar Testnet" variant="blue" />
-          {attestation && <StatusPill label={`${attestation.period_label} Attestation`} variant="cyan" />}
         </div>
 
         {/* Error banner */}
@@ -270,7 +269,7 @@ export default function Compliance() {
                 </div>
                 <div style={{ fontSize: 11, color: MID, marginTop: 8 }}>
                   {attestation
-                    ? <>Attested {attestation.period_label} by {attestation.auditor_name ?? "auditor"}</>
+                    ? <>Attested {attestation.period_label} by <span style={{ fontStyle: "italic" }}>Attestation partner TBD</span></>
                     : "Awaiting attestation"}
                 </div>
               </div>
@@ -324,15 +323,12 @@ export default function Compliance() {
                 style={{ color: N, display: "flex", alignItems: "center", gap: 5 }}>
                 <ExternalLink style={{ width: 11, height: 11 }} /> Verify treasury account →
               </a>
-              {attestation?.attestation_pdf_url && (
-                <>
-                  <span style={{ color: LT }}>·</span>
-                  <a href={attestation.attestation_pdf_url} target="_blank" rel="noreferrer"
-                    style={{ color: N, display: "flex", alignItems: "center", gap: 5 }}>
-                    <FileText style={{ width: 11, height: 11 }} /> Download attestation PDF →
-                  </a>
-                </>
-              )}
+              <>
+                <span style={{ color: LT }}>·</span>
+                <span style={{ color: MID, display: "flex", alignItems: "center", gap: 5, opacity: 0.5, cursor: "default" }}>
+                  <FileText style={{ width: 11, height: 11 }} /> Attestation PDF (coming soon)
+                </span>
+              </>
             </div>
           </div>
         </Panel>
@@ -443,10 +439,10 @@ export default function Compliance() {
             </thead>
             <tbody>
               {[
-                { name: "KYB Verification",   desc: "Only BRH-licensed businesses approved to receive or hold HTG-C.", auth: "Theo Compliance" },
+                { name: "KYB Verification",   desc: "Only verified businesses onboarded through Theo's KYB process are approved to send or receive USDC conversions.", auth: "Theo Compliance" },
                 { name: "Wallet Freeze",       desc: "Account suspension on regulatory order — halts send/receive without touching the underlying reserve.", auth: "Theo + BRH" },
                 { name: "Asset Clawback",      desc: "Token recovery on court order — last-resort control returning HTG to the rightful party.", auth: "Theo Legal" },
-                { name: "AML Monitoring",      desc: "Transaction screening on every conversion against sanctions and PEP lists.", auth: "Theo Compliance" },
+                { name: "AML Monitoring",      desc: "Counterparty screening enforced via Stellar trust line authorization — only Theo-approved accounts can hold or transfer USDC.", auth: "Theo Compliance" },
                 { name: "Counterparty Limits", desc: "Maximum single conversion enforced per order, with per-account daily caps.", auth: "System" },
               ].map((row, i, arr) => (
                 <tr key={row.name} style={{ background: "transparent" }}>
@@ -473,15 +469,15 @@ export default function Compliance() {
 
         {/* ── 4. SETTLEMENT FLOW ───────────────────────────────────── */}
         <Panel>
-          <PanelHead title="Settlement & network" meta="Two-rail architecture · HTG ↔ USDC" />
+          <PanelHead title="Settlement & network" meta="Two-phase conversion · all settlement on Stellar" />
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
             {/* Rail A */}
             <div style={{ padding: "22px 24px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
                 <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: A_FG, background: "#FFF3CD", padding: "3px 8px", borderRadius: 999 }}>
-                  Rail A
+                  Phase 1
                 </span>
-                <span style={{ fontSize: 14, fontWeight: 700, color: N }}>HTG deposit rail</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: N }}>HTG deposit</span>
               </div>
               <div style={{ fontSize: 12, color: MID, margin: "4px 0 16px" }}>From bank to chain · mint-on-deposit</div>
               {[
@@ -505,15 +501,15 @@ export default function Compliance() {
             <div style={{ padding: "22px 24px", borderLeft: `1px solid ${LT}` }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
                 <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: N, background: "hsl(var(--theo-blue-soft))", padding: "3px 8px", borderRadius: 999 }}>
-                  Rail B
+                  Phase 2
                 </span>
-                <span style={{ fontSize: 14, fontWeight: 700, color: N }}>USDC settlement</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: N }}>USDC release</span>
               </div>
-              <div style={{ fontSize: 12, color: MID, margin: "4px 0 16px" }}>Burn-and-deliver via Circle reserve</div>
+              <div style={{ fontSize: 12, color: MID, margin: "4px 0 16px" }}>HTG-C burn · USDC delivered via MoneyGram settlement</div>
               {[
                 { key: "Customer initiates HTG-C → USDC",       detail: "FX rate locked at order intake" },
                 { key: "HTG-C burned at distributor",           detail: `Distributor ${HTGC_DISTRIBUTOR.slice(0,4)}…${HTGC_DISTRIBUTOR.slice(-4)} · supply contracts` },
-                { key: "USDC released from Circle reserve",     detail: "Delivered to customer wallet · final on Stellar" },
+                { key: "USDC delivered via MoneyGram",          detail: "Settled to customer wallet · final on Stellar" },
               ].map((step, i) => (
                 <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "12px 0", borderTop: i === 0 ? "none" : `1px dashed ${LT}` }}>
                   <div style={{ width: 22, height: 22, borderRadius: "50%", background: CR, color: N, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, flexShrink: 0, marginTop: 1 }}>
@@ -531,10 +527,10 @@ export default function Compliance() {
 
         {/* ── 5. USDC COUNTERPARTY ─────────────────────────────────── */}
         <Panel>
-          <PanelHead title="USDC counterparty" meta="Settlement asset · third-party issued" />
+          <PanelHead title="USDC (USD Coin)" meta="Settlement asset · third-party issued" />
           <div style={{ padding: "20px 22px" }}>
             <p style={{ fontSize: 13, color: INK, lineHeight: 1.6, margin: 0 }}>
-              USDC is issued by <strong>Circle Internet Financial</strong> (NYSE: CRCL), regulated by the New York State Department of Financial Services. The token is fully collateralised 1:1 by US dollars and short-duration US Treasuries held with regulated US banking partners. Independent monthly attestations are published at{" "}
+              USDC is issued by <strong>Circle Internet Financial</strong> (NYSE: CRCL), is a type of cryptocurrency that is referred to as a fiat-backed stablecoin, meaning it is backed by reserve assets in the traditional financial system, such as cash, cash equivalents, or securities. In the case of USDC, it is designed to be pegged to the US dollar and redeemable 1:1 for US dollars. Independent monthly attestations are published at{" "}
               <a href="https://www.circle.com/usdc" target="_blank" rel="noreferrer"
                 style={{ color: N, fontWeight: 600, borderBottom: `1px solid hsl(var(--theo-blue-soft))`, paddingBottom: 1 }}>
                 circle.com/usdc
@@ -542,40 +538,32 @@ export default function Compliance() {
             </p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
               {[
-                { key: "Backing",   val: "1:1 USD" },
-                { key: "Issuer",    val: "Circle / NYSE: CRCL" },
-                { key: "Regulator", val: "NY DFS" },
-                { key: "Stellar",   val: "GBBD47…FLA5" },
-              ].map(({ key, val }) => (
-                <span key={key} style={{
+                { key: "Backing",   val: "1:1 USD",             href: undefined },
+                { key: "Issuer",    val: "Circle / NYSE: CRCL", href: undefined },
+                { key: "Stellar",   val: "GBBD47…FLA5",         href: "https://stellar.expert/explorer/testnet/asset/USDC-GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5" },
+              ].map(({ key, val, href }) => {
+                const chipStyle: React.CSSProperties = {
                   display: "inline-flex", alignItems: "center", gap: 8,
                   padding: "6px 11px", borderRadius: 999,
                   background: CR, border: `1px solid ${LT}`,
                   fontSize: 11.5, color: INK, fontWeight: 600,
-                }}>
-                  <span style={{ color: MID, textTransform: "uppercase", fontSize: 10, letterSpacing: "0.10em", fontWeight: 700 }}>{key}</span>
-                  {val}
-                </span>
-              ))}
+                  ...(href ? { cursor: "pointer", textDecoration: "none" } : {}),
+                };
+                const inner = (
+                  <>
+                    <span style={{ color: MID, textTransform: "uppercase", fontSize: 10, letterSpacing: "0.10em", fontWeight: 700 }}>{key}</span>
+                    {val}
+                    {href && <ExternalLink style={{ width: 10, height: 10, color: MID, flexShrink: 0 }} />}
+                  </>
+                );
+                return href
+                  ? <a key={key} href={href} target="_blank" rel="noreferrer" style={chipStyle}>{inner}</a>
+                  : <span key={key} style={chipStyle}>{inner}</span>;
+              })}
             </div>
           </div>
         </Panel>
 
-        {/* ── FOOTER ───────────────────────────────────────────────── */}
-        <div style={{
-          marginTop: 6, paddingTop: 14,
-          display: "flex", justifyContent: "space-between", alignItems: "center",
-          fontSize: 11, color: MID, gap: 16,
-          borderTop: `1px solid ${LT}`,
-        }}>
-          <div>
-            Document{" "}
-            <span style={{ color: INK, fontWeight: 600, fontFamily: MONO }}>
-              THEO-COMP-{new Date().getFullYear()}-{new Date().toLocaleDateString("en-US", { month: "short", day: "2-digit" }).replace(" ", "").toUpperCase()}
-            </span>
-          </div>
-          <div>End of report · Theo AI Finance S.A.</div>
-        </div>
 
       </div>
 
