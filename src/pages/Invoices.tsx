@@ -156,7 +156,7 @@ export default function Invoices() {
       .select("*")
       .eq("customer_id", cid)
       .order("created_at", { ascending: false });
-    setInvoices((data ?? []) as Invoice[]);
+    setInvoices((data ?? []) as unknown as Invoice[]);
     setListLoading(false);
   };
 
