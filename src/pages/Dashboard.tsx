@@ -8,7 +8,6 @@ import { useAuth } from "@/lib/auth";
 import { Plus, FileText, AlertTriangle } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend,
 } from "recharts";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -457,32 +456,51 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Volume split donut */}
+        {/* Volume split — inline breakdown */}
         <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
           <div className="font-bold mb-1" style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>Volume split</div>
-          <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginBottom: 8 }}>6-month mix</div>
-          {splitData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={130}>
-              <PieChart>
-                <Pie
-                  data={splitData}
-                  cx="50%" cy="50%"
-                  innerRadius={32} outerRadius={50}
-                  paddingAngle={3}
-                  dataKey="value"
-                >
-                  <Cell fill="hsl(var(--theo-blue))" />
-                  <Cell fill="hsl(var(--theo-gold))" />
-                </Pie>
-                <Tooltip
-                  formatter={(v: number) => [`$${v.toLocaleString()}`, ""]}
-                  contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid hsl(var(--theo-light))" }}
-                />
-                <Legend iconType="square" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <div style={{ height: 130, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "hsl(var(--theo-mid))" }}>
+          <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginBottom: 12 }}>6-month USDC mix</div>
+          {splitData.length > 0 ? (() => {
+            const total = splitData.reduce((s, d) => s + d.value, 0);
+            const conv = splitData.find(d => d.name === "Conversions")?.value ?? 0;
+            const pays = splitData.find(d => d.name === "Payouts")?.value ?? 0;
+            const convPct = total > 0 ? Math.round((conv / total) * 100) : 0;
+            const paysPct = total > 0 ? Math.round((pays / total) * 100) : 0;
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {/* Stacked bar */}
+                <div style={{ height: 10, borderRadius: 999, overflow: "hidden", display: "flex", gap: 2 }}>
+                  <div style={{ width: `${convPct}%`, background: "hsl(var(--theo-blue))", borderRadius: "999px 0 0 999px", minWidth: convPct > 0 ? 4 : 0 }} />
+                  <div style={{ width: `${paysPct}%`, background: "hsl(var(--theo-gold))", borderRadius: "0 999px 999px 0", minWidth: paysPct > 0 ? 4 : 0 }} />
+                </div>
+                {/* Legend rows */}
+                {[
+                  { label: "Conversions", value: conv, pct: convPct, color: "hsl(var(--theo-blue))" },
+                  { label: "Payouts",     value: pays, pct: paysPct, color: "hsl(var(--theo-gold))" },
+                ].map(row => (
+                  <div key={row.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: 2, background: row.color, flexShrink: 0, display: "inline-block" }} />
+                      <span style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>{row.label}</span>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
+                        ${row.value.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                      </span>
+                      <span style={{ fontSize: 10, color: "hsl(var(--theo-mid))", marginLeft: 5 }}>{row.pct}%</span>
+                    </div>
+                  </div>
+                ))}
+                <div style={{ borderTop: "1px solid hsl(var(--theo-light))", paddingTop: 8, display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>Total</span>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: "hsl(var(--theo-blue))" }}>
+                    ${total.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                  </span>
+                </div>
+              </div>
+            );
+          })() : (
+            <div style={{ height: 100, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "hsl(var(--theo-mid))" }}>
               No data yet
             </div>
           )}
