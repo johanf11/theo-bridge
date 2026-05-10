@@ -647,7 +647,27 @@ export default function Payout() {
 
               {/* ── Source account ───────────────────────────────────── */}
               <div style={{ marginBottom: 10 }}>
-                <label style={labelStyle}>Source account</label>
+                <div className="flex items-center justify-between" style={{ marginBottom: 4 }}>
+                  <label style={{ ...labelStyle, marginBottom: 0 }}>Source account</label>
+                  {(() => {
+                    const w = wallets.find((w) => w.id === sourceWalletId);
+                    const bal = Number(w?.usdc_balance ?? 0);
+                    const low = bal < 100;
+                    if (!w) return null;
+                    return (
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: 4,
+                        fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 999,
+                        background: low ? "#FEF3C7" : "hsl(var(--theo-blue-soft))",
+                        color: low ? "#92400E" : "hsl(var(--theo-blue))",
+                        border: `1px solid ${low ? "#FDE68A" : "hsl(var(--theo-light))"}`,
+                      }}>
+                        {low && <AlertTriangle size={10} style={{ flexShrink: 0 }} />}
+                        {bal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC available
+                      </span>
+                    );
+                  })()}
+                </div>
                 {walletsLoading ? (
                   <div style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>Loading accounts…</div>
                 ) : wallets.length === 0 ? (
