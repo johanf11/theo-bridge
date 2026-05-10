@@ -4,7 +4,7 @@ import { useAuth, useRoles } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import {
   LayoutGrid, ArrowLeftRight, ArrowRightLeft, Wallet, SendHorizonal,
-  Settings, LogOut, ShieldCheck, Search, Wrench, BookLock, DollarSign, Receipt,
+  Settings, LogOut, ShieldCheck, Search, Wrench, BookLock, DollarSign, Receipt, FileText,
 } from "lucide-react";
 import { useSearch } from "@/contexts/SearchContext";
 
@@ -13,6 +13,7 @@ const mainNav = [
   { to: "/transactions", label: "Transactions", icon: ArrowLeftRight, keywords: ["transactions", "history", "orders"] },
   { to: "/balance", label: "Balance", icon: Wallet, keywords: ["balance", "wallet", "account", "funds"] },
   { to: "/payout", label: "Payout", icon: SendHorizonal, keywords: ["payout", "send", "payment", "transfer"] },
+  { to: "/invoices", label: "Invoices", icon: FileText, keywords: ["invoice", "invoices", "request", "bill", "billing"] },
   { to: "/convert", label: "On / Off Ramp", icon: ArrowRightLeft, keywords: ["convert", "on ramp", "off ramp", "buy", "exchange"] },
   { to: "/compliance", label: "Compliance", icon: BookLock, keywords: ["compliance", "audit", "flags", "htgc", "issuer", "regulatory"] },
   { to: "/settings", label: "Settings", icon: Settings, keywords: ["settings", "profile", "account"] },

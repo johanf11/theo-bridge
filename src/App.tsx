@@ -20,6 +20,7 @@ import AdminConversions from "./pages/AdminConversions";
 import AdminTools from "./pages/AdminTools";
 import Compliance from "./pages/Compliance";
 import Billing from "./pages/Billing";
+import Invoices from "./pages/Invoices";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "@/components/theo/ProtectedRoute";
 
@@ -40,6 +41,7 @@ const App = () => (
           <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
           <Route path="/balance" element={<ProtectedRoute><Balance /></ProtectedRoute>} />
           <Route path="/payout" element={<ProtectedRoute><Payout /></ProtectedRoute>} />
+          <Route path="/invoices" element={<ProtectedRoute><Invoices /></ProtectedRoute>} />
           <Route path="/convert" element={<ProtectedRoute><Convert /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
           <Route path="/kyb" element={<ProtectedRoute><Kyb /></ProtectedRoute>} />
