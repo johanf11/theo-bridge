@@ -47,6 +47,7 @@ bun run test
 | `docs/architecture.md` | Full system architecture, data model, edge function contracts |
 | `docs/design.md` | Design system — colors, typography, component patterns, anti-patterns |
 | `docs/adr/0001-stellar-native-no-rehive.md` | Why Stellar-native instead of Rehive |
+| `docs/stellar-queries.md` | Horizon curl commands, key addresses, debugging runbook |
 
 ---
 
