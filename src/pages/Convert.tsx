@@ -1893,7 +1893,7 @@ export default function Convert() {
                     className="flex items-center justify-center gap-2"
                     style={{ flex: 2, background: "hsl(var(--theo-blue))", color: "#fff", border: "none", borderRadius: 9, padding: "10px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
                   >
-                    <CheckCircle2 size={14} /> Continue to deposit instructions
+                    <CheckCircle2 size={14} /> Confirm & lock rate →
                   </button>
                 </div>
               </div>
