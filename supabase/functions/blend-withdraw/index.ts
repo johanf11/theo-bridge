@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
       }))
       .addMemo(Memo.text("theo-yield-withdraw"))
       .setTimeout(60).build();
-    signWithDistributor(tx);
+    signWithBlendTreasury(tx);
 
     let hash: string;
     try {
