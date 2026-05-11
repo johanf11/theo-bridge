@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
 
     // On-chain: treasury → customer wallet.
     const server = new Horizon.Server(HORIZON_URL);
-    const treasuryKp = distributorKeypair();
+    const treasuryKp = blendTreasuryKeypair();
     const treasuryAccount = await server.loadAccount(treasuryKp.publicKey());
     const usdc = new Asset("USDC", usdcIssuer);
 
