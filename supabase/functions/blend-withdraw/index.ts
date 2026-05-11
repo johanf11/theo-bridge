@@ -5,7 +5,7 @@ import {
   Asset, Horizon, Memo, Networks,
   Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
-import { distributorKeypair, signWithDistributor } from "../_shared/stellar-signer.ts";
+import { blendTreasuryKeypair, signWithBlendTreasury } from "../_shared/stellar-signer.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
 
     // On-chain: treasury → customer wallet.
     const server = new Horizon.Server(HORIZON_URL);
-    const treasuryKp = distributorKeypair();
+    const treasuryKp = blendTreasuryKeypair();
     const treasuryAccount = await server.loadAccount(treasuryKp.publicKey());
     const usdc = new Asset("USDC", usdcIssuer);
 
@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
       }))
       .addMemo(Memo.text("theo-yield-withdraw"))
       .setTimeout(60).build();
-    signWithDistributor(tx);
+    signWithBlendTreasury(tx);
 
     let hash: string;
     try {
