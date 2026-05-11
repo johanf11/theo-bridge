@@ -20,6 +20,12 @@ type UnifiedTx = {
   // conversion-only
   htg_amount?: number;
   reference_number?: string;
+  // swap / conversion receipt fields
+  rate?: number;
+  usdc_gross?: number;
+  fee_usdc?: number;
+  fee_bps?: number;
+  swap_direction?: string | null;
   // payout / transfer
   recipient_name?: string;
   memo?: string | null;
@@ -67,7 +73,9 @@ export default function Transactions() {
       const [{ data: orders }, { data: payouts }, { data: yields }] = await Promise.all([
         supabase
           .from("orders")
-          .select("id, status, usdc_amount, htg_amount, reference_number, created_at, stellar_tx_hash, order_kind")
+          .select(
+            "id, status, usdc_amount, htg_amount, reference_number, created_at, stellar_tx_hash, order_kind, rate, usdc_gross, fee_usdc, fee_bps, swap_direction",
+          )
           .eq("customer_id", c.id)
           .gte("created_at", cutoff)
           .order("created_at", { ascending: false }),
@@ -103,6 +111,13 @@ export default function Transactions() {
             kind === "htgc_usdc_swap" ? "swap" :
             kind === "htgc_withdraw" ? "withdraw" :
             "conversion";
+          const row = o as {
+            rate?: number | null;
+            usdc_gross?: number | null;
+            fee_usdc?: number | null;
+            fee_bps?: number | null;
+            swap_direction?: string | null;
+          };
           return {
             id: o.id,
             type,
@@ -112,6 +127,11 @@ export default function Transactions() {
             stellar_tx_hash: o.stellar_tx_hash,
             htg_amount: Number(o.htg_amount ?? 0),
             reference_number: o.reference_number,
+            rate: row.rate != null ? Number(row.rate) : undefined,
+            usdc_gross: row.usdc_gross != null ? Number(row.usdc_gross) : undefined,
+            fee_usdc: row.fee_usdc != null ? Number(row.fee_usdc) : undefined,
+            fee_bps: row.fee_bps != null ? Number(row.fee_bps) : undefined,
+            swap_direction: row.swap_direction ?? undefined,
           };
         }),
         ...(payouts ?? []).map((p) => {
@@ -430,6 +450,19 @@ export default function Transactions() {
                                 createdAt: tx.created_at,
                                 htgAmount: tx.htg_amount,
                                 usdcAmount: tx.usdc_amount,
+                                rate: tx.rate,
+                                usdcGross: tx.usdc_gross,
+                                feeUsdc: tx.fee_usdc,
+                                feeBps: tx.fee_bps,
+                                swapDirection:
+                                  tx.type === "swap" &&
+                                  (tx.swap_direction === "htgc_to_usdc" || tx.swap_direction === "usdc_to_htgc")
+                                    ? tx.swap_direction
+                                    : undefined,
+                                htgGross:
+                                  tx.type === "swap" && tx.swap_direction === "usdc_to_htgc"
+                                    ? Math.round((tx.usdc_gross ?? tx.usdc_amount) * (tx.rate ?? 0))
+                                    : undefined,
                                 stellarTxHash: tx.stellar_tx_hash,
                                 status: tx.status,
                                 recipientName: tx.recipient_name,

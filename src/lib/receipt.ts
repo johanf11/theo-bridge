@@ -46,7 +46,31 @@ export type ReceiptData = {
   accruedAmount?: number;
   principalBalance?: number; // account balance that earned the yield
   customerName?: string;
+  /** When kind is swap (or DB htgc_usdc_swap): which leg the customer initiated. */
+  swapDirection?: "htgc_to_usdc" | "usdc_to_htgc";
+  /** USDC → HTG-C: gross HTG-C notionally from USDC at rate (optional; inferred from usdcGross × rate if omitted). */
+  htgGross?: number;
 };
+
+export type SwapReceiptDirection = "htgc_to_usdc" | "usdc_to_htgc";
+
+/** Prefer explicit swapDirection from DB; otherwise infer from amount vs rate consistency. */
+function resolveSwapReceiptDirection(data: ReceiptData): SwapReceiptDirection {
+  const d = data.swapDirection;
+  if (d === "htgc_to_usdc" || d === "usdc_to_htgc") return d;
+  const htg = data.htgAmount;
+  const usdc = data.usdcAmount;
+  const rate = data.rate;
+  if (htg == null || usdc == null || rate == null || htg <= 0 || usdc <= 0 || rate <= 0) {
+    return "htgc_to_usdc";
+  }
+  const errHtgFirst = Math.abs(htg / rate - usdc);
+  const errUsdcFirst = Math.abs(usdc * rate - htg);
+  const eps = 1e-4;
+  if (errUsdcFirst + eps < errHtgFirst) return "usdc_to_htgc";
+  if (errHtgFirst + eps < errUsdcFirst) return "htgc_to_usdc";
+  return "htgc_to_usdc";
+}
 
 // ── Colour helpers ────────────────────────────────────────────────────────────
 function fill  (doc: jsPDF, c: readonly [number, number, number]) { doc.setFillColor  (c[0], c[1], c[2]); }
@@ -326,14 +350,30 @@ function _buildPdf(data: ReceiptData): void {
 
     secGap();
     drawSection("Transaction Breakdown");
-    if (data.htgAmount)         drawRow("HTG Sent",        fmtHtgInteger(data.htgAmount), { bold: true });
-    if (data.rate)              drawRow("Exchange Rate",     fmtRate(data.rate));
-    if (data.usdcGross != null) drawRow("USDC Gross",        fmtUsdc(data.usdcGross));
-    if (data.feeUsdc   != null) {
-      const pct = data.feeBps != null ? ` (${(data.feeBps / 100).toFixed(2)}%)` : "";
-      drawRow(`Theo Fee${pct}`, "$" + fmtN(data.feeUsdc));
+    const swapDir = resolveSwapReceiptDirection(data);
+    if (swapDir === "htgc_to_usdc") {
+      if (data.htgAmount) drawRow("HTG Sent", fmtHtgInteger(data.htgAmount), { bold: true });
+      if (data.rate) drawRow("Exchange Rate", fmtRate(data.rate));
+      if (data.usdcGross != null) drawRow("USDC (gross)", fmtUsdc(data.usdcGross));
+    } else {
+      if (data.usdcAmount != null && data.usdcAmount > 0) {
+        drawRow("USDC Sent", fmtUsdc(data.usdcAmount), { bold: true });
+      }
+      if (data.rate) drawRow("Exchange Rate", fmtRate(data.rate));
+      const htgGrossVal =
+        data.htgGross ??
+        Math.round((data.usdcGross ?? data.usdcAmount ?? 0) * (data.rate ?? 0));
+      drawRow("HTG-C (gross)", fmtHtgInteger(htgGrossVal));
     }
-    drawTotal("USDC Received", fmtUsdc(data.usdcAmount ?? 0));
+    if (data.feeUsdc != null) {
+      const pct = data.feeBps != null ? ` (${(data.feeBps / 100).toFixed(2)}%)` : "";
+      drawRow("Theo Fee", "$" + fmtN(data.feeUsdc) + pct);
+    }
+    if (swapDir === "htgc_to_usdc") {
+      drawTotal("USDC Received", fmtUsdc(data.usdcAmount ?? 0));
+    } else {
+      drawTotal("HTG Received", fmtHtgInteger(data.htgAmount ?? 0));
+    }
 
     secGap();
     drawSection("Settlement");

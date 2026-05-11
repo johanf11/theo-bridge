@@ -13,6 +13,7 @@ type Order = {
   id: string; status: string; htg_amount: number; usdc_amount: number; rate: number;
   reference_number: string; quote_expires_at: string; stellar_tx_hash: string | null;
   failure_reason: string | null; created_at: string; order_kind?: string | null;
+  swap_direction?: string | null;
   wallet_id?: string | null;
   usdc_gross?: number | null; fee_usdc?: number | null; fee_bps?: number | null;
   principal_balance?: number | null;  // balance earning yield (yield orders only)
@@ -334,6 +335,15 @@ export default function OrderStatus() {
                     usdcGross: order.usdc_gross != null ? Number(order.usdc_gross) : undefined,
                     feeUsdc: order.fee_usdc != null ? Number(order.fee_usdc) : undefined,
                     feeBps: order.fee_bps != null ? Number(order.fee_bps) : undefined,
+                    swapDirection:
+                      order.order_kind === "htgc_usdc_swap" &&
+                      (order.swap_direction === "htgc_to_usdc" || order.swap_direction === "usdc_to_htgc")
+                        ? order.swap_direction
+                        : undefined,
+                    htgGross:
+                      order.order_kind === "htgc_usdc_swap" && order.swap_direction === "usdc_to_htgc"
+                        ? Math.round(Number(order.usdc_gross ?? 0) * Number(order.rate ?? 0))
+                        : undefined,
                     principalBalance: order.principal_balance != null ? Number(order.principal_balance) : undefined,
                     netApy: order.net_apy != null ? Number(order.net_apy) : undefined,
                     accruedAmount: order.accrued_amount != null ? Number(order.accrued_amount) : undefined,

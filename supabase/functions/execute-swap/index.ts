@@ -317,6 +317,7 @@ Deno.serve(async (req) => {
       .insert({
         customer_id: customer.id,
         order_kind: "htgc_usdc_swap",
+        swap_direction: direction,
         status: completed ? "COMPLETED" : "FAILED",
         htg_amount: htgAmount,
         usdc_amount: usdcAmount,
