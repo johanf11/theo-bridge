@@ -79,10 +79,13 @@ Deno.serve(async (req) => {
     // Customer
     const { data: customer } = await admin
       .from("customers")
-      .select("id")
+      .select("id, fee_bps, corridor_bps")
       .eq("user_id", user.id)
       .maybeSingle();
     if (!customer) return json({ error: "Customer not found" }, 404);
+    const theoBps  = (customer as { fee_bps?: number | null }).fee_bps ?? 130;
+    const corrBps  = (customer as { corridor_bps?: number | null }).corridor_bps ?? 70;
+    const totalBps = theoBps + corrBps;
 
     // Body
     const body = await req.json().catch(() => ({}));
@@ -305,6 +308,10 @@ Deno.serve(async (req) => {
         failureReason = `Leg 2 failed: ${leg2Error?.slice(0, 500)}. AUTO-REFUND ALSO FAILED: ${refundError?.slice(0, 300)}. MANUAL INTERVENTION REQUIRED — funds held at distributor.`;
       }
     }
+    const usdcGross   = Math.round((htgAmount / rate) * 1e7) / 1e7;
+    const feeUsdc     = Math.round(usdcGross * (totalBps / 10_000) * 1e7) / 1e7;
+    const theoFeeUsdc = Math.round(usdcGross * (theoBps  / 10_000) * 1e7) / 1e7;
+
     const { data: order, error: orderErr } = await admin
       .from("orders")
       .insert({
@@ -313,6 +320,12 @@ Deno.serve(async (req) => {
         status: completed ? "COMPLETED" : "FAILED",
         htg_amount: htgAmount,
         usdc_amount: usdcAmount,
+        usdc_gross: usdcGross,
+        fee_usdc: feeUsdc,
+        theo_fee_usdc: theoFeeUsdc,
+        fee_bps: totalBps,
+        theo_fee_bps: theoBps,
+        corridor_bps: corrBps,
         rate,
         spot_rate: rate,
         reference_number: reference,
