@@ -30,6 +30,7 @@ export type ReceiptData = {
   kind: "conversion" | "htgc_mint" | "swap" | "withdraw" | "payout" | "yield" | "yield_earned";
   referenceNumber?: string;
   createdAt: string;
+  completedAt?: string | null;
   htgAmount?: number;
   usdcAmount?: number;   // net USDC received (after fee)
   usdcGross?: number;    // pre-fee USDC notional
