@@ -45,6 +45,87 @@ function swapDetailsLabel(swap_direction: string | null | undefined, order_kind:
   return "HTG → USDC";
 }
 
+const usdcDigits2 = (n: number) =>
+  new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+
+/** Table: amount cell (number / $ only) + separate currency column. */
+function txAmountCurrency(tx: UnifiedTx): { amount: string; currency: string } {
+  if (tx.type === "htgc_mint") {
+    return { amount: fmtHTGC(tx.htg_amount ?? 0), currency: "HTG" };
+  }
+  if (tx.type === "yield_earned") {
+    return { amount: `+${usdcDigits2(tx.usdc_amount)}`, currency: "USDC" };
+  }
+  if (tx.type === "swap" && tx.swap_direction === "usdc_to_htgc") {
+    return { amount: fmtHTGC(tx.htg_amount ?? 0), currency: "HTG" };
+  }
+  if (tx.type === "swap") {
+    return { amount: `$${usdcDigits2(tx.usdc_amount)}`, currency: "USDC" };
+  }
+  return { amount: `$${usdcDigits2(tx.usdc_amount)}`, currency: "USDC" };
+}
+
+const currencyMuted = {
+  fontSize: 12,
+  color: "hsl(var(--theo-mid))",
+} as const;
+
+const TABLE_HEADS: { label: string; align: "left" | "right" }[] = [
+  { label: "Date", align: "left" },
+  { label: "Type", align: "left" },
+  { label: "Amount", align: "right" },
+  { label: "Currency", align: "left" },
+  { label: "Details", align: "left" },
+  { label: "Network", align: "left" },
+  { label: "Status", align: "left" },
+  { label: "Reference", align: "left" },
+  { label: "Receipt", align: "left" },
+];
+
+/** Same strings as the Type pill labels (CSV + UI). */
+const TYPE_PILL_LABEL: Record<TxType, string> = {
+  conversion: "Conversion",
+  htgc_mint: "HTG-C Mint",
+  swap: "Swap",
+  payout: "Payout",
+  yield: "Yield Deposit",
+  yield_earned: "Yield Earned",
+  transfer: "Transfer",
+  withdraw: "Withdraw",
+};
+
+/** RFC-style CSV field: always quoted; internal `"` as `""`. Excel-safe with UTF-8 BOM. */
+function csvCell(v: string | number | null | undefined): string {
+  const s = v == null ? "" : String(v);
+  return `"${s.replace(/"/g, '""')}"`;
+}
+
+/** Direction / Details export: avoid Unicode arrows in financial CSVs for Excel across locales. */
+function csvAsciiArrows(s: string): string {
+  return s.replace(/\u2192/g, "->");
+}
+
+/** Plain-text Details column for CSV (mirrors on-screen Details). */
+function txDetailsPlain(tx: UnifiedTx): string {
+  if (tx.type === "conversion") return fmtHTG(tx.htg_amount ?? 0);
+  if (tx.type === "htgc_mint") return `Minted ${fmtHTGC(tx.htg_amount ?? 0)} HTG-C`;
+  if (tx.type === "swap") return swapDetailsLabel(tx.swap_direction ?? null, tx.order_kind);
+  if (tx.type === "yield") {
+    const principal = tx.usdc_amount;
+    const apy = tx.net_apy ?? 0.07;
+    const elapsedSec = (Date.now() - new Date(tx.deposited_at ?? tx.created_at).getTime()) / 1000;
+    const accrued = principal * (Math.exp(apy * (elapsedSec / (365 * 24 * 3600))) - 1);
+    return `Deposited ${fmtUSDC(principal)} from ${tx.wallet_label ?? ""} · Earned +${fmtUSDC(accrued)} · ${(apy * 100).toFixed(2)}% APY`;
+  }
+  if (tx.type === "yield_earned") {
+    return `Yield accrued on ${tx.wallet_label ?? ""} · since ${new Date(tx.deposited_at ?? tx.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · ${((tx.net_apy ?? 0.07) * 100).toFixed(2)}% APY`;
+  }
+  if (tx.type === "transfer") return `From ${tx.wallet_label ?? ""} → ${tx.recipient_name ?? ""}`;
+  const name = tx.recipient_name ?? "";
+  const memo = tx.memo ? ` · ${tx.memo}` : "";
+  return `${name}${memo}`;
+}
+
 // Map payout statuses → the same style system StatusBadge uses
 const PAYOUT_STATUS_MAP: Record<string, string> = {
   COMPLETED: "COMPLETED",
@@ -231,21 +312,48 @@ export default function Transactions() {
   });
 
   const exportCsv = () => {
-    const rows = [
-      ["Date", "Type", "USDC Amount", "HTG Sent", "Recipient", "Status", "Reference / Note", "Receipt ID"],
-      ...all.map((tx) => [
-        new Date(tx.created_at).toLocaleDateString(),
-        tx.type === "conversion" ? "Conversion" : tx.type === "payout" ? "Payout" : tx.type === "yield" ? "Yield" : "Transfer",
-        tx.usdc_amount,
-        tx.htg_amount ?? "",
-        tx.recipient_name ?? "",
-        tx.status,
-        tx.reference_number ?? tx.memo ?? "",
-        tx.stellar_tx_hash ?? "",
-      ]),
+    const header = [
+      "Date",
+      "Type",
+      "Amount",
+      "Currency",
+      "Direction",
+      "Details",
+      "Status",
+      "Reference",
+      "Receipt ID",
     ];
-    const csv = rows.map((r) => r.join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
+    const rows = [
+      header.map((h) => csvCell(h)),
+      ...all.map((tx) => {
+        const { amount, currency } = txAmountCurrency(tx);
+        const direction =
+          tx.type === "swap"
+            ? csvAsciiArrows(swapDetailsLabel(tx.swap_direction ?? null, tx.order_kind))
+            : "";
+        const details = csvAsciiArrows(txDetailsPlain(tx));
+        const reference = tx.type === "conversion" ? (tx.reference_number ?? "") : (tx.recipient_name ?? "");
+        return [
+          csvCell(
+            new Date(tx.created_at).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            }),
+          ),
+          csvCell(TYPE_PILL_LABEL[tx.type]),
+          csvCell(amount),
+          csvCell(currency),
+          csvCell(direction),
+          csvCell(details),
+          csvCell(tx.status),
+          csvCell(reference),
+          csvCell(tx.stellar_tx_hash ?? ""),
+        ];
+      }),
+    ];
+    const csv = "\uFEFF" + rows.map((r) => r.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -319,9 +427,20 @@ export default function Transactions() {
           <table className="w-full border-collapse">
             <thead>
               <tr style={{ background: "hsl(var(--theo-cream))" }}>
-                {["Date", "Type", "Amount", "Details", "Network", "Status", "Reference / Recipient", "Receipt ID"].map((h) => (
-                  <th key={h} className="text-left px-5 py-2.5 border-b border-border" style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.10em", color: "hsl(var(--theo-mid))" }}>
-                    {h}
+                {TABLE_HEADS.map((h) => (
+                  <th
+                    key={h.label}
+                    className="px-5 py-2.5 border-b border-border"
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.10em",
+                      color: "hsl(var(--theo-mid))",
+                      textAlign: h.align,
+                    }}
+                  >
+                    {h.label}
                   </th>
                 ))}
               </tr>
@@ -329,6 +448,7 @@ export default function Transactions() {
             <tbody>
               {filtered.map((tx) => {
                 const q = query.trim().toLowerCase();
+                const { amount: amountCell, currency: currencyCell } = txAmountCurrency(tx);
                 const isHighlighted = q && (
                   (tx.reference_number ?? "").toLowerCase().includes(q) ||
                   (tx.recipient_name ?? "").toLowerCase().includes(q)
@@ -348,34 +468,41 @@ export default function Transactions() {
                     {/* Type badge */}
                     <td className="px-5 py-3">
                       {(() => {
-                        const palette: Record<TxType, { bg: string; fg: string; label: string }> = {
-                          conversion: { bg: "hsl(var(--theo-gold-soft))", fg: "#7A5F00", label: "Conversion" },
-                          htgc_mint: { bg: "hsl(var(--theo-gold-soft))", fg: "#7A5F00", label: "HTG-C Mint" },
-                          swap: { bg: "hsl(195 85% 92%)", fg: "hsl(200 80% 25%)", label: "Swap" },
-                          payout: { bg: "hsl(var(--theo-blue-soft))", fg: "hsl(var(--theo-blue))", label: "Payout" },
-                          yield: { bg: "hsl(140 60% 92%)", fg: "hsl(150 70% 25%)", label: "Yield Deposit" },
-                          yield_earned: { bg: "hsl(140 60% 92%)", fg: "hsl(150 70% 25%)", label: "Yield Earned" },
-                          transfer: { bg: "hsl(195 85% 92%)", fg: "hsl(200 80% 25%)", label: "Transfer" },
-                          withdraw: { bg: "hsl(var(--theo-blue-soft))", fg: "hsl(var(--theo-blue))", label: "Withdraw" },
+                        const palette: Record<TxType, { bg: string; fg: string }> = {
+                          conversion: { bg: "hsl(var(--theo-gold-soft))", fg: "#7A5F00" },
+                          htgc_mint: { bg: "hsl(var(--theo-gold-soft))", fg: "#7A5F00" },
+                          swap: { bg: "hsl(195 85% 92%)", fg: "hsl(200 80% 25%)" },
+                          payout: { bg: "hsl(var(--theo-blue-soft))", fg: "hsl(var(--theo-blue))" },
+                          yield: { bg: "hsl(140 60% 92%)", fg: "hsl(150 70% 25%)" },
+                          yield_earned: { bg: "hsl(140 60% 92%)", fg: "hsl(150 70% 25%)" },
+                          transfer: { bg: "hsl(195 85% 92%)", fg: "hsl(200 80% 25%)" },
+                          withdraw: { bg: "hsl(var(--theo-blue-soft))", fg: "hsl(var(--theo-blue))" },
                         };
                         const p = palette[tx.type];
                         return (
                           <span className="rounded-full font-bold" style={{ fontSize: 11, padding: "3px 8px", background: p.bg, color: p.fg }}>
-                            {p.label}
+                            {TYPE_PILL_LABEL[tx.type]}
                           </span>
                         );
                       })()}
                     </td>
 
-                    {/* Amount */}
-                    <td className="px-5 py-3" style={{ fontSize: 13, fontWeight: 700, color: tx.type === "yield_earned" ? "hsl(150 70% 25%)" : undefined }}>
-                      {tx.type === "htgc_mint"
-                        ? `${fmtHTGC(tx.htg_amount ?? 0)} HTG`
-                        : tx.type === "yield_earned"
-                        ? `+${fmtUSDC(tx.usdc_amount)}`
-                        : tx.type === "swap" && tx.swap_direction === "usdc_to_htgc"
-                        ? `${fmtHTGC(tx.htg_amount ?? 0)} HTG`
-                        : fmtUSDC(tx.usdc_amount)}
+                    {/* Amount (number only, right-aligned) */}
+                    <td
+                      className="px-5 py-3"
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 700,
+                        textAlign: "right",
+                        color: tx.type === "yield_earned" ? "hsl(150 70% 25%)" : undefined,
+                      }}
+                    >
+                      {amountCell}
+                    </td>
+
+                    {/* Currency (short label, muted) */}
+                    <td className="px-5 py-3" style={currencyMuted}>
+                      {currencyCell}
                     </td>
 
                     {/* Details: HTG for conversions, swap legs, recipient for payouts, wallet for yield, source→dest for transfer */}
