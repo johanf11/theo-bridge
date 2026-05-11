@@ -311,6 +311,7 @@ Deno.serve(async (req) => {
     const usdcGross   = Math.round((htgAmount / rate) * 1e7) / 1e7;
     const feeUsdc     = Math.round(usdcGross * (totalBps / 10_000) * 1e7) / 1e7;
     const theoFeeUsdc = Math.round(usdcGross * (theoBps  / 10_000) * 1e7) / 1e7;
+    const usdcNet     = Math.round((usdcGross - feeUsdc) * 1e7) / 1e7;
 
     const { data: order, error: orderErr } = await admin
       .from("orders")
