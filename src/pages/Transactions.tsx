@@ -176,7 +176,7 @@ export default function Transactions() {
           .from("blend_positions")
           .select("id, deposited_usdc, deposited_at, last_tx_hash, wallet_id, net_apy")
           .eq("customer_id", c.id)
-          .gte("deposited_at", cutoff)
+          // No date cutoff — yield positions are ongoing, not point-in-time
           .order("deposited_at", { ascending: false }),
       ]);
 
