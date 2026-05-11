@@ -3,6 +3,7 @@ import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, ShieldCheck, AlertCircle, CheckCircle2 } from "lucide-react";
+import { IssuanceControls } from "@/components/theo/IssuanceControls";
 
 type BackfillResult = {
   ok: boolean;
@@ -43,6 +44,8 @@ export default function AdminTools() {
           </p>
           <h1 className="text-3xl font-bold text-foreground">Operations</h1>
         </div>
+
+        <IssuanceControls />
 
         <div className="bg-card rounded-2xl border border-border p-6 space-y-4">
           <div className="flex items-start gap-4">

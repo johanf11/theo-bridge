@@ -258,7 +258,19 @@ export default function Invoices() {
 
   const copyPaymentLink = async (id: string) => {
     const link = `${window.location.origin}/inv/${id}`;
-    await navigator.clipboard.writeText(link);
+    try {
+      await navigator.clipboard.writeText(link);
+    } catch {
+      // Fallback for non-secure contexts
+      const el = document.createElement("textarea");
+      el.value = link;
+      el.style.position = "fixed";
+      el.style.opacity = "0";
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+    }
     setCopiedId(id);
     toast.success("Payment link copied");
     setTimeout(() => setCopiedId(null), 2000);

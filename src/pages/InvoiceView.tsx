@@ -123,9 +123,22 @@ export default function InvoiceView() {
       ? invoice.subtotal * (invoice.discount_value / 100)
       : 0;
 
-  // QR payload: stellar URI if wallet address known, else the payment link
+  // QR payload: SEP-7 stellar URI with memo pre-filled so wallets include it automatically
+  const USDC_ISSUER = "GDSRYZWTLQLBECKCL4TV7ZRGBZGBMSPD4V47B7Y7JSQVDJRSEXQTFCQT"; // custom testnet issuer
+  const HTGC_ISSUER = "GDSRYZWTLQLBECKCL4TV7ZRGBZGBMSPD4V47B7Y7JSQVDJRSEXQTFCQT";
+  const assetCode   = invoice.currency === "USDC" ? "USDC" : "HTGC";
+  const assetIssuer = invoice.currency === "USDC" ? USDC_ISSUER : HTGC_ISSUER;
+
   const qrPayload = invoice.wallet_address
-    ? `web+stellar:pay?destination=${invoice.wallet_address}&amount=${invoice.total}&asset_code=${invoice.currency === "USDC" ? "USDC" : "HTGC"}&memo=${encodeURIComponent(invoice.invoice_number)}`
+    ? [
+        `web+stellar:pay`,
+        `?destination=${invoice.wallet_address}`,
+        `&amount=${invoice.total}`,
+        `&asset_code=${assetCode}`,
+        `&asset_issuer=${assetIssuer}`,
+        `&memo=${encodeURIComponent(invoice.invoice_number)}`,
+        `&memo_type=MEMO_TEXT`,
+      ].join("")
     : paymentLink;
 
   // ── Render ────────────────────────────────────────────────────────────────
