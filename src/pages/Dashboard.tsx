@@ -31,7 +31,7 @@ type UnifiedTx = {
 };
 
 type Period = "7D" | "30D" | "60D" | "YTD" | "1Y";
-type Bar = { label: string; conversions: number; payouts: number };
+type BarRow = { label: string; conversions: number; payouts: number };
 type SplitSlice = { name: string; value: number };
 type RawOrder  = { usdc_amount: number; created_at: string; status: string };
 type RawPayout = { amount_usdc: number; created_at: string; status: string };
@@ -40,7 +40,7 @@ type RawPayout = { amount_usdc: number; created_at: string; status: string };
 
 function buildBuckets(
   orders: RawOrder[], payouts: RawPayout[], period: Period
-): Bar[] {
+): BarRow[] {
   const now = new Date();
   const buckets: { label: string; start: Date; end: Date }[] = [];
 
