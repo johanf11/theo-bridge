@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
     if (!usdcIssuer) return json({ error: "STELLAR_USDC_ISSUER not configured" }, 500);
 
     let treasuryAddress: string;
-    try { treasuryAddress = distributorPublicKey(); }
+    try { treasuryAddress = blendTreasuryPublicKey(); }
     catch (e) { return json({ error: (e as Error).message }, 500); }
 
     const userClient = createClient(url, anon, { global: { headers: { Authorization: authHeader } } });
