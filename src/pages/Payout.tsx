@@ -415,10 +415,10 @@ export default function Payout() {
                   {savedRecipients.length > 0 && (
                     <button
                       type="button"
-                      onClick={() => setShowManage((v) => !v)}
+                      onClick={() => setShowManage(true)}
                       style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-mid))", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 3 }}
                     >
-                      Manage {showManage ? <ChevronUp style={{ width: 11, height: 11 }} /> : <ChevronDown style={{ width: 11, height: 11 }} />}
+                      Manage <ChevronDown style={{ width: 11, height: 11, transform: "rotate(-90deg)" }} />
                     </button>
                   )}
                 </div>
