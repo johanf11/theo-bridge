@@ -2,7 +2,7 @@ import { useState } from "react";
 import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, ShieldCheck, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Loader2, ShieldCheck, AlertCircle, CheckCircle2, Coins } from "lucide-react";
 import { IssuanceControls } from "@/components/theo/IssuanceControls";
 
 type BackfillResult = {
