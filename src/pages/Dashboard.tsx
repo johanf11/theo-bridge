@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useBlendPositions } from "@/hooks/useBlendPositions";
 import { useAuth } from "@/lib/auth";
+import { fmtHTGC } from "@/lib/format";
 import { Plus, FileText, AlertTriangle } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -20,7 +21,7 @@ type Customer = {
 
 type UnifiedTx = {
   id: string;
-  type: "conversion" | "payout";
+  type: "conversion" | "swap" | "payout";
   status: string;
   usdc_amount: number;
   htg_amount: number | null;
@@ -28,6 +29,8 @@ type UnifiedTx = {
   reference: string;
   description: string;
   created_at: string;
+  order_kind?: string | null;
+  swap_direction?: string | null;
 };
 
 type Period = "7D" | "30D" | "60D" | "YTD" | "1Y";
@@ -261,7 +264,7 @@ export default function Dashboard() {
       ] = await Promise.all([
         supabase
           .from("orders")
-          .select("id, status, usdc_amount, htg_amount, rate, reference_number, created_at")
+          .select("id, status, usdc_amount, htg_amount, rate, reference_number, created_at, order_kind, swap_direction")
           .eq("customer_id", c.id)
           .order("created_at", { ascending: false })
           .limit(5),
@@ -307,16 +310,31 @@ export default function Dashboard() {
       ]);
 
       // ── Merge recent transactions ──────────────────────────────────────────
-      const orderTxs: UnifiedTx[] = (orders ?? []).map((o) => ({
-        id: o.id, type: "conversion" as const,
-        status: o.status,
-        usdc_amount: Number(o.usdc_amount),
-        htg_amount: Number(o.htg_amount),
-        rate: o.rate ? Number(o.rate) : null,
-        reference: o.reference_number,
-        description: "HTG → USDC",
-        created_at: o.created_at,
-      }));
+      const orderTxs: UnifiedTx[] = (orders ?? []).map((o) => {
+        const kind = (o as { order_kind?: string | null }).order_kind ?? null;
+        const swap_direction = (o as { swap_direction?: string | null }).swap_direction ?? null;
+        const isSwap = kind === "htgc_usdc_swap";
+        const description = (() => {
+          if (!isSwap) return "HTG → USDC";
+          if (swap_direction === "usdc_to_htgc") return "USDC → HTG-C";
+          if (swap_direction === "htgc_to_usdc") return "HTG → USDC";
+          if (kind === "htgc_usdc_swap") return "HTG → USDC";
+          return kind ? String(kind).replace(/_/g, " ") : "HTG → USDC";
+        })();
+        return {
+          id: o.id,
+          type: isSwap ? ("swap" as const) : ("conversion" as const),
+          order_kind: kind,
+          swap_direction,
+          status: o.status,
+          usdc_amount: Number(o.usdc_amount),
+          htg_amount: o.htg_amount != null ? Number(o.htg_amount) : null,
+          rate: o.rate ? Number(o.rate) : null,
+          reference: o.reference_number,
+          description,
+          created_at: o.created_at,
+        };
+      });
 
       const payoutTxs: UnifiedTx[] = (payouts ?? []).map((p) => ({
         id: p.id, type: "payout" as const,
@@ -654,20 +672,26 @@ export default function Dashboard() {
                   <td className="px-5 py-3">
                     <span style={{
                       fontSize: 11, fontWeight: 700, borderRadius: 99, padding: "3px 8px",
-                      background: t.type === "conversion" ? "hsl(var(--theo-gold-soft))" : "hsl(var(--theo-blue-soft))",
-                      color: t.type === "conversion" ? "#7A5F00" : "hsl(var(--theo-blue))",
+                      background: t.type === "conversion" ? "hsl(var(--theo-gold-soft))" : t.type === "swap" ? "hsl(195 85% 92%)" : "hsl(var(--theo-blue-soft))",
+                      color: t.type === "conversion" ? "#7A5F00" : t.type === "swap" ? "hsl(200 80% 25%)" : "hsl(var(--theo-blue))",
                     }}>
-                      {t.type === "conversion" ? "Conversion" : "Payout"}
+                      {t.type === "conversion" ? "Conversion" : t.type === "swap" ? "Swap" : "Payout"}
                     </span>
                   </td>
                   <td className="px-5 py-3" style={{ fontSize: 12, color: "hsl(var(--theo-mid))", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {t.description}
                   </td>
                   <td className="px-5 py-3" style={{ fontSize: 13, fontWeight: 700 }}>
-                    ${Number(t.usdc_amount).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    {t.type === "swap" && t.swap_direction === "usdc_to_htgc"
+                      ? `${fmtHTGC(Number(t.htg_amount ?? 0))} HTG`
+                      : `$${Number(t.usdc_amount).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
                   </td>
                   <td className="px-5 py-3" style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>
-                    {t.htg_amount ? `G ${Number(t.htg_amount).toLocaleString("en-US", { maximumFractionDigits: 0 })}` : "—"}
+                    {t.type === "payout" || (t.type === "swap" && t.swap_direction === "usdc_to_htgc")
+                      ? "—"
+                      : t.htg_amount != null && t.htg_amount > 0
+                        ? `${fmtHTGC(t.htg_amount)} HTG`
+                        : "—"}
                   </td>
                   <td className="px-5 py-3" style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>
                     {t.rate ? t.rate.toFixed(2) : "—"}

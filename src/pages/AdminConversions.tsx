@@ -49,7 +49,7 @@ function timeAgo(dateStr: string) {
 
 function fmtHTG(n: number | null | undefined) {
   const v = Number(n ?? 0);
-  return `G ${v.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  return `${v.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} HTG`;
 }
 function fmtUSDC(n: number | null | undefined) {
   const v = Number(n ?? 0);

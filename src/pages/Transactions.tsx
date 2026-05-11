@@ -26,6 +26,7 @@ type UnifiedTx = {
   fee_usdc?: number;
   fee_bps?: number;
   swap_direction?: string | null;
+  order_kind?: string;
   // payout / transfer
   recipient_name?: string;
   memo?: string | null;
@@ -35,6 +36,14 @@ type UnifiedTx = {
   deposited_at?: string;
   net_apy?: number;
 };
+
+function swapDetailsLabel(swap_direction: string | null | undefined, order_kind: string | undefined): string {
+  if (swap_direction === "usdc_to_htgc") return "USDC → HTG-C";
+  if (swap_direction === "htgc_to_usdc") return "HTG → USDC";
+  if (order_kind === "htgc_usdc_swap") return "HTG → USDC";
+  if (order_kind) return order_kind.replace(/_/g, " ");
+  return "HTG → USDC";
+}
 
 // Map payout statuses → the same style system StatusBadge uses
 const PAYOUT_STATUS_MAP: Record<string, string> = {
@@ -132,6 +141,7 @@ export default function Transactions() {
             fee_usdc: row.fee_usdc != null ? Number(row.fee_usdc) : undefined,
             fee_bps: row.fee_bps != null ? Number(row.fee_bps) : undefined,
             swap_direction: row.swap_direction ?? undefined,
+            order_kind: kind,
           };
         }),
         ...(payouts ?? []).map((p) => {
@@ -309,7 +319,7 @@ export default function Transactions() {
           <table className="w-full border-collapse">
             <thead>
               <tr style={{ background: "hsl(var(--theo-cream))" }}>
-                {["Date", "Type", "Amount (USDC)", "Details", "Network", "Status", "Reference / Recipient", "Receipt ID"].map((h) => (
+                {["Date", "Type", "Amount", "Details", "Network", "Status", "Reference / Recipient", "Receipt ID"].map((h) => (
                   <th key={h} className="text-left px-5 py-2.5 border-b border-border" style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.10em", color: "hsl(var(--theo-mid))" }}>
                     {h}
                   </th>
@@ -363,6 +373,8 @@ export default function Transactions() {
                         ? `${fmtHTGC(tx.htg_amount ?? 0)} HTG`
                         : tx.type === "yield_earned"
                         ? `+${fmtUSDC(tx.usdc_amount)}`
+                        : tx.type === "swap" && tx.swap_direction === "usdc_to_htgc"
+                        ? `${fmtHTGC(tx.htg_amount ?? 0)} HTG`
                         : fmtUSDC(tx.usdc_amount)}
                     </td>
 
@@ -374,7 +386,7 @@ export default function Transactions() {
                         <span style={{ color: "hsl(var(--theo-ink))" }}>Minted {fmtHTGC(tx.htg_amount ?? 0)} HTG-C</span>
                       ) : tx.type === "swap" ? (
                         <span style={{ color: "hsl(var(--theo-ink))" }}>
-                          {fmtHTGC(tx.htg_amount ?? 0)} HTG-C ↔ {fmtUSDC(tx.usdc_amount)}
+                          {swapDetailsLabel(tx.swap_direction ?? null, tx.order_kind)}
                         </span>
                       ) : tx.type === "yield" ? (
                         (() => {
