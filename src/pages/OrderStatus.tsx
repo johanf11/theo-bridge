@@ -12,7 +12,7 @@ import { generateReceipt } from "@/lib/receipt";
 type Order = {
   id: string; status: string; htg_amount: number; usdc_amount: number; rate: number;
   reference_number: string; quote_expires_at: string; stellar_tx_hash: string | null;
-  failure_reason: string | null; created_at: string; order_kind?: string | null;
+  failure_reason: string | null; created_at: string; completed_at?: string | null; order_kind?: string | null;
   swap_direction?: string | null;
   wallet_id?: string | null;
   usdc_gross?: number | null; fee_usdc?: number | null; fee_bps?: number | null;
@@ -330,6 +330,7 @@ export default function OrderStatus() {
                     kind: (order.order_kind ?? "conversion") as Parameters<typeof generateReceipt>[0]["kind"],
                     referenceNumber: order.reference_number,
                     createdAt: order.created_at,
+                    completedAt: order.completed_at ?? null,
                     htgAmount: Number(order.htg_amount),
                     usdcAmount: Number(order.usdc_amount),
                     usdcGross: order.usdc_gross != null ? Number(order.usdc_gross) : undefined,

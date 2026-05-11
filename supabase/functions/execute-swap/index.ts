@@ -151,6 +151,11 @@ Deno.serve(async (req) => {
     try { assertWithinLimits(usdcAmount, "Swap amount"); }
     catch (e) { return json({ error: (e as Error).message }, 400); }
 
+    const usdcGross   = Math.round(usdcAmount * 1e7) / 1e7;
+    const feeUsdc     = Math.round(usdcGross * (totalBps / 10_000) * 1e7) / 1e7;
+    const theoFeeUsdc = Math.round(usdcGross * (theoBps  / 10_000) * 1e7) / 1e7;
+    const usdcNet     = Math.round((usdcGross - feeUsdc) * 1e7) / 1e7;
+    const leg2Amount  = direction === "htgc_to_usdc" ? usdcNet : destAmount;
 
     const server = new Horizon.Server(HORIZON_URL);
     const userKp = Keypair.fromSecret(wallet.stellar_secret);
@@ -253,7 +258,7 @@ Deno.serve(async (req) => {
         .addOperation(Operation.payment({
           destination: wallet.stellar_address,
           asset: destAsset,
-          amount: destAmount.toFixed(7),
+          amount: leg2Amount.toFixed(7),
         }))
         .addMemo(Memo.text(reference.slice(0, 28)))
         .setTimeout(60)
@@ -308,10 +313,6 @@ Deno.serve(async (req) => {
         failureReason = `Leg 2 failed: ${leg2Error?.slice(0, 500)}. AUTO-REFUND ALSO FAILED: ${refundError?.slice(0, 300)}. MANUAL INTERVENTION REQUIRED — funds held at distributor.`;
       }
     }
-    const usdcGross   = Math.round((htgAmount / rate) * 1e7) / 1e7;
-    const feeUsdc     = Math.round(usdcGross * (totalBps / 10_000) * 1e7) / 1e7;
-    const theoFeeUsdc = Math.round(usdcGross * (theoBps  / 10_000) * 1e7) / 1e7;
-
     const { data: order, error: orderErr } = await admin
       .from("orders")
       .insert({
@@ -320,7 +321,7 @@ Deno.serve(async (req) => {
         swap_direction: direction,
         status: completed ? "COMPLETED" : "FAILED",
         htg_amount: htgAmount,
-        usdc_amount: usdcAmount,
+        usdc_amount: direction === "htgc_to_usdc" ? usdcNet : usdcAmount,
         usdc_gross: usdcGross,
         fee_usdc: feeUsdc,
         theo_fee_usdc: theoFeeUsdc,
