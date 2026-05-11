@@ -112,6 +112,19 @@ Deno.serve(async (req) => {
       }).eq("id", position.id);
     }
 
+    await admin.from("payouts").insert({
+      customer_id: position.customer_id,
+      recipient_name: "Blend Protocol Withdrawal",
+      recipient_address: wallet.stellar_address,
+      amount_usdc: payoutAmount,
+      status: "COMPLETED",
+      memo: "blend-withdraw",
+      stellar_tx_hash: hash,
+      source_wallet_id: position.wallet_id,
+      completed_at: now,
+      created_at: now,
+    });
+
     return json({ ok: true, hash, withdrawn: payoutAmount, accrued });
   } catch (e) {
     console.error("blend-withdraw error", e);
