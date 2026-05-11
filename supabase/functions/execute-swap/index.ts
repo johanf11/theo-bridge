@@ -155,7 +155,8 @@ Deno.serve(async (req) => {
     const feeUsdc     = Math.round(usdcGross * (totalBps / 10_000) * 1e7) / 1e7;
     const theoFeeUsdc = Math.round(usdcGross * (theoBps  / 10_000) * 1e7) / 1e7;
     const usdcNet     = Math.round((usdcGross - feeUsdc) * 1e7) / 1e7;
-    const htgNet      = Math.round((usdcNet * rate) * 1e7) / 1e7;
+    // HTG has no cents — convert net USDC once and round to whole gourdes.
+    const htgNet      = Math.round(usdcNet * rate);
     const leg2Amount  = direction === "htgc_to_usdc" ? usdcNet : htgNet;
     // Persisted htg_amount must be NET of fees for usdc_to_htgc; for htgc_to_usdc
     // the user supplied gross HTGC so htgAmount stays as-is.
