@@ -2,7 +2,7 @@ import { useState } from "react";
 import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, ShieldCheck, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Loader2, ShieldCheck, AlertCircle, CheckCircle2, Coins } from "lucide-react";
 import { IssuanceControls } from "@/components/theo/IssuanceControls";
 
 type BackfillResult = {
@@ -16,6 +16,7 @@ type BackfillResult = {
 export default function AdminTools() {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<BackfillResult | null>(null);
+  const [topupRunning, setTopupRunning] = useState(false);
 
   async function runBackfill() {
     setRunning(true);
@@ -35,6 +36,23 @@ export default function AdminTools() {
     }
   }
 
+  async function runTopup() {
+    setTopupRunning(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("topup-distributor-usdc", {
+        body: { amount: 500_000 },
+      });
+      if (error) throw error;
+      const r = data as { ok?: boolean; hash?: string; error?: string };
+      if (!r.ok) throw new Error(r.error || "Top-up failed");
+      toast.success(`Minted 500,000 USDC to distributor. Tx ${r.hash?.slice(0, 10)}…`);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setTopupRunning(false);
+    }
+  }
+
   return (
     <AppLayout>
       <div className="max-w-3xl mx-auto py-10 space-y-8">
@@ -46,6 +64,36 @@ export default function AdminTools() {
         </div>
 
         <IssuanceControls />
+
+        <div className="bg-card rounded-2xl border border-border p-6 space-y-4">
+          <div className="flex items-start gap-4">
+            <div className="rounded-[22%] bg-primary/10 p-3 text-primary">
+              <Coins className="h-6 w-6" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-lg font-bold text-foreground">Top up distributor USDC</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Mints 500,000 testnet USDC from the issuer to the distributor wallet
+                (GCP6…BS2X) so swaps have enough liquidity to settle. Testnet only.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={runTopup}
+            disabled={topupRunning}
+            className="w-full sm:w-auto rounded-[10px] bg-primary text-primary-foreground px-5 py-2.5 font-semibold text-sm disabled:opacity-60 inline-flex items-center gap-2"
+          >
+            {topupRunning ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Minting…
+              </>
+            ) : (
+              "Mint 500,000 USDC"
+            )}
+          </button>
+        </div>
 
         <div className="bg-card rounded-2xl border border-border p-6 space-y-4">
           <div className="flex items-start gap-4">
