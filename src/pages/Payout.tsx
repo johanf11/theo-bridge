@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AppLayout } from "@/components/theo/Layout";
-import { Upload, Loader2, Star, X, ChevronDown, ChevronUp, CheckCircle2, AlertTriangle, Info, Building2 } from "lucide-react";
+import { Upload, Loader2, Star, X, ChevronDown, ChevronUp, CheckCircle2, AlertTriangle, Info, Building2, Pencil, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
