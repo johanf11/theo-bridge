@@ -329,6 +329,7 @@ export default function OrderStatus() {
                     kind: (order.order_kind ?? "conversion") as Parameters<typeof generateReceipt>[0]["kind"],
                     referenceNumber: order.reference_number,
                     createdAt: order.created_at,
+                    completedAt: order.completed_at ?? null,
                     htgAmount: Number(order.htg_amount),
                     usdcAmount: Number(order.usdc_amount),
                     usdcGross: order.usdc_gross != null ? Number(order.usdc_gross) : undefined,
