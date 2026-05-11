@@ -79,10 +79,13 @@ Deno.serve(async (req) => {
     // Customer
     const { data: customer } = await admin
       .from("customers")
-      .select("id")
+      .select("id, fee_bps, corridor_bps")
       .eq("user_id", user.id)
       .maybeSingle();
     if (!customer) return json({ error: "Customer not found" }, 404);
+    const theoBps  = (customer as { fee_bps?: number | null }).fee_bps ?? 130;
+    const corrBps  = (customer as { corridor_bps?: number | null }).corridor_bps ?? 70;
+    const totalBps = theoBps + corrBps;
 
     // Body
     const body = await req.json().catch(() => ({}));
