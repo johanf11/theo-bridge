@@ -14,6 +14,35 @@ type Profile = { kyb_status: KybStatus; stellar_wallet_address: string | null; f
 type WalletOption = { id: string; label: string; stellar_address: string };
 type BankAccount = { id: string; bank_name: string; account_name: string; account_number: string; routing_code: string | null; is_default: boolean };
 
+type PendingConversionQuote = {
+  quoteId: string;
+  referenceNumber: string;
+  htgRequired: number;
+  usdcAmount: number;
+  usdcGross: number;
+  feeUsdc: number;
+  feeBps: number;
+  rate: number;
+};
+
+function parseConversionQuoteResponse(data: Record<string, unknown> | null | undefined): PendingConversionQuote | null {
+  if (!data || typeof data.quote_id !== "string") return null;
+  return {
+    quoteId: data.quote_id,
+    referenceNumber: String(data.reference_number ?? ""),
+    htgRequired: Number(data.htg_required),
+    usdcAmount: Number(data.usdc_amount),
+    usdcGross: Number(data.usdc_gross),
+    feeUsdc: Number(data.fee_usdc),
+    feeBps: Number(data.fee_bps),
+    rate: Number(data.rate),
+  };
+}
+
+function fmtUsdc2dp(n: number) {
+  return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 const HAITI_BANKS = [
   "BNC (Banque Nationale de Crédit)",
   "Sogebank",
@@ -61,8 +90,7 @@ export default function Convert() {
   const [usdcDisplay, setUsdcDisplay] = useState("10,000");
   const [lockSecs, setLockSecs] = useState(15 * 60);
   const [busy, setBusy] = useState(false);
-  const [locked, setLocked] = useState(false);
-  const [lockedRef, setLockedRef] = useState("");
+  const [pendingConversionQuote, setPendingConversionQuote] = useState<PendingConversionQuote | null>(null);
   const [walletOptions, setWalletOptions] = useState<WalletOption[]>([]);
   const [selectedWallet, setSelectedWallet] = useState<string>("");
 
@@ -289,10 +317,10 @@ export default function Convert() {
         body: { usdc_amount: usdcRaw, destination_wallet_address: selectedWallet },
       });
       if (error || data?.error) { toast.error(data?.error || error?.message || "Quote failed"); return; }
-      setLocked(true);
-      setLockedRef(data.reference_number);
+      const parsed = parseConversionQuoteResponse(data as Record<string, unknown>);
+      if (!parsed) { toast.error("Invalid quote response"); return; }
+      setPendingConversionQuote(parsed);
       toast.success(`Rate locked. Reference ${data.reference_number}`);
-      navigate(`/orders/${data.quote_id}`);
     } finally {
       setBusy(false);
     }
@@ -430,16 +458,15 @@ export default function Convert() {
   const fmtUsdcStr = (n: number) =>
     n > 0 ? n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "";
   const fmtHtgStr = (n: number) =>
-    n > 0 ? n.toLocaleString("en-US", { maximumFractionDigits: 2 }) : "";
+    n > 0 ? Math.round(n).toLocaleString("en-US") : "";
 
   const handleHtgInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Allow digits and a single decimal point with up to 2 decimal places
-    const cleaned = e.target.value.replace(/[^\d.]/g, "");
-    const parts = cleaned.split(".");
-    let intPart = parts[0].replace(/^0+(?=\d)/, "");
-    let decPart = parts.length > 1 ? parts.slice(1).join("").slice(0, 2) : null;
-    let normalized = decPart !== null ? `${intPart || "0"}.${decPart}` : intPart;
-    let num = parseFloat(normalized) || 0;
+    // HTG has no cents — integers only
+    const cleaned = e.target.value.replace(/[^\d]/g, "");
+    let intPart = cleaned.replace(/^0+(?=\d)/, "");
+    const decPart = null;
+    const normalized = intPart;
+    let num = parseInt(normalized, 10) || 0;
     // Cap HTG input so its USDC equivalent never exceeds 50,000 USDC
     if (htgReceiveMode === "usdc" && liveRate && liveRate > 0) {
       const f = totalBps / 10_000;
@@ -539,8 +566,10 @@ export default function Convert() {
           toast.error(data?.error || error?.message || "Failed to create quote");
           return;
         }
+        const parsed = parseConversionQuoteResponse(data as Record<string, unknown>);
+        if (!parsed) { toast.error("Invalid quote response"); return; }
+        setPendingConversionQuote(parsed);
         toast.success(`Rate locked. Reference ${data.reference_number}`);
-        navigate(`/orders/${data.quote_id}`);
       } finally {
         setHtgBusy(false);
       }
@@ -1810,6 +1839,61 @@ export default function Convert() {
                     style={{ flex: 2, background: offBusy ? "hsl(var(--theo-mid))" : "hsl(var(--theo-blue))", color: "#fff", border: "none", borderRadius: 9, padding: "10px", fontSize: 13, fontWeight: 700, cursor: offBusy ? "not-allowed" : "pointer", fontFamily: "inherit" }}
                   >
                     {offBusy ? <><Loader2 size={14} className="animate-spin" /> Processing…</> : <><CheckCircle2 size={14} /> Confirm withdrawal</>}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── USDC conversion quote confirm (same overlay pattern as withdrawal) ── */}
+      {pendingConversionQuote && (() => {
+        const q = pendingConversionQuote;
+        const feePct =
+          Number.isFinite(q.feeBps) ? ` (${(q.feeBps / 100).toFixed(2)}%)` : "";
+        const rows: [string, string][] = [
+          ["Reference", q.referenceNumber],
+          ["Exchange Rate", `${q.rate.toFixed(2)} HTG / USDC`],
+          ["HTG Sent", `${Math.round(q.htgRequired).toLocaleString("en-US")} HTG`],
+          ["USDC (gross)", fmtUsdc2dp(q.usdcGross)],
+          ["Theo Fee", `${fmtUsdc2dp(q.feeUsdc)}${feePct}`],
+          ["USDC Received", fmtUsdc2dp(q.usdcAmount)],
+        ];
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+            <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 420, boxShadow: "0 20px 60px rgba(0,0,0,0.2)", overflow: "hidden" }}>
+              <div className="px-5 py-4" style={{ borderBottom: "1px solid hsl(var(--theo-light))" }}>
+                <div className="font-bold" style={{ fontSize: 15, color: "hsl(var(--theo-blue))" }}>Confirm your quote</div>
+                <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))", marginTop: 1 }}>Review locked amounts · then continue to payment instructions</div>
+              </div>
+
+              <div className="p-5">
+                {rows.map(([k, v]) => (
+                  <div key={k} className="flex justify-between py-2.5" style={{ borderBottom: "1px solid hsl(var(--theo-light))", fontSize: 13 }}>
+                    <span style={{ color: "hsl(var(--theo-mid))" }}>{k}</span>
+                    <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>{v}</span>
+                  </div>
+                ))}
+
+                <div className="flex gap-2 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setPendingConversionQuote(null)}
+                    style={{ flex: 1, background: "transparent", border: "1.5px solid hsl(var(--theo-light))", color: "hsl(var(--theo-mid))", borderRadius: 9, padding: "10px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigate(`/orders/${q.quoteId}`);
+                      setPendingConversionQuote(null);
+                    }}
+                    className="flex items-center justify-center gap-2"
+                    style={{ flex: 2, background: "hsl(var(--theo-blue))", color: "#fff", border: "none", borderRadius: 9, padding: "10px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+                  >
+                    <CheckCircle2 size={14} /> Continue to deposit instructions
                   </button>
                 </div>
               </div>

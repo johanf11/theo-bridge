@@ -61,6 +61,10 @@ function fmtN(n: number, d = 2) {
   }).format(n);
 }
 function fmtHtg (n: number) { return "HTG "  + fmtN(n); }
+/** Whole gourdes only — no fractional HTG on receipts. */
+function fmtHtgInteger(n: number) {
+  return "HTG " + Math.round(n).toLocaleString("en-US");
+}
 function fmtUsdc(n: number) { return "USDC " + fmtN(n); }
 function fmtRate(r: number) { return "1 USD = " + r.toFixed(2) + " HTG"; }
 
@@ -281,17 +285,17 @@ function _buildPdf(data: ReceiptData): void {
     drawStatus(data.status);
     if (data.referenceNumber) drawRow("Reference",      data.referenceNumber);
 
-    // TRANSACTION BREAKDOWN
+    // TRANSACTION BREAKDOWN (order: rate → HTG sent → USDC gross → fee → net)
     secGap();
     drawSection("Transaction Breakdown");
-    if (data.htgAmount)       drawRow("HTG Submitted",       fmtHtg(data.htgAmount),  { bold: true });
-    if (data.rate)            drawRow("Exchange Rate (BRH)", fmtRate(data.rate));
-    if (data.usdcGross != null) drawRow("USDC Gross",        fmtUsdc(data.usdcGross));
-    if (data.feeUsdc   != null) {
+    if (data.rate) drawRow("Exchange Rate", fmtRate(data.rate));
+    if (data.htgAmount) drawRow("HTG Sent", fmtHtgInteger(data.htgAmount), { bold: true });
+    if (data.usdcGross != null) drawRow("USDC (gross)", fmtUsdc(data.usdcGross));
+    if (data.feeUsdc != null) {
       const pct = data.feeBps != null ? ` (${(data.feeBps / 100).toFixed(2)}%)` : "";
-      drawRow(`Theo Fee${pct}`, "− $" + fmtN(data.feeUsdc), { indent: true });
+      drawRow("Theo Fee", "$" + fmtN(data.feeUsdc) + pct);
     }
-    drawTotal("Net USDC Received", fmtUsdc(data.usdcAmount ?? 0));
+    drawTotal("USDC Received", fmtUsdc(data.usdcAmount ?? 0));
 
     // SETTLEMENT
     secGap();
@@ -311,14 +315,14 @@ function _buildPdf(data: ReceiptData): void {
 
     secGap();
     drawSection("Transaction Breakdown");
-    if (data.htgAmount)         drawRow("HTGC Submitted",   "HTGC " + fmtN(data.htgAmount), { bold: true });
+    if (data.htgAmount)         drawRow("HTG Sent",        fmtHtgInteger(data.htgAmount), { bold: true });
     if (data.rate)              drawRow("Exchange Rate",     fmtRate(data.rate));
     if (data.usdcGross != null) drawRow("USDC Gross",        fmtUsdc(data.usdcGross));
     if (data.feeUsdc   != null) {
       const pct = data.feeBps != null ? ` (${(data.feeBps / 100).toFixed(2)}%)` : "";
-      drawRow(`Theo Fee${pct}`, "− $" + fmtN(data.feeUsdc), { indent: true });
+      drawRow(`Theo Fee${pct}`, "$" + fmtN(data.feeUsdc));
     }
-    drawTotal("Net USDC Received", fmtUsdc(data.usdcAmount ?? 0));
+    drawTotal("USDC Received", fmtUsdc(data.usdcAmount ?? 0));
 
     secGap();
     drawSection("Settlement");
