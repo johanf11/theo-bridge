@@ -91,6 +91,9 @@ export default function Payout() {
   // Saved recipients
   const [savedRecipients, setSavedRecipients] = useState<SavedRecipient[]>([]);
   const [showManage, setShowManage] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState<SavedRecipient | null>(null);
   const [saveAfterSend, setSaveAfterSend] = useState(false);
   const [recipientSearch, setRecipientSearch] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
