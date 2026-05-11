@@ -68,6 +68,36 @@ export default function AdminTools() {
         <div className="bg-card rounded-2xl border border-border p-6 space-y-4">
           <div className="flex items-start gap-4">
             <div className="rounded-[22%] bg-primary/10 p-3 text-primary">
+              <Coins className="h-6 w-6" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-lg font-bold text-foreground">Top up distributor USDC</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Mints 500,000 testnet USDC from the issuer to the distributor wallet
+                (GCP6…BS2X) so swaps have enough liquidity to settle. Testnet only.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={runTopup}
+            disabled={topupRunning}
+            className="w-full sm:w-auto rounded-[10px] bg-primary text-primary-foreground px-5 py-2.5 font-semibold text-sm disabled:opacity-60 inline-flex items-center gap-2"
+          >
+            {topupRunning ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Minting…
+              </>
+            ) : (
+              "Mint 500,000 USDC"
+            )}
+          </button>
+        </div>
+
+        <div className="bg-card rounded-2xl border border-border p-6 space-y-4">
+          <div className="flex items-start gap-4">
+            <div className="rounded-[22%] bg-primary/10 p-3 text-primary">
               <ShieldCheck className="h-6 w-6" />
             </div>
             <div className="flex-1">
