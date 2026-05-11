@@ -69,9 +69,20 @@ function fmtUsdc(n: number) { return "USDC " + fmtN(n); }
 function fmtRate(r: number) { return "1 USD = " + r.toFixed(2) + " HTG"; }
 
 function fmtDate(iso: string) {
-  const dt   = new Date(iso);
-  const date = dt.toLocaleDateString ("en-US", { month: "long", day: "numeric", year: "numeric" });
-  const time = dt.toLocaleTimeString ("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }) + " UTC";
+  const dt = new Date(iso);
+  const date = dt.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+  const time =
+    dt.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: "UTC",
+    }) + " UTC";
   return date + " · " + time;
 }
 function fmtDateShort(iso: string) {
