@@ -504,41 +504,28 @@ export default function Transactions() {
                       {currencyCell}
                     </td>
 
-                    {/* Details: HTG for conversions, swap legs, recipient for payouts, wallet for yield, source→dest for transfer */}
+                    {/* Details */}
                     <td className="px-5 py-3" style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>
                       {tx.type === "conversion" ? (
                         fmtHTG(tx.htg_amount ?? 0)
                       ) : tx.type === "htgc_mint" ? (
-                        <span style={{ color: "hsl(var(--theo-ink))" }}>Minted {fmtHTGC(tx.htg_amount ?? 0)} HTG-C</span>
+                        `Minted ${fmtHTGC(tx.htg_amount ?? 0)} HTG-C`
                       ) : tx.type === "swap" ? (
-                        <span style={{ color: "hsl(var(--theo-ink))" }}>
-                          {swapDetailsLabel(tx.swap_direction ?? null, tx.order_kind)}
-                        </span>
+                        swapDetailsLabel(tx.swap_direction ?? null, tx.order_kind)
                       ) : tx.type === "yield" ? (
                         (() => {
                           const principal = tx.usdc_amount;
                           const apy = tx.net_apy ?? 0.07;
                           const elapsedSec = (Date.now() - new Date(tx.deposited_at ?? tx.created_at).getTime()) / 1000;
                           const accrued = principal * (Math.exp(apy * (elapsedSec / (365 * 24 * 3600))) - 1);
-                          return (
-                            <span style={{ color: "hsl(var(--theo-ink))" }}>
-                              Deposited {fmtUSDC(principal)} from {tx.wallet_label}
-                              <span style={{ color: "hsl(150 70% 25%)", fontWeight: 700, marginLeft: 6 }}>
-                                · Earned +{fmtUSDC(accrued)}
-                              </span>
-                              <span style={{ color: "hsl(var(--theo-mid))" }}> · {(apy * 100).toFixed(2)}% APY</span>
-                            </span>
-                          );
+                          return `Deposited ${fmtUSDC(principal)} from ${tx.wallet_label} · Earned +${fmtUSDC(accrued)} · ${(apy * 100).toFixed(2)}% APY`;
                         })()
                       ) : tx.type === "yield_earned" ? (
-                        <span style={{ color: "hsl(var(--theo-ink))" }}>
-                          Yield accrued on {tx.wallet_label}
-                          <span style={{ color: "hsl(var(--theo-mid))" }}> · since {new Date(tx.deposited_at ?? tx.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {((tx.net_apy ?? 0.07) * 100).toFixed(2)}% APY</span>
-                        </span>
+                        `Yield accrued on ${tx.wallet_label} · since ${new Date(tx.deposited_at ?? tx.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · ${((tx.net_apy ?? 0.07) * 100).toFixed(2)}% APY`
                       ) : tx.type === "transfer" ? (
-                        <span style={{ color: "hsl(var(--theo-ink))" }}>From {tx.wallet_label} → {tx.recipient_name}</span>
+                        `From ${tx.wallet_label} → ${tx.recipient_name}`
                       ) : (
-                        <span style={{ color: "hsl(var(--theo-ink))" }}>{tx.recipient_name}</span>
+                        tx.recipient_name
                       )}
                     </td>
 

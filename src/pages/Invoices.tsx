@@ -110,6 +110,7 @@ export default function Invoices() {
   const [listLoading, setListLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [invoiceTab, setInvoiceTab] = useState<"active" | "paid" | "all">("active");
 
   // Form state
   const [invoiceNumber, setInvoiceNumber] = useState(genInvoiceNumber());
@@ -563,7 +564,7 @@ export default function Invoices() {
 
         {/* ── Invoice list ─────────────────────────────────────────────────── */}
         <div className="bg-card border border-border rounded-xl shadow-xs" style={{ padding: "18px 20px 16px" }}>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-3">
             <div className="font-bold" style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>Your invoices</div>
             {!listLoading && (
               <span style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>
@@ -572,22 +573,73 @@ export default function Invoices() {
             )}
           </div>
 
-          {listLoading ? (
-            <div style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>Loading…</div>
-          ) : invoices.length === 0 ? (
+          {/* Filter tabs */}
+          <div style={{ display: "flex", gap: 2, marginBottom: 14, borderBottom: "1px solid hsl(var(--theo-light))", paddingBottom: 0 }}>
+            {(["active", "paid", "all"] as const).map((tab) => {
+              const labels = { active: "Active", paid: "Paid", all: "All" };
+              const counts = {
+                active: invoices.filter((inv) => inv.status !== "PAID").length,
+                paid: invoices.filter((inv) => inv.status === "PAID").length,
+                all: invoices.length,
+              };
+              const isActive = invoiceTab === tab;
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setInvoiceTab(tab)}
+                  style={{
+                    fontSize: 12, fontWeight: 700, padding: "6px 12px",
+                    border: "none", background: "none", cursor: "pointer",
+                    fontFamily: "inherit",
+                    color: isActive ? "hsl(var(--theo-blue))" : "hsl(var(--theo-mid))",
+                    borderBottom: isActive ? "2px solid hsl(var(--theo-blue))" : "2px solid transparent",
+                    marginBottom: -1,
+                    transition: "all 120ms",
+                  }}
+                >
+                  {labels[tab]}
+                  {counts[tab] > 0 && (
+                    <span style={{
+                      marginLeft: 5, fontSize: 10, fontWeight: 700,
+                      padding: "1px 5px", borderRadius: 999,
+                      background: isActive ? "hsl(var(--theo-blue-soft))" : "hsl(var(--theo-light))",
+                      color: isActive ? "hsl(var(--theo-blue))" : "hsl(var(--theo-mid))",
+                    }}>
+                      {counts[tab]}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {(() => {
+            const visible = invoices.filter((inv) =>
+              invoiceTab === "active" ? inv.status !== "PAID" :
+              invoiceTab === "paid"   ? inv.status === "PAID" :
+              true
+            );
+            return listLoading ? (
+              <div style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>Loading…</div>
+            ) : visible.length === 0 ? (
             <div style={{ textAlign: "center", padding: "32px 0" }}>
               <FileText size={32} style={{ stroke: "hsl(var(--theo-light))", margin: "0 auto 10px", display: "block" }} />
-              <div style={{ fontSize: 13, color: "hsl(var(--theo-mid))", fontWeight: 600 }}>No invoices yet</div>
-              <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))", marginTop: 4 }}>Create your first invoice to the left.</div>
+              <div style={{ fontSize: 13, color: "hsl(var(--theo-mid))", fontWeight: 600 }}>
+                {invoiceTab === "paid" ? "No paid invoices" : invoiceTab === "active" ? "No active invoices" : "No invoices yet"}
+              </div>
+              <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))", marginTop: 4 }}>
+                {invoiceTab === "paid" ? "Paid invoices will appear here." : "Create your first invoice to the left."}
+              </div>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-              {invoices.map((inv, i) => {
+              {visible.map((inv, i) => {
                 const s = STATUS_CONFIG[inv.status];
                 const isOpen = expandedId === inv.id;
                 const wallet = wallets.find((w) => w.id === inv.payment_wallet_id);
                 return (
-                  <div key={inv.id} style={{ borderBottom: i < invoices.length - 1 ? "1px solid hsl(var(--theo-light))" : "none" }}>
+                  <div key={inv.id} style={{ borderBottom: i < visible.length - 1 ? "1px solid hsl(var(--theo-light))" : "none" }}>
                     {/* Summary row */}
                     <button
                       type="button"
@@ -754,7 +806,8 @@ export default function Invoices() {
                 );
               })}
             </div>
-          )}
+          );
+          })()}
         </div>
       </div>
     </AppLayout>
