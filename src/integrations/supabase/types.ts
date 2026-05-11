@@ -308,6 +308,7 @@ export type Database = {
           spot_rate: number | null
           status: Database["public"]["Enums"]["order_status"]
           stellar_tx_hash: string | null
+          swap_direction: string | null
           theo_fee_bps: number | null
           theo_fee_usdc: number | null
           updated_at: string
@@ -337,6 +338,7 @@ export type Database = {
           spot_rate?: number | null
           status?: Database["public"]["Enums"]["order_status"]
           stellar_tx_hash?: string | null
+          swap_direction?: string | null
           theo_fee_bps?: number | null
           theo_fee_usdc?: number | null
           updated_at?: string
@@ -366,6 +368,7 @@ export type Database = {
           spot_rate?: number | null
           status?: Database["public"]["Enums"]["order_status"]
           stellar_tx_hash?: string | null
+          swap_direction?: string | null
           theo_fee_bps?: number | null
           theo_fee_usdc?: number | null
           updated_at?: string
