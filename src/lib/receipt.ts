@@ -30,6 +30,7 @@ export type ReceiptData = {
   kind: "conversion" | "htgc_mint" | "swap" | "withdraw" | "payout" | "yield" | "yield_earned";
   referenceNumber?: string;
   createdAt: string;
+  completedAt?: string | null;
   htgAmount?: number;
   usdcAmount?: number;   // net USDC received (after fee)
   usdcGross?: number;    // pre-fee USDC notional
@@ -281,7 +282,7 @@ function _buildPdf(data: ReceiptData): void {
     // ACCOUNT
     drawSection("Account");
     if (data.customerName)  drawRow("Client",           data.customerName);
-    drawRow("Transaction Date",   fmtDate(data.createdAt));
+    drawRow("Transaction Date",   fmtDate(data.completedAt ?? data.createdAt));
     drawStatus(data.status);
     if (data.referenceNumber) drawRow("Reference",      data.referenceNumber);
 
@@ -309,7 +310,7 @@ function _buildPdf(data: ReceiptData): void {
   } else if (kind === "swap") {
     drawSection("Account");
     if (data.customerName)    drawRow("Client",           data.customerName);
-    drawRow("Transaction Date",     fmtDate(data.createdAt));
+    drawRow("Transaction Date",     fmtDate(data.completedAt ?? data.createdAt));
     drawStatus(data.status);
     if (data.referenceNumber) drawRow("Reference",        data.referenceNumber);
 
