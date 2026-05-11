@@ -254,6 +254,7 @@ export default function Transactions() {
             wallet_label: label,
             deposited_at: y.deposited_at,
             net_apy: apy,
+            accruedAmount: accruedTotal,  // store once — reused in Details to avoid drift
           }];
 
           // Synthetic "Yield earned" line item — shows accrual since deposit, dated today.
@@ -479,7 +480,7 @@ export default function Transactions() {
                         };
                         const p = palette[tx.type];
                         return (
-                          <span className="rounded-full font-bold" style={{ fontSize: 11, padding: "3px 8px", background: p.bg, color: p.fg }}>
+                          <span className="rounded-full font-bold" style={{ fontSize: 11, padding: "3px 8px", background: p.bg, color: p.fg, whiteSpace: "nowrap" }}>
                             {TYPE_PILL_LABEL[tx.type]}
                           </span>
                         );
@@ -513,13 +514,7 @@ export default function Transactions() {
                       ) : tx.type === "swap" ? (
                         swapDetailsLabel(tx.swap_direction ?? null, tx.order_kind)
                       ) : tx.type === "yield" ? (
-                        (() => {
-                          const principal = tx.usdc_amount;
-                          const apy = tx.net_apy ?? 0.07;
-                          const elapsedSec = (Date.now() - new Date(tx.deposited_at ?? tx.created_at).getTime()) / 1000;
-                          const accrued = principal * (Math.exp(apy * (elapsedSec / (365 * 24 * 3600))) - 1);
-                          return `Deposited ${fmtUSDC(principal)} from ${tx.wallet_label} · Earned +${fmtUSDC(accrued)} · ${(apy * 100).toFixed(2)}% APY`;
-                        })()
+                        `Deposited ${fmtUSDC(tx.usdc_amount)} from ${tx.wallet_label} · Earned +${fmtUSDC(tx.accruedAmount ?? 0)} · ${((tx.net_apy ?? 0.07) * 100).toFixed(2)}% APY`
                       ) : tx.type === "yield_earned" ? (
                         `Yield accrued on ${tx.wallet_label} · since ${new Date(tx.deposited_at ?? tx.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · ${((tx.net_apy ?? 0.07) * 100).toFixed(2)}% APY`
                       ) : tx.type === "transfer" ? (
