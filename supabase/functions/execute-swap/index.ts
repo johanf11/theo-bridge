@@ -320,7 +320,7 @@ Deno.serve(async (req) => {
         order_kind: "htgc_usdc_swap",
         status: completed ? "COMPLETED" : "FAILED",
         htg_amount: htgAmount,
-        usdc_amount: usdcAmount,
+        usdc_amount: direction === "htgc_to_usdc" ? usdcNet : usdcAmount,
         usdc_gross: usdcGross,
         fee_usdc: feeUsdc,
         theo_fee_usdc: theoFeeUsdc,
