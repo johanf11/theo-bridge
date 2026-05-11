@@ -308,6 +308,10 @@ Deno.serve(async (req) => {
         failureReason = `Leg 2 failed: ${leg2Error?.slice(0, 500)}. AUTO-REFUND ALSO FAILED: ${refundError?.slice(0, 300)}. MANUAL INTERVENTION REQUIRED — funds held at distributor.`;
       }
     }
+    const usdcGross   = Math.round((htgAmount / rate) * 1e7) / 1e7;
+    const feeUsdc     = Math.round(usdcGross * (totalBps / 10_000) * 1e7) / 1e7;
+    const theoFeeUsdc = Math.round(usdcGross * (theoBps  / 10_000) * 1e7) / 1e7;
+
     const { data: order, error: orderErr } = await admin
       .from("orders")
       .insert({
@@ -316,6 +320,12 @@ Deno.serve(async (req) => {
         status: completed ? "COMPLETED" : "FAILED",
         htg_amount: htgAmount,
         usdc_amount: usdcAmount,
+        usdc_gross: usdcGross,
+        fee_usdc: feeUsdc,
+        theo_fee_usdc: theoFeeUsdc,
+        fee_bps: totalBps,
+        theo_fee_bps: theoBps,
+        corridor_bps: corrBps,
         rate,
         spot_rate: rate,
         reference_number: reference,
