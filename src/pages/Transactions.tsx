@@ -8,7 +8,7 @@ import { useSearch } from "@/contexts/SearchContext";
 import { generateReceipt, type ReceiptData } from "@/lib/receipt";
 
 
-type TxType = "conversion" | "htgc_mint" | "swap" | "withdraw" | "payout" | "yield" | "yield_earned" | "transfer";
+type TxType = "conversion" | "htgc_mint" | "swap" | "withdraw" | "payout" | "yield_payout" | "yield" | "yield_earned" | "transfer";
 
 type UnifiedTx = {
   id: string;
@@ -88,6 +88,7 @@ const TYPE_PILL_LABEL: Record<TxType, string> = {
   htgc_mint: "HTG-C Mint",
   swap: "Swap",
   payout: "Payout",
+  yield_payout: "Yield Payout",
   yield: "Yield Deposit",
   yield_earned: "Yield Earned",
   transfer: "Transfer",
@@ -225,9 +226,10 @@ export default function Transactions() {
         }),
         ...(payouts ?? []).map((p) => {
           const isTransfer = p.memo === "internal-transfer";
+          const isYieldPayout = p.memo === "blend-withdraw";
           return {
             id: p.id,
-            type: (isTransfer ? "transfer" : "payout") as TxType,
+            type: (isTransfer ? "transfer" : isYieldPayout ? "yield_payout" : "payout") as TxType,
             created_at: p.created_at,
             usdc_amount: Number(p.amount_usdc),
             status: PAYOUT_STATUS_MAP[p.status] ?? p.status,
@@ -504,6 +506,7 @@ export default function Transactions() {
                           htgc_mint: { bg: "hsl(var(--theo-gold-soft))", fg: "#7A5F00" },
                           swap: { bg: "hsl(195 85% 92%)", fg: "hsl(200 80% 25%)" },
                           payout: { bg: "hsl(var(--theo-blue-soft))", fg: "hsl(var(--theo-blue))" },
+                          yield_payout: { bg: "hsl(140 60% 92%)", fg: "hsl(150 70% 25%)" },
                           yield: { bg: "hsl(140 60% 92%)", fg: "hsl(150 70% 25%)" },
                           yield_earned: { bg: "hsl(140 60% 92%)", fg: "hsl(150 70% 25%)" },
                           transfer: { bg: "hsl(195 85% 92%)", fg: "hsl(200 80% 25%)" },
