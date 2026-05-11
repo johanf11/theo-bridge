@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
 
     const { data: position } = await admin
       .from("blend_positions")
-      .select("id, deposited_usdc, deposited_at, net_apy")
+      .select("id, customer_id, wallet_id, deposited_usdc, deposited_at, net_apy")
       .eq("wallet_id", walletId).eq("pool_address", TREASURY_POOL_ID).maybeSingle();
     if (!position) return json({ error: "No yield position for this wallet" }, 404);
 
@@ -111,6 +111,19 @@ Deno.serve(async (req) => {
         last_synced_at: now,
       }).eq("id", position.id);
     }
+
+    await admin.from("payouts").insert({
+      customer_id: position.customer_id,
+      recipient_name: "Blend Protocol Withdrawal",
+      recipient_address: wallet.stellar_address,
+      amount_usdc: payoutAmount,
+      status: "COMPLETED",
+      memo: "blend-withdraw",
+      stellar_tx_hash: hash,
+      source_wallet_id: position.wallet_id,
+      completed_at: now,
+      created_at: now,
+    });
 
     return json({ ok: true, hash, withdrawn: payoutAmount, accrued });
   } catch (e) {
