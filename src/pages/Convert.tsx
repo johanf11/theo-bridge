@@ -464,7 +464,7 @@ export default function Convert() {
     // HTG has no cents — integers only
     const cleaned = e.target.value.replace(/[^\d]/g, "");
     let intPart = cleaned.replace(/^0+(?=\d)/, "");
-    const decPart = null;
+    let decPart: string | null = null;
     const normalized = intPart;
     let num = parseInt(normalized, 10) || 0;
     // Cap HTG input so its USDC equivalent never exceeds 50,000 USDC
