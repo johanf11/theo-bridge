@@ -9,6 +9,7 @@ const styles: Record<string, string> = {
   COMPLETED: "bg-success/15 text-success border-success/30",
   EARNING:   "bg-success/15 text-success border-success/30",
   EARNED:    "bg-success/15 text-success border-success/30",
+  ACCRUING:  "bg-theo-cyan/15 text-theo-cyan border-theo-cyan/30",
   FAILED:    "bg-destructive/15 text-destructive border-destructive/30",
   EXPIRED:   "bg-destructive/10 text-destructive border-destructive/20",
   REFUNDED:  "bg-muted text-muted-foreground",
@@ -17,7 +18,7 @@ const styles: Record<string, string> = {
 const labels: Record<string, string> = {
   CREATED: "Created", QUOTED: "Awaiting payment", FUNDED: "Payment received",
   RELEASING: "Releasing USDC", COMPLETED: "Complete",
-  EARNING: "Earning", EARNED: "Earned",
+  EARNING: "Earning", EARNED: "Earned", ACCRUING: "Accruing",
   FAILED: "Failed", EXPIRED: "Expired", REFUNDED: "Refunded",
 };
 

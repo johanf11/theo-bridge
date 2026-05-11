@@ -35,6 +35,7 @@ type UnifiedTx = {
   // yield-only
   deposited_at?: string;
   net_apy?: number;
+  accruedAmount?: number;
 };
 
 function swapDetailsLabel(swap_direction: string | null | undefined, order_kind: string | undefined): string {
@@ -240,10 +241,11 @@ export default function Transactions() {
           const principal = Number(y.deposited_usdc);
           const apy = Number(y.net_apy ?? 0.07);
           const depositedAt = new Date(y.deposited_at);
-          const elapsedSec = (Date.now() - depositedAt.getTime()) / 1000;
-          const accruedTotal = principal * (Math.exp(apy * (elapsedSec / (365 * 24 * 3600))) - 1);
+          const now = new Date();
           const label = walletLabel.get(y.wallet_id) ?? "Wallet";
+          const MS_PER_DAY = 86_400_000;
 
+          // Deposit row — no earned total here; individual day rows carry it
           const rows: UnifiedTx[] = [{
             id: y.id,
             type: "yield" as TxType,
@@ -254,17 +256,23 @@ export default function Transactions() {
             wallet_label: label,
             deposited_at: y.deposited_at,
             net_apy: apy,
-            accruedAmount: accruedTotal,  // store once — reused in Details to avoid drift
           }];
 
-          // Synthetic "Yield earned" line item — shows accrual since deposit, dated today.
-          // Only meaningful once at least a few cents have accrued.
-          if (accruedTotal >= 0.01) {
+          const elapsedMs = now.getTime() - depositedAt.getTime();
+          const completeDays = Math.floor(elapsedMs / MS_PER_DAY);
+
+          // One row per complete 24h period — each day compounds on the previous
+          // dayYield(d) = P*(e^(r*(d+1)/365) - e^(r*d/365)) — grows slightly each day
+          for (let d = 0; d < completeDays; d++) {
+            const dayYield = principal * (
+              Math.exp(apy * (d + 1) / 365) - Math.exp(apy * d / 365)
+            );
+            const postedAt = new Date(depositedAt.getTime() + (d + 1) * MS_PER_DAY);
             rows.push({
-              id: `${y.id}-earned`,
+              id: `${y.id}-d${d}`,
               type: "yield_earned" as TxType,
-              created_at: new Date().toISOString(),
-              usdc_amount: accruedTotal,
+              created_at: postedAt.toISOString(),
+              usdc_amount: dayYield,
               status: "EARNED",
               stellar_tx_hash: null,
               wallet_label: label,
@@ -272,6 +280,29 @@ export default function Transactions() {
               net_apy: apy,
             });
           }
+
+          // Today's partial accrual (from the start of the current 24h window to now)
+          const partialFraction = (elapsedMs % MS_PER_DAY) / MS_PER_DAY;
+          if (partialFraction > 0) {
+            const partialYield = principal * (
+              Math.exp(apy * (completeDays + partialFraction) / 365) -
+              Math.exp(apy * completeDays / 365)
+            );
+            if (partialYield >= 0.01) {
+              rows.push({
+                id: `${y.id}-today`,
+                type: "yield_earned" as TxType,
+                created_at: now.toISOString(),
+                usdc_amount: partialYield,
+                status: "ACCRUING",
+                stellar_tx_hash: null,
+                wallet_label: label,
+                deposited_at: y.deposited_at,
+                net_apy: apy,
+              });
+            }
+          }
+
           return rows;
         }),
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -514,9 +545,9 @@ export default function Transactions() {
                       ) : tx.type === "swap" ? (
                         swapDetailsLabel(tx.swap_direction ?? null, tx.order_kind)
                       ) : tx.type === "yield" ? (
-                        `Deposited ${fmtUSDC(tx.usdc_amount)} from ${tx.wallet_label} · Earned +${fmtUSDC(tx.accruedAmount ?? 0)} · ${((tx.net_apy ?? 0.07) * 100).toFixed(2)}% APY`
+                        `Deposited ${fmtUSDC(tx.usdc_amount)} from ${tx.wallet_label} · ${((tx.net_apy ?? 0.07) * 100).toFixed(2)}% APY`
                       ) : tx.type === "yield_earned" ? (
-                        `Yield accrued on ${tx.wallet_label} · since ${new Date(tx.deposited_at ?? tx.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · ${((tx.net_apy ?? 0.07) * 100).toFixed(2)}% APY`
+                        `Daily yield · ${tx.wallet_label} · ${((tx.net_apy ?? 0.07) * 100).toFixed(2)}% APY${tx.status === "ACCRUING" ? " · accruing" : ""}`
                       ) : tx.type === "transfer" ? (
                         `From ${tx.wallet_label} → ${tx.recipient_name}`
                       ) : (
@@ -554,7 +585,7 @@ export default function Transactions() {
                         ) : (
                           <span style={{ color: "hsl(var(--theo-mid))" }}>—</span>
                         )}
-                        {tx.status === "COMPLETED" || tx.status === "EARNED" || tx.status === "EARNING" ? (
+                        {tx.status === "COMPLETED" || tx.status === "EARNED" || tx.status === "EARNING" || tx.status === "ACCRUING" ? (
                           <button
                             title="Download PDF receipt"
                             onClick={() => {
