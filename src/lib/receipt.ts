@@ -310,7 +310,7 @@ function _buildPdf(data: ReceiptData): void {
   } else if (kind === "swap") {
     drawSection("Account");
     if (data.customerName)    drawRow("Client",           data.customerName);
-    drawRow("Transaction Date",     fmtDate(data.createdAt));
+    drawRow("Transaction Date",     fmtDate(data.completedAt ?? data.createdAt));
     drawStatus(data.status);
     if (data.referenceNumber) drawRow("Reference",        data.referenceNumber);
 
