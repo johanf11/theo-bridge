@@ -506,30 +506,6 @@ export default function Payout() {
                   </div>
                 )}
 
-                {/* Manage list */}
-                {showManage && savedRecipients.length > 0 && (
-                  <div style={{ marginTop: 8, borderRadius: 9, border: "1px solid hsl(var(--theo-light))", overflow: "hidden" }}>
-                    {savedRecipients.map((r, i) => (
-                      <div
-                        key={r.id}
-                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderBottom: i < savedRecipients.length - 1 ? "1px solid hsl(var(--theo-light))" : "none", background: "#fafafa" }}
-                      >
-                        <div>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--theo-ink))" }}>{r.name}</span>
-                          <span style={{ fontSize: 11, fontFamily: "monospace", color: "hsl(var(--theo-mid))", marginLeft: 8 }}>{shortAddr(r.stellar_address)}</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => deleteRecipient(r.id)}
-                          style={{ background: "none", border: "none", cursor: "pointer", color: "#B91C1C", display: "flex", alignItems: "center" }}
-                          title="Remove"
-                        >
-                          <X style={{ width: 13, height: 13 }} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
 
               {/* ── Recipient fields ────────────────────────────────── */}
