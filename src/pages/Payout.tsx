@@ -280,6 +280,15 @@ export default function Payout() {
     setSavedRecipients((prev) => prev.filter((r) => r.id !== id));
   };
 
+  const renameRecipient = async (id: string, newName: string) => {
+    const name = newName.trim();
+    if (!name) return;
+    const { error } = await supabase.from("saved_recipients").update({ name }).eq("id", id);
+    if (error) { toast.error("Couldn't update name"); return; }
+    setSavedRecipients((prev) => prev.map((r) => (r.id === id ? { ...r, name } : r)));
+    toast.success("Recipient updated");
+  };
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!sourceWalletId) { toast.error("Select a source account"); return; }
