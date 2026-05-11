@@ -16,6 +16,7 @@ type BackfillResult = {
 export default function AdminTools() {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<BackfillResult | null>(null);
+  const [topupRunning, setTopupRunning] = useState(false);
 
   async function runBackfill() {
     setRunning(true);
@@ -32,6 +33,23 @@ export default function AdminTools() {
       toast.error((e as Error).message);
     } finally {
       setRunning(false);
+    }
+  }
+
+  async function runTopup() {
+    setTopupRunning(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("topup-distributor-usdc", {
+        body: { amount: 500_000 },
+      });
+      if (error) throw error;
+      const r = data as { ok?: boolean; hash?: string; error?: string };
+      if (!r.ok) throw new Error(r.error || "Top-up failed");
+      toast.success(`Minted 500,000 USDC to distributor. Tx ${r.hash?.slice(0, 10)}…`);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setTopupRunning(false);
     }
   }
 
