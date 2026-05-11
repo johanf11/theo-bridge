@@ -155,7 +155,13 @@ Deno.serve(async (req) => {
     const feeUsdc     = Math.round(usdcGross * (totalBps / 10_000) * 1e7) / 1e7;
     const theoFeeUsdc = Math.round(usdcGross * (theoBps  / 10_000) * 1e7) / 1e7;
     const usdcNet     = Math.round((usdcGross - feeUsdc) * 1e7) / 1e7;
-    const leg2Amount  = direction === "htgc_to_usdc" ? usdcNet : destAmount;
+    const htgNet      = Math.round((usdcNet * rate) * 1e7) / 1e7;
+    const leg2Amount  = direction === "htgc_to_usdc" ? usdcNet : htgNet;
+    // Persisted htg_amount must be NET of fees for usdc_to_htgc; for htgc_to_usdc
+    // the user supplied gross HTGC so htgAmount stays as-is.
+    if (direction === "usdc_to_htgc") {
+      htgAmount = htgNet;
+    }
 
     const server = new Horizon.Server(HORIZON_URL);
     const userKp = Keypair.fromSecret(wallet.stellar_secret);
