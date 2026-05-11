@@ -5,7 +5,7 @@ import {
   Asset, Horizon, Keypair, Memo, Networks,
   Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
-import { signWithSecret } from "../_shared/stellar-signer.ts";
+import { blendTreasuryPublicKey, signWithSecret } from "../_shared/stellar-signer.ts";
 // Internal Blend sweeps are not subject to external single-payment caps; only wallet balance constrains them.
 
 const corsHeaders = {
@@ -43,8 +43,9 @@ Deno.serve(async (req) => {
     const usdcIssuer = Deno.env.get("STELLAR_USDC_ISSUER");
     if (!usdcIssuer) return json({ error: "STELLAR_USDC_ISSUER not configured" }, 500);
 
-    const treasuryAddress = Deno.env.get("STELLAR_BLEND_TREASURY_PUBLIC");
-    if (!treasuryAddress) return json({ error: "STELLAR_BLEND_TREASURY_PUBLIC not configured" }, 500);
+    let treasuryAddress: string;
+    try { treasuryAddress = blendTreasuryPublicKey(); }
+    catch (e) { return json({ error: (e as Error).message }, 500); }
 
     const userClient = createClient(url, anon, { global: { headers: { Authorization: authHeader } } });
     const { data: { user }, error: ue } = await userClient.auth.getUser();
