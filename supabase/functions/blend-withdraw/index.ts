@@ -5,7 +5,7 @@ import {
   Asset, Horizon, Memo, Networks,
   Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
-import { distributorKeypair, signWithDistributor } from "../_shared/stellar-signer.ts";
+import { blendTreasuryKeypair, signWithBlendTreasury } from "../_shared/stellar-signer.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
