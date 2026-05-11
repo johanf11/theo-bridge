@@ -25,6 +25,16 @@ type PendingConversionQuote = {
   rate: number;
 };
 
+type PendingSwapConfirm = {
+  direction: "htgc_to_usdc" | "usdc_to_htgc";
+  amountRaw: number;
+  amountDisplay: string;
+  receiveDisplay: string;
+  rate: number;
+  feeDisplay: string;
+  walletId: string;
+};
+
 function parseConversionQuoteResponse(data: Record<string, unknown> | null | undefined): PendingConversionQuote | null {
   if (!data || typeof data.quote_id !== "string") return null;
   return {
@@ -91,6 +101,7 @@ export default function Convert() {
   const [lockSecs, setLockSecs] = useState(15 * 60);
   const [busy, setBusy] = useState(false);
   const [pendingConversionQuote, setPendingConversionQuote] = useState<PendingConversionQuote | null>(null);
+  const [pendingSwapConfirm, setPendingSwapConfirm] = useState<PendingSwapConfirm | null>(null);
   const [walletOptions, setWalletOptions] = useState<WalletOption[]>([]);
   const [selectedWallet, setSelectedWallet] = useState<string>("");
 
@@ -597,7 +608,7 @@ export default function Convert() {
     }
   };
 
-  const handleSwapSubmit = async () => {
+  const handleSwapSubmit = () => {
     if (swapAmountRaw < 1) { toast.error("Enter an amount"); return; }
     const usdcEquivalent = swapDir === "htgc_to_usdc"
       ? swapAmountRaw / (liveRate ?? 130)
@@ -613,11 +624,40 @@ export default function Convert() {
     }
     const wallet = walletOptions.find((w) => w.stellar_address === selectedWallet) ?? walletOptions[0];
     if (!wallet) { toast.error("No wallet selected"); return; }
+
+    const rate = liveRate ?? 130;
+    const feeMultiplier = totalBps / 10_000;
+    const usdcBase = swapDir === "htgc_to_usdc" ? swapAmountRaw / rate : swapAmountRaw;
+    const feeUsdc = usdcBase * feeMultiplier;
+
+    const receiveDisplay = swapDir === "htgc_to_usdc"
+      ? `$${(usdcBase - feeUsdc).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC`
+      : `${Math.round((swapAmountRaw - feeUsdc * rate) * rate / swapAmountRaw * swapAmountRaw).toLocaleString("en-US")} HTG-C`;
+
+    // For USDC → HTG-C: fee is in USDC; HTG received = (send - fee) * rate
+    const htgReceive = Math.round((swapAmountRaw - feeUsdc) * rate);
+
+    setPendingSwapConfirm({
+      direction: swapDir,
+      amountRaw: swapAmountRaw,
+      amountDisplay: `${swapAmount} ${swapDir === "htgc_to_usdc" ? "HTG-C" : "USDC"}`,
+      receiveDisplay: swapDir === "htgc_to_usdc"
+        ? `$${(usdcBase - feeUsdc).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC`
+        : `${htgReceive.toLocaleString("en-US")} HTG-C`,
+      rate,
+      feeDisplay: `$${feeUsdc.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC`,
+      walletId: wallet.id,
+    });
+  };
+
+  const handleSwapConfirm = async () => {
+    if (!pendingSwapConfirm) return;
     setSwapBusy(true);
     try {
       const { data, error } = await supabase.functions.invoke("execute-swap", {
-        body: { wallet_id: wallet.id, amount: swapAmountRaw, direction: swapDir },
+        body: { wallet_id: pendingSwapConfirm.walletId, amount: pendingSwapConfirm.amountRaw, direction: pendingSwapConfirm.direction },
       });
+      setPendingSwapConfirm(null);
       if (error || data?.error) {
         if (data?.refunded) {
           toast.error("Swap couldn't complete — your funds were returned to your wallet.", {
@@ -1839,6 +1879,55 @@ export default function Convert() {
                     style={{ flex: 2, background: offBusy ? "hsl(var(--theo-mid))" : "hsl(var(--theo-blue))", color: "#fff", border: "none", borderRadius: 9, padding: "10px", fontSize: 13, fontWeight: 700, cursor: offBusy ? "not-allowed" : "pointer", fontFamily: "inherit" }}
                   >
                     {offBusy ? <><Loader2 size={14} className="animate-spin" /> Processing…</> : <><CheckCircle2 size={14} /> Confirm withdrawal</>}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Swap confirmation overlay ── */}
+      {pendingSwapConfirm && (() => {
+        const sc = pendingSwapConfirm;
+        const dirLabel = sc.direction === "htgc_to_usdc" ? "HTG-C → USDC" : "USDC → HTG-C";
+        const rows: [string, string][] = [
+          ["Direction", dirLabel],
+          ["You send", sc.amountDisplay],
+          ["You receive", sc.receiveDisplay],
+          ["Rate", `${sc.rate.toFixed(2)} HTG-C / USDC`],
+          ["Theo Fee", sc.feeDisplay],
+        ];
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+            <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 420, boxShadow: "0 20px 60px rgba(0,0,0,0.2)", overflow: "hidden" }}>
+              <div className="px-5 py-4" style={{ borderBottom: "1px solid hsl(var(--theo-light))" }}>
+                <div className="font-bold" style={{ fontSize: 15, color: "hsl(var(--theo-blue))" }}>Confirm swap</div>
+                <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))", marginTop: 1 }}>Review the amounts below · swap executes immediately</div>
+              </div>
+              <div className="p-5">
+                {rows.map(([k, v]) => (
+                  <div key={k} className="flex justify-between py-2.5" style={{ borderBottom: "1px solid hsl(var(--theo-light))", fontSize: 13 }}>
+                    <span style={{ color: "hsl(var(--theo-mid))" }}>{k}</span>
+                    <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>{v}</span>
+                  </div>
+                ))}
+                <div className="flex gap-2 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setPendingSwapConfirm(null)}
+                    style={{ flex: 1, background: "transparent", border: "1.5px solid hsl(var(--theo-light))", color: "hsl(var(--theo-mid))", borderRadius: 9, padding: "10px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSwapConfirm}
+                    disabled={swapBusy}
+                    className="flex items-center justify-center gap-2"
+                    style={{ flex: 2, background: swapBusy ? "hsl(var(--theo-mid))" : "hsl(var(--theo-blue))", color: "#fff", border: "none", borderRadius: 9, padding: "10px", fontSize: 13, fontWeight: 700, cursor: swapBusy ? "not-allowed" : "pointer", fontFamily: "inherit" }}
+                  >
+                    <CheckCircle2 size={14} /> {swapBusy ? "Swapping…" : `Confirm ${dirLabel} →`}
                   </button>
                 </div>
               </div>

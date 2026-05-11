@@ -76,7 +76,6 @@ const TABLE_HEADS: { label: string; align: "left" | "right" }[] = [
   { label: "Amount", align: "right" },
   { label: "Currency", align: "left" },
   { label: "Details", align: "left" },
-  { label: "Network", align: "left" },
   { label: "Status", align: "left" },
   { label: "Reference", align: "left" },
   { label: "Receipt", align: "left" },
@@ -121,9 +120,7 @@ function txDetailsPlain(tx: UnifiedTx): string {
     return `Yield accrued on ${tx.wallet_label ?? ""} · since ${new Date(tx.deposited_at ?? tx.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · ${((tx.net_apy ?? 0.07) * 100).toFixed(2)}% APY`;
   }
   if (tx.type === "transfer") return `From ${tx.wallet_label ?? ""} → ${tx.recipient_name ?? ""}`;
-  const name = tx.recipient_name ?? "";
-  const memo = tx.memo ? ` · ${tx.memo}` : "";
-  return `${name}${memo}`;
+  return tx.recipient_name ?? "";
 }
 
 // Map payout statuses → the same style system StatusBadge uses
@@ -332,7 +329,9 @@ export default function Transactions() {
             ? csvAsciiArrows(swapDetailsLabel(tx.swap_direction ?? null, tx.order_kind))
             : "";
         const details = csvAsciiArrows(txDetailsPlain(tx));
-        const reference = tx.type === "conversion" ? (tx.reference_number ?? "") : (tx.recipient_name ?? "");
+        const reference = (tx.type === "conversion" || tx.type === "swap" || tx.type === "htgc_mint")
+          ? (tx.reference_number ?? "")
+          : (tx.memo ?? "");
         return [
           csvCell(
             new Date(tx.created_at).toLocaleDateString("en-US", {
@@ -539,16 +538,8 @@ export default function Transactions() {
                       ) : tx.type === "transfer" ? (
                         <span style={{ color: "hsl(var(--theo-ink))" }}>From {tx.wallet_label} → {tx.recipient_name}</span>
                       ) : (
-                        <span style={{ color: "hsl(var(--theo-ink))" }}>{tx.recipient_name}{tx.memo ? <span style={{ color: "hsl(var(--theo-mid))" }}> · {tx.memo}</span> : ""}</span>
+                        <span style={{ color: "hsl(var(--theo-ink))" }}>{tx.recipient_name}</span>
                       )}
-                    </td>
-
-                    {/* Network */}
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-1.5">
-                        <div className="rounded-full" style={{ width: 8, height: 8, background: "hsl(var(--theo-cyan))", flexShrink: 0 }} />
-                        <span style={{ fontSize: 13 }}>Theo</span>
-                      </div>
                     </td>
 
                     {/* Status */}
@@ -556,11 +547,13 @@ export default function Transactions() {
                       <StatusBadge status={tx.status} />
                     </td>
 
-                    {/* Reference / Recipient */}
+                    {/* Reference */}
                     <td className="px-5 py-3" style={{ fontFamily: "monospace", fontSize: 12, color: "hsl(var(--theo-mid))" }}>
-                      {tx.type === "conversion"
+                      {(tx.type === "conversion" || tx.type === "swap" || tx.type === "htgc_mint")
                         ? tx.reference_number
-                        : <span style={{ fontFamily: "inherit", fontWeight: 600, color: "hsl(var(--theo-ink))" }}>{tx.recipient_name}</span>
+                        : tx.memo
+                          ? <span style={{ fontFamily: "inherit", color: "hsl(var(--theo-mid))" }}>{tx.memo}</span>
+                          : <span style={{ color: "hsl(var(--theo-mid))" }}>—</span>
                       }
                     </td>
 

@@ -511,7 +511,7 @@ export default function Payout() {
               {/* ── Recipient fields ────────────────────────────────── */}
               <div className="grid gap-3 mb-2.5" style={{ gridTemplateColumns: "1fr 1fr" }}>
                 <div>
-                  <div style={{ display: "flex", alignItems: "center", minHeight: 22, marginBottom: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", minHeight: 28, marginBottom: 6 }}>
                     <label style={{ ...labelStyle, marginBottom: 0 }}>Recipient name</label>
                   </div>
                   <input
@@ -524,12 +524,9 @@ export default function Payout() {
                   />
                 </div>
                 <div>
-                  {/* Label row with chain selector */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                    <label style={{ ...labelStyle, marginBottom: 0 }}>Recipient account ID</label>
-
-                    {/* Chain selector pill dropdown */}
-                    <div style={{ position: "relative" }} ref={chainDropdownRef}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 28, marginBottom: 6 }}>
+                    <label style={{ ...labelStyle, marginBottom: 0 }}>Recipient address</label>
+                    <div style={{ position: "relative", flexShrink: 0 }} ref={chainDropdownRef}>
                       <button
                         type="button"
                         onClick={() => setChainDropdownOpen((v) => !v)}
@@ -554,7 +551,6 @@ export default function Payout() {
                           background: "#fff", borderRadius: 10, border: "1px solid hsl(var(--theo-light))",
                           boxShadow: "0 8px 24px rgba(51,53,154,0.13)", overflow: "hidden", minWidth: 180,
                         }}>
-                          {/* Header */}
                           <div style={{ padding: "8px 12px 6px", borderBottom: "1px solid hsl(var(--theo-light))" }}>
                             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: "hsl(var(--theo-mid))" }}>
                               Destination chain
@@ -599,7 +595,6 @@ export default function Payout() {
                               )}
                             </button>
                           ))}
-                          {/* Allbridge footnote */}
                           <div style={{ padding: "7px 12px", fontSize: 10, color: "hsl(var(--theo-mid))", borderTop: "1px solid hsl(var(--theo-light))", lineHeight: 1.5 }}>
                             Cross-chain via <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>Allbridge</span> — coming soon
                           </div>
@@ -622,6 +617,11 @@ export default function Payout() {
                     onChange={(e) => setRecipientAddress(e.target.value)}
                     required={selectedChain.status === "live"}
                   />
+
+                  {/* Hint below input */}
+                  <span style={{ fontSize: 11, color: "hsl(var(--theo-mid))", lineHeight: 1.45, display: "block", marginTop: 5 }}>
+                    {selectedChain.hint}
+                  </span>
 
                   {/* Coming soon banner for non-Stellar */}
                   {selectedChain.status === "soon" && (
@@ -699,12 +699,6 @@ export default function Payout() {
                     <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 5, fontSize: 11, color: "#D97706", fontWeight: 600 }}>
                       <AlertTriangle size={12} />
                       Invalid address format for {selectedChain.name}
-                    </div>
-                  )}
-                  {addrState === "empty" && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 5, fontSize: 11, color: "hsl(var(--theo-mid))" }}>
-                      <Info size={11} />
-                      {selectedChain.hint}
                     </div>
                   )}
                 </div>
