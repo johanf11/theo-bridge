@@ -34,3 +34,17 @@ export function distributorKeypair(): Keypair {
   if (!secret) throw new Error("STELLAR_DISTRIBUTOR_SECRET not configured");
   return Keypair.fromSecret(secret);
 }
+
+/** Sign a transaction with the Blend treasury key. */
+export function signWithBlendTreasury(tx: Transaction): void {
+  const secret = Deno.env.get("STELLAR_BLEND_TREASURY_SECRET");
+  if (!secret) throw new Error("STELLAR_BLEND_TREASURY_SECRET not configured");
+  tx.sign(Keypair.fromSecret(secret));
+}
+
+/** Load the Horizon account for the Blend treasury. */
+export function blendTreasuryKeypair(): Keypair {
+  const secret = Deno.env.get("STELLAR_BLEND_TREASURY_SECRET");
+  if (!secret) throw new Error("STELLAR_BLEND_TREASURY_SECRET not configured");
+  return Keypair.fromSecret(secret);
+}
