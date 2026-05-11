@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AppLayout } from "@/components/theo/Layout";
-import { Upload, Loader2, Star, X, ChevronDown, ChevronUp, CheckCircle2, AlertTriangle, Info, Building2 } from "lucide-react";
+import { Upload, Loader2, Star, X, ChevronDown, ChevronUp, CheckCircle2, AlertTriangle, Info, Building2, Pencil, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
@@ -91,6 +91,9 @@ export default function Payout() {
   // Saved recipients
   const [savedRecipients, setSavedRecipients] = useState<SavedRecipient[]>([]);
   const [showManage, setShowManage] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState<SavedRecipient | null>(null);
   const [saveAfterSend, setSaveAfterSend] = useState(false);
   const [recipientSearch, setRecipientSearch] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -280,6 +283,15 @@ export default function Payout() {
     setSavedRecipients((prev) => prev.filter((r) => r.id !== id));
   };
 
+  const renameRecipient = async (id: string, newName: string) => {
+    const name = newName.trim();
+    if (!name) return;
+    const { error } = await supabase.from("saved_recipients").update({ name }).eq("id", id);
+    if (error) { toast.error("Couldn't update name"); return; }
+    setSavedRecipients((prev) => prev.map((r) => (r.id === id ? { ...r, name } : r)));
+    toast.success("Recipient updated");
+  };
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!sourceWalletId) { toast.error("Select a source account"); return; }
@@ -403,10 +415,10 @@ export default function Payout() {
                   {savedRecipients.length > 0 && (
                     <button
                       type="button"
-                      onClick={() => setShowManage((v) => !v)}
+                      onClick={() => setShowManage(true)}
                       style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-mid))", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 3 }}
                     >
-                      Manage {showManage ? <ChevronUp style={{ width: 11, height: 11 }} /> : <ChevronDown style={{ width: 11, height: 11 }} />}
+                      Manage <ChevronDown style={{ width: 11, height: 11, transform: "rotate(-90deg)" }} />
                     </button>
                   )}
                 </div>
@@ -494,30 +506,6 @@ export default function Payout() {
                   </div>
                 )}
 
-                {/* Manage list */}
-                {showManage && savedRecipients.length > 0 && (
-                  <div style={{ marginTop: 8, borderRadius: 9, border: "1px solid hsl(var(--theo-light))", overflow: "hidden" }}>
-                    {savedRecipients.map((r, i) => (
-                      <div
-                        key={r.id}
-                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderBottom: i < savedRecipients.length - 1 ? "1px solid hsl(var(--theo-light))" : "none", background: "#fafafa" }}
-                      >
-                        <div>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--theo-ink))" }}>{r.name}</span>
-                          <span style={{ fontSize: 11, fontFamily: "monospace", color: "hsl(var(--theo-mid))", marginLeft: 8 }}>{shortAddr(r.stellar_address)}</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => deleteRecipient(r.id)}
-                          style={{ background: "none", border: "none", cursor: "pointer", color: "#B91C1C", display: "flex", alignItems: "center" }}
-                          title="Remove"
-                        >
-                          <X style={{ width: 13, height: 13 }} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
 
               {/* ── Recipient fields ────────────────────────────────── */}
@@ -1121,6 +1109,145 @@ export default function Payout() {
           )}
         </div>
       </div>
+
+      {/* ── Manage recipients modal ───────────────────────────── */}
+      {showManage && (
+        <div
+          onClick={() => { setShowManage(false); setEditingId(null); }}
+          style={{ position: "fixed", inset: 0, background: "rgba(26,26,46,0.45)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 480, maxHeight: "85vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 24px 60px rgba(26,26,46,0.28)" }}
+          >
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid hsl(var(--theo-light))", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: "hsl(var(--theo-cyan))" }}>Saved recipients</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "hsl(var(--theo-ink))", marginTop: 2 }}>Manage recipients</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setShowManage(false); setEditingId(null); }}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "hsl(var(--theo-mid))", padding: 4, display: "flex" }}
+                aria-label="Close"
+              >
+                <X style={{ width: 18, height: 18 }} />
+              </button>
+            </div>
+
+            <div style={{ overflow: "auto", flex: 1 }}>
+              {savedRecipients.length === 0 ? (
+                <div style={{ padding: "24px 20px", fontSize: 13, color: "hsl(var(--theo-mid))", textAlign: "center" }}>
+                  No saved recipients yet.
+                </div>
+              ) : (
+                savedRecipients.map((r, i) => (
+                  <div
+                    key={r.id}
+                    style={{ padding: "12px 20px", borderBottom: i < savedRecipients.length - 1 ? "1px solid hsl(var(--theo-light))" : "none", display: "flex", alignItems: "center", gap: 12 }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {editingId === r.id ? (
+                        <input
+                          autoFocus
+                          value={editingName}
+                          onChange={(e) => setEditingName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              renameRecipient(r.id, editingName);
+                              setEditingId(null);
+                            } else if (e.key === "Escape") {
+                              setEditingId(null);
+                            }
+                          }}
+                          style={{ width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid hsl(var(--theo-blue))", fontFamily: "inherit", fontSize: 13, fontWeight: 600, color: "hsl(var(--theo-ink))", outline: "none" }}
+                        />
+                      ) : (
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--theo-ink))", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.name}</div>
+                      )}
+                      <div style={{ fontSize: 11, fontFamily: "monospace", color: "hsl(var(--theo-mid))", marginTop: 2 }}>{shortAddr(r.stellar_address)}</div>
+                    </div>
+
+                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                      {editingId === r.id ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => { renameRecipient(r.id, editingName); setEditingId(null); }}
+                            style={{ background: "hsl(var(--theo-blue))", color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingId(null)}
+                            style={{ background: "transparent", color: "hsl(var(--theo-mid))", border: "1.5px solid hsl(var(--theo-light))", borderRadius: 8, padding: "6px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => { setEditingId(r.id); setEditingName(r.name); }}
+                            style={{ background: "transparent", border: "1.5px solid hsl(var(--theo-light))", borderRadius: 8, padding: 6, cursor: "pointer", color: "hsl(var(--theo-mid))", display: "flex" }}
+                            title="Edit name"
+                          >
+                            <Pencil style={{ width: 13, height: 13 }} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDelete(r)}
+                            style={{ background: "transparent", border: "1.5px solid hsl(var(--theo-light))", borderRadius: 8, padding: 6, cursor: "pointer", color: "#B91C1C", display: "flex" }}
+                            title="Remove"
+                          >
+                            <Trash2 style={{ width: 13, height: 13 }} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete confirmation ───────────────────────────────── */}
+      {confirmDelete && (
+        <div
+          onClick={() => setConfirmDelete(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(26,26,46,0.55)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 380, padding: 20, boxShadow: "0 24px 60px rgba(26,26,46,0.32)" }}
+          >
+            <div style={{ fontSize: 15, fontWeight: 700, color: "hsl(var(--theo-ink))", marginBottom: 8 }}>Remove recipient</div>
+            <div style={{ fontSize: 13, color: "hsl(var(--theo-mid))", lineHeight: 1.5, marginBottom: 16 }}>
+              Remove <span style={{ fontWeight: 600, color: "hsl(var(--theo-ink))" }}>{confirmDelete.name}</span> from saved recipients? This won't affect past payments.
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(null)}
+                style={{ background: "transparent", color: "hsl(var(--theo-mid))", border: "1.5px solid hsl(var(--theo-light))", borderRadius: 9, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => { await deleteRecipient(confirmDelete.id); setConfirmDelete(null); }}
+                style={{ background: "#B91C1C", color: "#fff", border: "none", borderRadius: 9, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }
