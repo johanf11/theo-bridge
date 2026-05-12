@@ -555,6 +555,8 @@ export default function Transactions() {
                         `Deposited ${fmtUSDC(tx.usdc_amount)} from ${tx.wallet_label} · ${((tx.net_apy ?? 0.07) * 100).toFixed(2)}% APY`
                       ) : tx.type === "yield_earned" ? (
                         `Daily yield · ${tx.wallet_label} · ${((tx.net_apy ?? 0.07) * 100).toFixed(2)}% APY`
+                      ) : tx.type === "withdraw" ? (
+                        `HTG withdrawal · bank account`
                       ) : tx.type === "transfer" ? (
                         `From ${tx.wallet_label} → ${tx.recipient_name}`
                       ) : (
