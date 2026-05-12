@@ -195,10 +195,11 @@ export default function Transactions() {
       const merged: UnifiedTx[] = [
         ...(orders ?? []).map((o) => {
           const kind = (o as { order_kind?: string }).order_kind;
+          const ref = (o as { reference_number?: string }).reference_number ?? "";
           const type: TxType =
             kind === "htgc_mint" ? "htgc_mint" :
             kind === "htgc_usdc_swap" ? "swap" :
-            kind === "htgc_withdraw" ? "withdraw" :
+            kind === "htgc_withdraw" || ref.startsWith("THEO-W-") ? "withdraw" :
             "conversion";
           const row = o as {
             rate?: number | null;
