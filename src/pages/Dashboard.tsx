@@ -37,7 +37,7 @@ type Period = "7D" | "30D" | "60D" | "YTD" | "1Y";
 type BarRow = { label: string; conversions: number; payouts: number };
 type SplitSlice = { name: string; value: number };
 type RawOrder  = { usdc_amount: number; created_at: string; status: string };
-type RawPayout = { amount_usdc: number; created_at: string; status: string };
+type RawPayout = { amount_usdc: number; created_at: string; status: string; memo?: string | null };
 
 // ── Chart bucketing ───────────────────────────────────────────────────────────
 
@@ -97,7 +97,7 @@ function buildBuckets(
     ),
     payouts: Math.round(
       payouts
-        .filter(p => p.status === "COMPLETED" && new Date(p.created_at) >= start && new Date(p.created_at) < end)
+        .filter(p => p.status === "COMPLETED" && p.memo !== "internal-transfer" && new Date(p.created_at) >= start && new Date(p.created_at) < end)
         .reduce((s, p) => s + Number(p.amount_usdc), 0)
     ),
   }));
@@ -214,7 +214,7 @@ export default function Dashboard() {
       .filter(o => o.status === "COMPLETED" && new Date(o.created_at) >= start)
       .reduce((s, o) => s + Number(o.usdc_amount), 0);
     const pays = rawPayouts
-      .filter(p => p.status === "COMPLETED" && new Date(p.created_at) >= start)
+      .filter(p => p.status === "COMPLETED" && p.memo !== "internal-transfer" && new Date(p.created_at) >= start)
       .reduce((s, p) => s + Number(p.amount_usdc), 0);
     if (conv === 0 && pays === 0) return [];
     return [
@@ -299,7 +299,7 @@ export default function Dashboard() {
         // Full year of payouts for chart
         supabase
           .from("payouts")
-          .select("amount_usdc, created_at, status")
+          .select("amount_usdc, created_at, status, memo")
           .eq("customer_id", c.id)
           .gte("created_at", oneYearAgo.toISOString()),
         // Invoices for stats
