@@ -1096,7 +1096,7 @@ export default function Convert() {
                           padding: "3px 8px", borderRadius: 999,
                         }}
                       >
-                        {balLoading ? "..." : `Available: ${availBal > 0 ? availBal.toLocaleString("en-US", { maximumFractionDigits: 2 }) : "0"} ${currency}`}
+                        {balLoading ? "..." : `Available: ${availBal > 0 ? (Math.floor(availBal * 100) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0.00"} ${currency}`}
                       </span>
                     </div>
 
@@ -1253,7 +1253,7 @@ export default function Convert() {
                   >
                     Available: {offHtgcLoading || offHtgcBalance == null
                       ? "—"
-                      : offHtgcBalance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} HTG-C
+                      : Math.floor(offHtgcBalance).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} HTG-C
                   </span>
                 </div>
                 <div style={{ position: "relative" }}>
@@ -1515,7 +1515,7 @@ export default function Convert() {
             };
 
             const fmt = (n: number) =>
-              n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+              (Math.floor(n * 100) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
             return (
               <>
