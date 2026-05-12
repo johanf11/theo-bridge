@@ -760,7 +760,10 @@ export default function Convert() {
                       padding: "3px 8px", borderRadius: 999,
                     }}
                   >
-                    Available: {(htgReceiveMode === "usdc" ? walletBalances.usdc : walletBalances.htgc).toLocaleString("en-US", { minimumFractionDigits: htgReceiveMode === "usdc" ? 2 : 0, maximumFractionDigits: htgReceiveMode === "usdc" ? 2 : 0 })} {htgReceiveMode === "usdc" ? "USDC" : "HTG-C"}
+                    Available: {htgReceiveMode === "usdc"
+                      ? (Math.floor(walletBalances.usdc * 100) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                      : Math.floor(walletBalances.htgc).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                    } {htgReceiveMode === "usdc" ? "USDC" : "HTG-C"}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
