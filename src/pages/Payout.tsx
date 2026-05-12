@@ -243,6 +243,7 @@ export default function Payout() {
       .from("payouts")
       .select("id, recipient_name, amount_usdc, status, stellar_tx_hash, created_at, memo")
       .eq("customer_id", cid)
+      .neq("memo", "internal-transfer")
       .order("created_at", { ascending: false })
       .limit(10);
     setPayouts((data ?? []) as Payout[]);
