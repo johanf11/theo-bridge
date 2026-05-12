@@ -311,7 +311,7 @@ export default function Payout() {
     // Pre-send balance check — compare against live balance already loaded
     const sourceWallet = wallets.find((w) => w.id === sourceWalletId);
     const availableBalance = Number(sourceWallet?.usdc_balance ?? 0);
-    if (parsedAmount > availableBalance + 0.001) {
+    if (parsedAmount > availableBalance + 0.01) {
       toast.error(
         `Insufficient balance — you have ${availableBalance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC available`
       );
@@ -708,7 +708,18 @@ export default function Payout() {
 
               {/* ── Amount ──────────────────────────────────────────── */}
               <div style={{ marginBottom: 10 }}>
-                <label style={labelStyle}>Amount (USDC)</label>
+                <div className="flex items-center justify-between" style={{ marginBottom: 4 }}>
+                  <label style={{ ...labelStyle, marginBottom: 0 }}>Amount (USDC)</label>
+                  {sourceWallet && (
+                    <button
+                      type="button"
+                      onClick={() => setAmount(String(Math.floor(Number(sourceWallet.usdc_balance) * 100) / 100))}
+                      style={{ fontSize: 11, fontWeight: 700, color: "hsl(var(--theo-cyan))", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                    >
+                      Max
+                    </button>
+                  )}
+                </div>
                 <div style={{ position: "relative" }}>
                   <input
                     style={{ ...inputStyle, marginBottom: 0, paddingRight: 56 }}
