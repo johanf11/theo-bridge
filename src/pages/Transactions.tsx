@@ -57,6 +57,9 @@ function txAmountCurrency(tx: UnifiedTx): { amount: string; currency: string } {
   if (tx.type === "yield_earned") {
     return { amount: `+${usdcDigits2(tx.usdc_amount)}`, currency: "USDC" };
   }
+  if (tx.type === "withdraw") {
+    return { amount: fmtHTGC(tx.htg_amount ?? 0), currency: "HTG" };
+  }
   if (tx.type === "swap" && tx.swap_direction === "usdc_to_htgc") {
     return { amount: fmtHTGC(tx.htg_amount ?? 0), currency: "HTG" };
   }
