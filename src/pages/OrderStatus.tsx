@@ -146,13 +146,13 @@ export default function OrderStatus() {
 
       {/* Stepper */}
       <div className="rounded-2xl border border-border bg-card mb-6 px-6 py-7">
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start">
           {STEPS.map((s, i) => {
             const reached = !isTerminalFail && i <= idx;
             const done = !isTerminalFail && i < idx;
             return (
-              <div key={s.key} className="flex-1 flex items-start">
-                <div className="flex flex-col items-center text-center min-w-0 flex-1">
+              <>
+                <div key={s.key} className="flex flex-col items-center text-center" style={{ flex: "0 0 auto", width: 90 }}>
                   <div style={{
                     height: 32, width: 32, borderRadius: 99,
                     display: "flex", alignItems: "center", justifyContent: "center",
@@ -173,11 +173,11 @@ export default function OrderStatus() {
                 </div>
                 {i < STEPS.length - 1 && (
                   <div style={{
-                    flex: 1, height: 2, marginTop: 15, marginLeft: 4, marginRight: 4,
+                    flex: 1, height: 2, marginTop: 15,
                     background: (reached && i < idx) ? "hsl(var(--theo-blue))" : "hsl(var(--border))",
                   }} />
                 )}
-              </div>
+              </>
             );
           })}
         </div>
