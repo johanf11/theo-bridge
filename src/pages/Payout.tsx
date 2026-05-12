@@ -311,7 +311,7 @@ export default function Payout() {
     // Pre-send balance check — compare against live balance already loaded
     const sourceWallet = wallets.find((w) => w.id === sourceWalletId);
     const availableBalance = Number(sourceWallet?.usdc_balance ?? 0);
-    if (parsedAmount > availableBalance) {
+    if (parsedAmount > availableBalance + 0.001) {
       toast.error(
         `Insufficient balance — you have ${availableBalance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC available`
       );
