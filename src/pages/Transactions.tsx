@@ -327,6 +327,7 @@ export default function Transactions() {
     if (typeFilter === "Swap" && tx.type !== "swap") return false;
     if (typeFilter === "Payout" && tx.type !== "payout") return false;
     if (typeFilter === "Yield" && tx.type !== "yield" && tx.type !== "yield_earned" && tx.type !== "yield_payout") return false;
+    if (typeFilter === "Withdraw" && tx.type !== "withdraw") return false;
     if (typeFilter === "Transfer" && tx.type !== "transfer") return false;
 
     const statusLabel = tx.status.toLowerCase();
@@ -437,7 +438,7 @@ export default function Transactions() {
       {/* Filters */}
       <div className="flex gap-2 mb-4 items-center">
         <select style={selectStyle} value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
-          {["All types", "Conversion", "HTG-C Mint", "Swap", "Payout", "Yield", "Transfer"].map(o => <option key={o}>{o}</option>)}
+          {["All types", "Conversion", "HTG-C Mint", "Swap", "Payout", "Withdraw", "Yield", "Transfer"].map(o => <option key={o}>{o}</option>)}
         </select>
         <select style={selectStyle} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
           {["All statuses", "Settled", "Pending", "Failed"].map(o => <option key={o}>{o}</option>)}
