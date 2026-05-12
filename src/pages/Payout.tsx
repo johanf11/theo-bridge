@@ -710,15 +710,18 @@ export default function Payout() {
               <div style={{ marginBottom: 10 }}>
                 <div className="flex items-center justify-between" style={{ marginBottom: 4 }}>
                   <label style={{ ...labelStyle, marginBottom: 0 }}>Amount (USDC)</label>
-                  {sourceWallet && (
-                    <button
-                      type="button"
-                      onClick={() => setAmount(String(Math.floor(Number(sourceWallet.usdc_balance) * 100) / 100))}
-                      style={{ fontSize: 11, fontWeight: 700, color: "hsl(var(--theo-cyan))", background: "none", border: "none", cursor: "pointer", padding: 0 }}
-                    >
-                      Max
-                    </button>
-                  )}
+                  {(() => {
+                    const sw = wallets.find((w) => w.id === sourceWalletId);
+                    return sw ? (
+                      <button
+                        type="button"
+                        onClick={() => setAmount(String(Math.floor(Number(sw.usdc_balance) * 100) / 100))}
+                        style={{ fontSize: 11, fontWeight: 700, color: "hsl(var(--theo-cyan))", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                      >
+                        Max
+                      </button>
+                    ) : null;
+                  })()}
                 </div>
                 <div style={{ position: "relative" }}>
                   <input
