@@ -755,7 +755,7 @@ export default function Payout() {
                         border: `1px solid ${low ? "#FDE68A" : "hsl(var(--theo-light))"}`,
                       }}>
                         {low && <AlertTriangle size={10} style={{ flexShrink: 0 }} />}
-                        {bal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC available
+                        {(Math.floor(bal * 100) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC available
                       </span>
                     );
                   })()}
