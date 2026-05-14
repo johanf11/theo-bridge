@@ -8,7 +8,7 @@ import {
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { distributorPublicKey, signWithDistributor, signWithSecret } from "../_shared/stellar-signer.ts";
 import { assertWithinLimits } from "../_shared/tx-limits.ts";
-import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
+import { HTGC_ISSUER, TREASURY_PUBLIC } from "../_shared/stellar-assets.ts";
 import { ensureWalletReady } from "../_shared/ensure-wallet-ready.ts";
 
 const corsHeaders = {
