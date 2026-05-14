@@ -254,6 +254,8 @@ Deno.serve(async (req) => {
     const reference = `SWP-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 
     // ── LEG 1: user → distributor ──────────────────────────────────────────
+    // Leg 1 destination: USDC inbound → Treasury; HTGC inbound → Distributor
+    const leg1Destination = direction === "usdc_to_htgc" ? TREASURY_PUBLIC : distPubkey;
     let leg1Hash: string;
     try {
       const userAccount = await server.loadAccount(userKp.publicKey());
@@ -261,7 +263,7 @@ Deno.serve(async (req) => {
         fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
       })
         .addOperation(Operation.payment({
-          destination: distPubkey,
+          destination: leg1Destination,
           asset: sourceAsset,
           amount: sourceAmount.toFixed(7),
         }))
