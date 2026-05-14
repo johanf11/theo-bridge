@@ -213,6 +213,44 @@ Deno.serve(async (req) => {
       }
     }
 
+    // If swapping USDC → HTGC, ensure the user wallet holds enough USDC.
+    // Mint shortfall from the USDC issuer (testnet only).
+    if (direction === "usdc_to_htgc") {
+      try {
+        const acct = await server.loadAccount(wallet.stellar_address);
+        const usdcBal = (acct.balances as HorizonBalance[]).find((b) =>
+          b.asset_type !== "native" && b.asset_code === "USDC" && b.asset_issuer === usdcIssuer
+        );
+        const have = usdcBal ? Number(usdcBal.balance) : 0;
+        const shortfall = sourceAmount - have;
+        if (shortfall > 0) {
+          const usdcIssuerSecret = Deno.env.get("STELLAR_USDC_ISSUER_SECRET");
+          if (!usdcIssuerSecret) {
+            return json({ error: `Wallet has ${have} USDC, needs ${sourceAmount}. STELLAR_USDC_ISSUER_SECRET not configured.` }, 400);
+          }
+          const issuerKp = Keypair.fromSecret(usdcIssuerSecret);
+          const issuerAccount = await server.loadAccount(issuerKp.publicKey());
+          const mintTx = new TransactionBuilder(issuerAccount, {
+            fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
+          })
+            .addOperation(Operation.payment({
+              destination: wallet.stellar_address,
+              asset: usdc,
+              amount: shortfall.toFixed(7),
+            }))
+            .setTimeout(60)
+            .build();
+          mintTx.sign(issuerKp);
+          await server.submitTransaction(mintTx);
+        }
+      } catch (mintErr: unknown) {
+        const msg = (mintErr as { response?: { data?: unknown } })?.response?.data
+          ? JSON.stringify((mintErr as { response: { data: unknown } }).response.data)
+          : (mintErr as Error).message;
+        return json({ error: `USDC pre-funding failed: ${msg}` }, 502);
+      }
+    }
+
     const reference = `SWP-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 
     // ── LEG 1: user → distributor ──────────────────────────────────────────
