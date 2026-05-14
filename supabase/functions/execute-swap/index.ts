@@ -324,20 +324,43 @@ Deno.serve(async (req) => {
     let refundError: string | null = null;
     if (leg2Hash === null) {
       try {
-        const distAccount = await server.loadAccount(distPubkey);
+        // Refund originates from whichever account received Leg 1 funds.
+        // usdc_to_htgc → Treasury (signed with STELLAR_TREASURY_SECRET)
+        // htgc_to_usdc → Distributor (signed with STELLAR_DISTRIBUTOR_SECRET)
         const refundMemo = `${reference}-RFND`.slice(0, 28);
-        const txR = new TransactionBuilder(distAccount, {
-          fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
-        })
-          .addOperation(Operation.payment({
-            destination: wallet.stellar_address,
-            asset: sourceAsset,
-            amount: sourceAmount.toFixed(7),
-          }))
-          .addMemo(Memo.text(refundMemo))
-          .setTimeout(60)
-          .build();
-        signWithDistributor(txR);
+        let txR;
+        if (direction === "usdc_to_htgc") {
+          const treasurySecret = Deno.env.get("STELLAR_TREASURY_SECRET");
+          if (!treasurySecret) throw new Error("STELLAR_TREASURY_SECRET not configured");
+          const treasuryKp = Keypair.fromSecret(treasurySecret);
+          const treasuryAccount = await server.loadAccount(TREASURY_PUBLIC);
+          txR = new TransactionBuilder(treasuryAccount, {
+            fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
+          })
+            .addOperation(Operation.payment({
+              destination: wallet.stellar_address,
+              asset: sourceAsset,
+              amount: sourceAmount.toFixed(7),
+            }))
+            .addMemo(Memo.text(refundMemo))
+            .setTimeout(60)
+            .build();
+          txR.sign(treasuryKp);
+        } else {
+          const distAccount = await server.loadAccount(distPubkey);
+          txR = new TransactionBuilder(distAccount, {
+            fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
+          })
+            .addOperation(Operation.payment({
+              destination: wallet.stellar_address,
+              asset: sourceAsset,
+              amount: sourceAmount.toFixed(7),
+            }))
+            .addMemo(Memo.text(refundMemo))
+            .setTimeout(60)
+            .build();
+          signWithDistributor(txR);
+        }
         const rR = await server.submitTransaction(txR);
         refundHash = (rR as { hash: string }).hash;
         console.log(`Auto-refund OK ${reference}: ${refundHash}`);
