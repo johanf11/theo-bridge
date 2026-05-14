@@ -294,23 +294,45 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── LEG 2: distributor → user ──────────────────────────────────────────
+    // ── LEG 2: deliver destination asset to user ───────────────────────────
+    // usdc_to_htgc: HTGC issuer mints HTG-C directly (unlimited supply)
+    // htgc_to_usdc: Distributor sends USDC to the user
     let leg2Hash: string | null = null;
     let leg2Error: string | null = null;
     try {
-      const distAccount = await server.loadAccount(distPubkey);
-      const tx2 = new TransactionBuilder(distAccount, {
-        fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
-      })
-        .addOperation(Operation.payment({
-          destination: wallet.stellar_address,
-          asset: destAsset,
-          amount: leg2Amount.toFixed(7),
-        }))
-        .addMemo(Memo.text(reference.slice(0, 28)))
-        .setTimeout(60)
-        .build();
-      signWithDistributor(tx2);
+      let tx2;
+      if (direction === "usdc_to_htgc") {
+        const htgcIssuerSecret = Deno.env.get("STELLAR_HTGC_ISSUER_SECRET");
+        if (!htgcIssuerSecret) throw new Error("STELLAR_HTGC_ISSUER_SECRET not configured");
+        const issuerKp = Keypair.fromSecret(htgcIssuerSecret);
+        const issuerAccount = await server.loadAccount(issuerKp.publicKey());
+        tx2 = new TransactionBuilder(issuerAccount, {
+          fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
+        })
+          .addOperation(Operation.payment({
+            destination: wallet.stellar_address,
+            asset: htgc,
+            amount: leg2Amount.toFixed(7),
+          }))
+          .addMemo(Memo.text(reference.slice(0, 28)))
+          .setTimeout(60)
+          .build();
+        tx2.sign(issuerKp);
+      } else {
+        const distAccount = await server.loadAccount(distPubkey);
+        tx2 = new TransactionBuilder(distAccount, {
+          fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
+        })
+          .addOperation(Operation.payment({
+            destination: wallet.stellar_address,
+            asset: usdc,
+            amount: leg2Amount.toFixed(7),
+          }))
+          .addMemo(Memo.text(reference.slice(0, 28)))
+          .setTimeout(60)
+          .build();
+        signWithDistributor(tx2);
+      }
       const r2 = await server.submitTransaction(tx2);
       leg2Hash = (r2 as { hash: string }).hash;
     } catch (e: unknown) {
