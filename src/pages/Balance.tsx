@@ -1087,7 +1087,7 @@ function LedgerRow({
       </td>
       <td className="px-5 py-3">
         <div style={{ fontSize: 13, fontWeight: 700 }}>
-          ${balance.toLocaleString("en-US", { minimumFractionDigits: 2 })} USDC
+          ${balance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC
         </div>
       </td>
       <td className="px-5 py-3">
