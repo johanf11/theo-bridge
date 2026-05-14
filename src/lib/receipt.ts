@@ -91,7 +91,7 @@ function fmtHtgInteger(n: number) {
   return "HTG " + Math.round(n).toLocaleString("en-US");
 }
 function fmtUsdc(n: number) { return "USDC " + fmtN(n); }
-function fmtRate(r: number) { return "1 USD = " + r.toFixed(2) + " HTG"; }
+function fmtRate(r: number) { return "1 USD = " + r.toFixed(4) + " HTG"; }
 
 function fmtDate(iso: string) {
   const dt = new Date(iso);
