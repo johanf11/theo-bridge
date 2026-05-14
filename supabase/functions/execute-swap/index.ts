@@ -8,7 +8,7 @@ import {
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { distributorPublicKey, signWithDistributor, signWithSecret } from "../_shared/stellar-signer.ts";
 import { assertWithinLimits } from "../_shared/tx-limits.ts";
-import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
+import { HTGC_ISSUER, TREASURY_PUBLIC } from "../_shared/stellar-assets.ts";
 import { ensureWalletReady } from "../_shared/ensure-wallet-ready.ts";
 
 const corsHeaders = {
@@ -254,6 +254,8 @@ Deno.serve(async (req) => {
     const reference = `SWP-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 
     // ── LEG 1: user → distributor ──────────────────────────────────────────
+    // Leg 1 destination: USDC inbound → Treasury; HTGC inbound → Distributor
+    const leg1Destination = direction === "usdc_to_htgc" ? TREASURY_PUBLIC : distPubkey;
     let leg1Hash: string;
     try {
       const userAccount = await server.loadAccount(userKp.publicKey());
@@ -261,7 +263,7 @@ Deno.serve(async (req) => {
         fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
       })
         .addOperation(Operation.payment({
-          destination: distPubkey,
+          destination: leg1Destination,
           asset: sourceAsset,
           amount: sourceAmount.toFixed(7),
         }))
@@ -322,20 +324,43 @@ Deno.serve(async (req) => {
     let refundError: string | null = null;
     if (leg2Hash === null) {
       try {
-        const distAccount = await server.loadAccount(distPubkey);
+        // Refund originates from whichever account received Leg 1 funds.
+        // usdc_to_htgc → Treasury (signed with STELLAR_TREASURY_SECRET)
+        // htgc_to_usdc → Distributor (signed with STELLAR_DISTRIBUTOR_SECRET)
         const refundMemo = `${reference}-RFND`.slice(0, 28);
-        const txR = new TransactionBuilder(distAccount, {
-          fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
-        })
-          .addOperation(Operation.payment({
-            destination: wallet.stellar_address,
-            asset: sourceAsset,
-            amount: sourceAmount.toFixed(7),
-          }))
-          .addMemo(Memo.text(refundMemo))
-          .setTimeout(60)
-          .build();
-        signWithDistributor(txR);
+        let txR;
+        if (direction === "usdc_to_htgc") {
+          const treasurySecret = Deno.env.get("STELLAR_TREASURY_SECRET");
+          if (!treasurySecret) throw new Error("STELLAR_TREASURY_SECRET not configured");
+          const treasuryKp = Keypair.fromSecret(treasurySecret);
+          const treasuryAccount = await server.loadAccount(TREASURY_PUBLIC);
+          txR = new TransactionBuilder(treasuryAccount, {
+            fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
+          })
+            .addOperation(Operation.payment({
+              destination: wallet.stellar_address,
+              asset: sourceAsset,
+              amount: sourceAmount.toFixed(7),
+            }))
+            .addMemo(Memo.text(refundMemo))
+            .setTimeout(60)
+            .build();
+          txR.sign(treasuryKp);
+        } else {
+          const distAccount = await server.loadAccount(distPubkey);
+          txR = new TransactionBuilder(distAccount, {
+            fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
+          })
+            .addOperation(Operation.payment({
+              destination: wallet.stellar_address,
+              asset: sourceAsset,
+              amount: sourceAmount.toFixed(7),
+            }))
+            .addMemo(Memo.text(refundMemo))
+            .setTimeout(60)
+            .build();
+          signWithDistributor(txR);
+        }
         const rR = await server.submitTransaction(txR);
         refundHash = (rR as { hash: string }).hash;
         console.log(`Auto-refund OK ${reference}: ${refundHash}`);
