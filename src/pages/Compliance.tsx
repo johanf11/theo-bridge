@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 const HTGC_DISTRIBUTOR = "GCP6VMZS3SJ4CSOT3ZVMMJIOXOHTMJK47YQ4RTUJN7P2KYKDVRCUBS2X";
 const HTGC_ISSUER      = "GDSRYZWTLQLBECKCL4TV7ZRGBZGBMSPD4V47B7Y7JSQVDJRSEXQTFCQT";
+const THEO_TREASURY    = "GAO2RZ2T67Z5HJKQHWJXR6TSGEOEOWAAHJBT76DZBAV4W3YUETGMZZMA";
 const HORIZON_URL      = "https://horizon-testnet.stellar.org";
 
 type HorizonBalance = {
@@ -316,12 +317,17 @@ export default function Compliance() {
             }}>
               <a href={`https://stellar.expert/explorer/testnet/asset/HTGC-${HTGC_ISSUER}`} target="_blank" rel="noreferrer"
                 style={{ color: N, display: "flex", alignItems: "center", gap: 5 }}>
-                <ExternalLink style={{ width: 11, height: 11 }} /> Verify issuer on Stellar Expert →
+                <ExternalLink style={{ width: 11, height: 11 }} /> Verify issuer →
               </a>
               <span style={{ color: LT }}>·</span>
               <a href={`https://stellar.expert/explorer/testnet/account/${HTGC_DISTRIBUTOR}`} target="_blank" rel="noreferrer"
                 style={{ color: N, display: "flex", alignItems: "center", gap: 5 }}>
-                <ExternalLink style={{ width: 11, height: 11 }} /> Verify treasury account →
+                <ExternalLink style={{ width: 11, height: 11 }} /> Verify distributor →
+              </a>
+              <span style={{ color: LT }}>·</span>
+              <a href={`https://stellar.expert/explorer/testnet/account/${THEO_TREASURY}`} target="_blank" rel="noreferrer"
+                style={{ color: N, display: "flex", alignItems: "center", gap: 5 }}>
+                <ExternalLink style={{ width: 11, height: 11 }} /> Verify treasury →
               </a>
               <>
                 <span style={{ color: LT }}>·</span>
@@ -384,11 +390,11 @@ export default function Compliance() {
                   </div>
                 </td>
               </tr>
-              {/* Treasury float */}
+              {/* Distributor float */}
               <tr>
                 <td style={{ ...TD, borderBottom: "none" }}>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: N }}>Treasury float</div>
-                  <div style={{ fontSize: 11.5, color: MID, marginTop: 2 }}>Distributor wallet · pre-mint buffer</div>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: N }}>Distributor float</div>
+                  <div style={{ fontSize: 11.5, color: MID, marginTop: 2 }}>Distributor wallet · HTG-C buffer</div>
                 </td>
                 <td style={{ ...TD, borderBottom: "none", fontFamily: MONO, fontVariantNumeric: "tabular-nums", textAlign: "right", fontWeight: 600 }}>
                   {ready ? fmtN(treas) : "—"}
