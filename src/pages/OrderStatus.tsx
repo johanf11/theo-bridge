@@ -152,7 +152,7 @@ export default function OrderStatus() {
             const done = !isTerminalFail && i < idx;
             return (
               <>
-                <div key={s.key} className="flex flex-col items-center text-center" style={{ flex: "0 0 auto", width: 90 }}>
+                <div key={s.key} className="flex flex-col items-center text-center" style={{ flex: "0 0 auto", width: 100 }}>
                   <div style={{
                     height: 32, width: 32, borderRadius: 99,
                     display: "flex", alignItems: "center", justifyContent: "center",
@@ -164,7 +164,7 @@ export default function OrderStatus() {
                     {(done || (order.status === "COMPLETED" && i <= idx)) ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
                   </div>
                   <div style={{
-                    marginTop: 8, fontSize: 13, fontWeight: 700,
+                    marginTop: 8, fontSize: 13, fontWeight: 700, whiteSpace: "nowrap",
                     color: reached ? "hsl(var(--theo-blue))" : "hsl(var(--theo-mid))",
                   }}>
                     {s.label}
