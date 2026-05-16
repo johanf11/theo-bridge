@@ -146,6 +146,24 @@ Deno.serve(async (req) => {
         .eq("id", orderId)
         .eq("status", "QUOTED");
       if (cErr) throw cErr;
+
+      // Ledger: HTG-C mint records the SPIH cash-in only in Phase 1.
+      try {
+        const htg = Number(existing.htg_amount);
+        await postLedger(admin, {
+          orderId,
+          kind: "SPIH_CASH_IN",
+          description: `HTG-C mint cash-in for order ${existing.reference_number}`,
+          postedBy: u.user.id,
+          entries: [
+            { code: "SPIH_BANK_HTG",        currency: "HTG", debit: htg },
+            { code: "CUSTOMER_HTG_PENDING", currency: "HTG", credit: htg },
+          ],
+        });
+      } catch (le) {
+        console.error("ledger SPIH_CASH_IN (mint) failed", le);
+      }
+
       return new Response(JSON.stringify({ ok: true, status: "COMPLETED", hash }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -164,6 +182,23 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Order not in QUOTED state" }), {
         status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Ledger: HTG enters SPIH bank (asset); we owe customer the HTG (liability).
+    try {
+      const htg = Number(existing.htg_amount);
+      await postLedger(admin, {
+        orderId,
+        kind: "SPIH_CASH_IN",
+        description: `SPIH cash-in for order ${existing.reference_number}`,
+        postedBy: u.user.id,
+        entries: [
+          { code: "SPIH_BANK_HTG",        currency: "HTG", debit: htg },
+          { code: "CUSTOMER_HTG_PENDING", currency: "HTG", credit: htg },
+        ],
+      });
+    } catch (le) {
+      console.error("ledger SPIH_CASH_IN failed", le);
     }
 
     // Invoke release-usdc with the caller's auth header (it requires an admin JWT).
