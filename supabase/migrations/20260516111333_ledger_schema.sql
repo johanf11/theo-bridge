@@ -1,13 +1,23 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- Double-entry ledger schema
+-- NO-OP — ledger schema already applied via migrations 003639 and 004523
 -- ─────────────────────────────────────────────────────────────────────────────
--- Recommended rollout order (see backfill-ledger/index.ts for details):
+-- The double-entry ledger schema (ledger_accounts, ledger_transactions,
+-- ledger_entries, ledger_posting_failures, post_ledger_entries RPC,
+-- get_or_create_customer_usdc_account RPC, triggers, RLS, seed accounts)
+-- was deployed by Lovable in the earlier migrations timestamped 003639 and
+-- 004523. This file intentionally applies no DDL so the migration runner
+-- does not conflict with the existing schema.
+--
+-- Original intended rollout order (for reference):
 --   1. Apply migration (LEDGER_GATE_ENABLED unset = gate closed)
 --   2. POST /backfill-ledger  →  verify backfill_report
 --   3. Query trial balance    →  confirm near-zero residuals
 --   4. Set LEDGER_GATE_ENABLED=1 in edge function secrets  →  live posting begins
 
--- ── Chart of accounts ─────────────────────────────────────────────────────────
+SELECT 1; -- no-op sentinel
+
+/*
+-- ── Original DDL (suppressed — applied via earlier migrations) ────────────────
 CREATE TABLE IF NOT EXISTS chart_of_accounts (
   id             text PRIMARY KEY,
   name           text NOT NULL,
@@ -274,3 +284,5 @@ CREATE POLICY "service_all_accounts" ON ledger_accounts        FOR ALL TO servic
 CREATE POLICY "service_all_txns"     ON ledger_transactions    FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY "service_all_entries"  ON ledger_entries         FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY "service_all_failures" ON ledger_posting_failures FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+*/

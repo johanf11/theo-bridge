@@ -1,9 +1,11 @@
 // replay-ledger-failure — admin-only.
 // Retries a single row from ledger_posting_failures.
 // Body: { failure_id: string }
-// On success, deletes the failure row and returns { ok: true, transaction_id }.
+// On success: marks the row as resolved (resolved_at, resolution_tx_id) and returns { ok: true, transaction_id }.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { postLedger } from "../_shared/ledger.ts";
+import type { LedgerPost } from "../_shared/ledger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,55 +50,25 @@ Deno.serve(async (req) => {
       .from("ledger_posting_failures")
       .select("*")
       .eq("id", failure_id)
+      .is("resolved_at", null)
       .maybeSingle();
-    if (fetchErr || !failureRow) return json({ error: "Failure row not found" }, 404);
+    if (fetchErr || !failureRow) return json({ error: "Failure row not found or already resolved" }, 404);
 
-    const payload = (failureRow as { payload: Record<string, unknown> }).payload;
+    // The payload column contains the original LedgerPost object
+    const post = (failureRow as { payload: LedgerPost }).payload;
 
-    // Re-resolve entries from the stored payload
-    // The payload was stored as a PostLedgerParams object (account_code + optional customer_id)
-    const entries = (payload.entries as Array<{
-      account_code: string;
-      customer_id?: string;
-      amount: number;
-      side: string;
-      currency: string;
-    }>);
+    // Re-run via postLedger (which calls post_ledger_entries with idempotent source_key)
+    const txId = await postLedger(admin, post);
 
-    const resolvedEntries = await Promise.all(
-      entries.map(async (e) => {
-        let accountId: string;
-        if (e.account_code === "CUSTOMER_USDC" && e.customer_id) {
-          const { data, error } = await admin.rpc("get_or_create_customer_usdc_account", {
-            p_customer_id: e.customer_id,
-          });
-          if (error) throw new Error(`get_or_create failed: ${error.message}`);
-          accountId = data as string;
-        } else {
-          const { data, error } = await admin
-            .from("ledger_accounts")
-            .select("id")
-            .eq("code", e.account_code)
-            .is("customer_id", null)
-            .single();
-          if (error || !data) throw new Error(`Account not found: ${e.account_code}`);
-          accountId = (data as { id: string }).id;
-        }
-        return { account_id: accountId, amount: e.amount, side: e.side, currency: e.currency };
-      }),
-    );
-
-    const { data: txId, error: postErr } = await admin.rpc("post_ledger_entries", {
-      p_source_key:  payload.source_key,
-      p_description: payload.description,
-      p_posted_by:   payload.posted_by ?? null,
-      p_entries:     JSON.stringify(resolvedEntries),
-    });
-
-    if (postErr) return json({ error: `Retry failed: ${postErr.message}` }, 502);
-
-    // Success — delete the failure row
-    await admin.from("ledger_posting_failures").delete().eq("id", failure_id);
+    // Mark resolved
+    await admin
+      .from("ledger_posting_failures")
+      .update({
+        resolved_at:       new Date().toISOString(),
+        resolved_by:       user.id,
+        resolution_tx_id:  txId,
+      })
+      .eq("id", failure_id);
 
     return json({ ok: true, transaction_id: txId });
 

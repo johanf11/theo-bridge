@@ -1,24 +1,23 @@
 // backfill-ledger — admin-only, idempotent one-shot historical ledger replay.
 //
 // ── Recommended rollout order ──────────────────────────────────────────────────
-//   1. Deploy this function (LEDGER_GATE_ENABLED is unset / "0" — gate closed)
-//   2. POST /backfill-ledger and inspect the returned backfill_report
-//   3. Query trial balance:
-//        SELECT code, balance FROM ledger_accounts ORDER BY code;
-//      Residuals should be near-zero (< $1 on testnet due to rounding).
-//   4. Confirm opening_equity_adjustment_usdc looks reasonable.
-//   5. Set LEDGER_GATE_ENABLED=1 in Supabase edge function secrets.
-//      Live posting begins immediately for new swaps.
-//
-// ── Idempotency ────────────────────────────────────────────────────────────────
-//   Every entry uses a deterministic source_key (e.g. "backfill:order:<id>").
-//   post_ledger_entries returns the existing tx id on collision — safe to re-run.
+//   1. Confirm the ledger schema migrations are applied (Phase 1 + Phase 2).
+//   2. POST /backfill-ledger (admin auth required) — inspect the backfill_report.
+//   3. Open /admin/ledger → Trial Balance should show totals balanced (Σdebit = Σcredit)
+//      per currency. Residuals < $1 on testnet are acceptable.
+//   4. Wire execute-swap / admin-rectify-htgc with LEDGER_GATE_ENABLED if desired,
+//      or rely on always-on posting (current default — no gate in Lovable build).
 // ──────────────────────────────────────────────────────────────────────────────
+//
+// Idempotency: every call uses a deterministic source_key (e.g. "backfill:order:<id>").
+// post_ledger_entries returns the existing tx id on collision — safe to re-run.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { Horizon } from "npm:@stellar/stellar-sdk@12.3.0";
 import { distributorPublicKey } from "../_shared/stellar-signer.ts";
 import { HTGC_ISSUER, TREASURY_PUBLIC } from "../_shared/stellar-assets.ts";
+import { postLedger, getOrCreateCustomerUsdcAccount } from "../_shared/ledger.ts";
+import type { LedgerPost } from "../_shared/ledger.ts";
 
 const HORIZON_URL = "https://horizon-testnet.stellar.org";
 
@@ -36,59 +35,27 @@ type HorizonBalance = {
 };
 
 type BackfillReport = {
-  orders:      number;
-  payouts:     number;
-  blend:       number;
-  issuances:   number;
-  opening_equity_adjustment_usdc: number;
-  opening_equity_adjustment_htg:  number;
-  errors:      string[];
+  orders:    number;
+  payouts:   number;
+  blend:     number;
+  issuances: number;
+  equity_adjustment_usdc: number;
+  equity_adjustment_htg:  number;
+  errors:    string[];
 };
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-async function resolveAccountId(
+async function safePost(
   admin: ReturnType<typeof createClient>,
-  code: string,
-  customerId?: string,
-): Promise<string> {
-  if (code === "CUSTOMER_USDC" && customerId) {
-    const { data, error } = await admin.rpc("get_or_create_customer_usdc_account", {
-      p_customer_id: customerId,
-    });
-    if (error) throw new Error(`get_or_create failed: ${error.message}`);
-    return data as string;
-  }
-  const { data, error } = await admin
-    .from("ledger_accounts")
-    .select("id")
-    .eq("code", code)
-    .is("customer_id", null)
-    .single();
-  if (error || !data) throw new Error(`Account not found: ${code}`);
-  return (data as { id: string }).id;
-}
-
-async function post(
-  admin: ReturnType<typeof createClient>,
-  sourceKey: string,
-  description: string,
-  rawEntries: Array<{ code: string; customerId?: string; amount: number; side: "DEBIT" | "CREDIT"; currency: "USDC" | "HTG" }>,
+  post: LedgerPost,
+  errors: string[],
 ): Promise<void> {
-  const entries = await Promise.all(
-    rawEntries.map(async (e) => ({
-      account_id: await resolveAccountId(admin, e.code, e.customerId),
-      amount:     Math.round(e.amount * 1e7) / 1e7,
-      side:       e.side,
-      currency:   e.currency,
-    })),
-  );
-  await admin.rpc("post_ledger_entries", {
-    p_source_key:  sourceKey,
-    p_description: description,
-    p_posted_by:   null,
-    p_entries:     JSON.stringify(entries),
-  });
+  try {
+    await postLedger(admin, post);
+  } catch (e) {
+    errors.push(`${post.sourceKey}: ${(e as Error).message}`);
+  }
 }
 
 // ── main ──────────────────────────────────────────────────────────────────────
@@ -122,51 +89,71 @@ Deno.serve(async (req) => {
 
     const report: BackfillReport = {
       orders: 0, payouts: 0, blend: 0, issuances: 0,
-      opening_equity_adjustment_usdc: 0,
-      opening_equity_adjustment_htg:  0,
+      equity_adjustment_usdc: 0,
+      equity_adjustment_htg:  0,
       errors: [],
     };
 
     // ── 1. Orders ─────────────────────────────────────────────────────────────
     const { data: orders } = await admin
       .from("orders")
-      .select("id, order_kind, swap_direction, customer_id, htg_amount, usdc_amount, usdc_gross, fee_usdc, theo_fee_usdc, corridor_bps")
+      .select("id, order_kind, swap_direction, customer_id, htg_amount, usdc_amount, usdc_gross, fee_usdc, theo_fee_usdc, corridor_bps, stellar_tx_hash")
       .eq("status", "COMPLETED")
       .order("completed_at", { ascending: true });
 
     for (const o of orders ?? []) {
       const sourceKey = `backfill:order:${o.id}`;
       try {
-        const usdcGross    = Number(o.usdc_gross   ?? o.usdc_amount ?? 0);
-        const theoFeeUsdc  = Number(o.theo_fee_usdc ?? 0);
-        const usdcNet      = usdcGross - Number(o.fee_usdc ?? 0);
-        const htgAmount    = Math.round(Number(o.htg_amount ?? 0));
+        const usdcGross   = Number(o.usdc_gross   ?? o.usdc_amount ?? 0);
+        const theoFeeUsdc = Number(o.theo_fee_usdc ?? 0);
+        const usdcNet     = usdcGross - Number(o.fee_usdc ?? 0);
+        const htgAmount   = Math.round(Number(o.htg_amount ?? 0));
+
+        let custAcctId: string | null = null;
+        if (o.customer_id) {
+          custAcctId = await getOrCreateCustomerUsdcAccount(admin, o.customer_id).catch(() => null);
+        }
+        const custEntry = (amount: number, credit: boolean) =>
+          custAcctId
+            ? { accountId: custAcctId,          currency: "USDC" as const, ...(credit ? { credit: amount } : { debit: amount }) }
+            : { code: "CUSTOMER_USDC_PAYABLE",  currency: "USDC" as const, ...(credit ? { credit: amount } : { debit: amount }) };
 
         if (o.order_kind === "htgc_usdc_swap" && o.swap_direction === "htgc_to_usdc") {
-          await post(admin, sourceKey, `[backfill] HTG-C → USDC swap order ${o.id}`, [
-            { code: "FX_CLEARING_HTG",  amount: htgAmount,   side: "DEBIT",  currency: "HTG",  customerId: undefined },
-            { code: "HTGC_ISSUED",      amount: htgAmount,   side: "CREDIT", currency: "HTG"   },
-            { code: "DISTRIBUTOR_USDC", amount: usdcGross,   side: "DEBIT",  currency: "USDC"  },
-            { code: "CUSTOMER_USDC",    amount: usdcNet,     side: "CREDIT", currency: "USDC",  customerId: o.customer_id },
-            { code: "FEE_REVENUE_USDC", amount: theoFeeUsdc, side: "CREDIT", currency: "USDC"  },
-          ]);
+          await safePost(admin, {
+            orderId: o.id, kind: "htgc_to_usdc_swap", sourceKey,
+            description: `[backfill] HTG-C → USDC swap order ${o.id}`,
+            entries: [
+              { code: "FX_CLEARING_HTG",  currency: "HTG",  debit:  htgAmount   },
+              { code: "HTGC_ISSUED",      currency: "HTG",  credit: htgAmount   },
+              { code: "DISTRIBUTOR_USDC", currency: "USDC", debit:  usdcGross   },
+              custEntry(usdcNet, true),
+              { code: "FEE_REVENUE_USDC", currency: "USDC", credit: theoFeeUsdc },
+            ],
+          }, report.errors);
         } else if (o.order_kind === "htgc_usdc_swap" && o.swap_direction === "usdc_to_htgc") {
-          await post(admin, sourceKey, `[backfill] USDC → HTG-C swap order ${o.id}`, [
-            { code: "TREASURY_USDC",    amount: usdcGross,   side: "DEBIT",  currency: "USDC"  },
-            { code: "CUSTOMER_USDC",    amount: usdcNet,     side: "CREDIT", currency: "USDC",  customerId: o.customer_id },
-            { code: "FEE_REVENUE_USDC", amount: theoFeeUsdc, side: "CREDIT", currency: "USDC"  },
-            { code: "HTGC_ISSUED",      amount: htgAmount,   side: "DEBIT",  currency: "HTG"   },
-            { code: "FX_CLEARING_HTG",  amount: htgAmount,   side: "CREDIT", currency: "HTG"   },
-          ]);
+          await safePost(admin, {
+            orderId: o.id, kind: "usdc_to_htgc_swap", sourceKey,
+            description: `[backfill] USDC → HTG-C swap order ${o.id}`,
+            entries: [
+              { code: "TREASURY_USDC",    currency: "USDC", debit:  usdcGross   },
+              custEntry(usdcNet, true),
+              { code: "FEE_REVENUE_USDC", currency: "USDC", credit: theoFeeUsdc },
+              { code: "HTGC_ISSUED",      currency: "HTG",  debit:  htgAmount   },
+              { code: "FX_CLEARING_HTG",  currency: "HTG",  credit: htgAmount   },
+            ],
+          }, report.errors);
         } else if (o.order_kind === "usdc_conversion") {
-          // Legacy: treat as usdc_to_htgc with USDC entries only (HTG side unknown)
-          await post(admin, sourceKey, `[backfill] USDC conversion order ${o.id}`, [
-            { code: "OPENING_BALANCE_EQUITY", amount: usdcGross,   side: "DEBIT",  currency: "USDC" },
-            { code: "CUSTOMER_USDC",          amount: usdcNet,     side: "CREDIT", currency: "USDC", customerId: o.customer_id },
-            { code: "FEE_REVENUE_USDC",       amount: theoFeeUsdc, side: "CREDIT", currency: "USDC" },
-          ]);
+          // Legacy: USDC-only entries; HTG side unknown — plug into equity
+          await safePost(admin, {
+            orderId: o.id, kind: "usdc_conversion_legacy", sourceKey,
+            description: `[backfill] USDC conversion order ${o.id}`,
+            entries: [
+              { code: "OPENING_BALANCE_USDC", currency: "USDC", debit:  usdcGross   },
+              custEntry(usdcNet, true),
+              { code: "FEE_REVENUE_USDC",     currency: "USDC", credit: theoFeeUsdc },
+            ],
+          }, report.errors);
         }
-        // htgc_mint and htgc_withdrawal handled separately (issuance events)
         report.orders++;
       } catch (e) {
         report.errors.push(`order:${o.id}: ${(e as Error).message}`);
@@ -184,10 +171,19 @@ Deno.serve(async (req) => {
       const sourceKey = `backfill:payout:${p.id}`;
       try {
         const amount = Number(p.amount_usdc);
-        await post(admin, sourceKey, `[backfill] Payout ${p.id}`, [
-          { code: "CUSTOMER_USDC",    amount, side: "DEBIT",  currency: "USDC", customerId: p.customer_id },
-          { code: "DISTRIBUTOR_USDC", amount, side: "CREDIT", currency: "USDC" },
-        ]);
+        const custAcctId = p.customer_id
+          ? await getOrCreateCustomerUsdcAccount(admin, p.customer_id).catch(() => null)
+          : null;
+        await safePost(admin, {
+          kind: "payout", sourceKey,
+          description: `[backfill] Payout ${p.id}`,
+          entries: [
+            custAcctId
+              ? { accountId: custAcctId,         currency: "USDC", debit:  amount }
+              : { code: "CUSTOMER_USDC_PAYABLE", currency: "USDC", debit:  amount },
+            { code: "DISTRIBUTOR_USDC",           currency: "USDC", credit: amount },
+          ],
+        }, report.errors);
         report.payouts++;
       } catch (e) {
         report.errors.push(`payout:${p.id}: ${(e as Error).message}`);
@@ -204,17 +200,21 @@ Deno.serve(async (req) => {
       const sourceKey = `backfill:blend:${b.id}`;
       try {
         const amount = Number(b.amount_usdc);
-        await post(admin, sourceKey, `[backfill] Blend deposit ${b.id}`, [
-          { code: "BLEND_DEPOSITS_USDC", amount, side: "DEBIT",  currency: "USDC" },
-          { code: "DISTRIBUTOR_USDC",    amount, side: "CREDIT", currency: "USDC" },
-        ]);
+        await safePost(admin, {
+          kind: "blend_deposit", sourceKey,
+          description: `[backfill] Blend deposit ${b.id}`,
+          entries: [
+            { code: "BLEND_DEPOSITS_USDC", currency: "USDC", debit:  amount },
+            { code: "DISTRIBUTOR_USDC",    currency: "USDC", credit: amount },
+          ],
+        }, report.errors);
         report.blend++;
       } catch (e) {
         report.errors.push(`blend:${b.id}: ${(e as Error).message}`);
       }
     }
 
-    // ── 4. HTGC issuance events (if table exists) ──────────────────────────────
+    // ── 4. HTGC issuance events (if table exists) ─────────────────────────────
     const { data: issuances, error: issuanceErr } = await admin
       .from("htgc_issuance_events")
       .select("id, amount, event_type")
@@ -226,15 +226,23 @@ Deno.serve(async (req) => {
         try {
           const amount = Math.round(Number(ev.amount));
           if (ev.event_type === "mint") {
-            await post(admin, sourceKey, `[backfill] HTGC issuance ${ev.id}`, [
-              { code: "OPENING_BALANCE_EQUITY", amount, side: "DEBIT",  currency: "HTG" },
-              { code: "HTGC_ISSUED",            amount, side: "CREDIT", currency: "HTG" },
-            ]);
+            await safePost(admin, {
+              kind: "htgc_issuance_backfill", sourceKey,
+              description: `[backfill] HTGC issuance ${ev.id}`,
+              entries: [
+                { code: "OPENING_BALANCE_HTG", currency: "HTG", debit:  amount },
+                { code: "HTGC_ISSUED",         currency: "HTG", credit: amount },
+              ],
+            }, report.errors);
           } else if (ev.event_type === "burn") {
-            await post(admin, sourceKey, `[backfill] HTGC burn ${ev.id}`, [
-              { code: "HTGC_ISSUED",            amount, side: "DEBIT",  currency: "HTG" },
-              { code: "OPENING_BALANCE_EQUITY", amount, side: "CREDIT", currency: "HTG" },
-            ]);
+            await safePost(admin, {
+              kind: "htgc_burn_backfill", sourceKey,
+              description: `[backfill] HTGC burn ${ev.id}`,
+              entries: [
+                { code: "HTGC_ISSUED",         currency: "HTG", debit:  amount },
+                { code: "OPENING_BALANCE_HTG", currency: "HTG", credit: amount },
+              ],
+            }, report.errors);
           }
           report.issuances++;
         } catch (e) {
@@ -243,7 +251,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── 5. Residual delta: on-chain vs book, plug into OPENING_BALANCE_EQUITY ─
+    // ── 5. Residual delta: on-chain vs book, plug into equity ─────────────────
     const server = new Horizon.Server(HORIZON_URL);
     const distPubkey = distributorPublicKey();
 
@@ -254,22 +262,15 @@ Deno.serve(async (req) => {
           (b) => b.asset_code === "USDC" && b.asset_issuer === usdcIssuer,
         );
         return bal ? Number(bal.balance) : 0;
-      } catch {
-        return 0;
-      }
+      } catch { return 0; }
     }
 
     async function onChainHtgcSupply(): Promise<number> {
       try {
-        const res = await fetch(
-          `${HORIZON_URL}/assets?asset_code=HTGC&asset_issuer=${HTGC_ISSUER}&limit=1`,
-        );
+        const res = await fetch(`${HORIZON_URL}/assets?asset_code=HTGC&asset_issuer=${HTGC_ISSUER}&limit=1`);
         const j = await res.json() as { _embedded?: { records?: Array<{ amount?: string }> } };
-        const raw = j._embedded?.records?.[0]?.amount;
-        return raw ? Number(raw) : 0;
-      } catch {
-        return 0;
-      }
+        return Number(j._embedded?.records?.[0]?.amount ?? 0);
+      } catch { return 0; }
     }
 
     const [distOnChain, treasuryOnChain, htgcSupplyOnChain] = await Promise.all([
@@ -278,57 +279,64 @@ Deno.serve(async (req) => {
       onChainHtgcSupply(),
     ]);
 
-    // Fetch book balances for the three chain-held accounts
+    // Compute book balances for chain-held accounts
     const { data: bookRows } = await admin
       .from("ledger_accounts")
-      .select("code, balance")
-      .in("code", ["DISTRIBUTOR_USDC", "TREASURY_USDC", "HTGC_ISSUED"])
-      .is("customer_id", null);
+      .select("code, id")
+      .in("code", ["DISTRIBUTOR_USDC", "TREASURY_USDC", "HTGC_ISSUED"]);
+    const { data: entryTotals } = await admin
+      .from("ledger_entries")
+      .select("account_id, debit, credit");
 
     const book: Record<string, number> = {};
-    for (const r of bookRows ?? []) book[(r as { code: string; balance: string }).code] = Number((r as { balance: string }).balance);
+    for (const r of bookRows ?? []) {
+      const acctId = (r as { code: string; id: string }).id;
+      const code   = (r as { code: string; id: string }).code;
+      const rows   = (entryTotals ?? []).filter((e) => (e as { account_id: string }).account_id === acctId);
+      const debit  = rows.reduce((s, e) => s + Number((e as { debit: string }).debit),  0);
+      const credit = rows.reduce((s, e) => s + Number((e as { credit: string }).credit), 0);
+      book[code] = debit - credit; // ASSET normal balance
+    }
 
-    const distDelta    = distOnChain    - (book["DISTRIBUTOR_USDC"] ?? 0);
-    const treasDelta   = treasuryOnChain - (book["TREASURY_USDC"] ?? 0);
-    const htgcDelta    = htgcSupplyOnChain - (book["HTGC_ISSUED"] ?? 0);
+    const distDelta  = distOnChain    - (book["DISTRIBUTOR_USDC"] ?? 0);
+    const treasDelta = treasuryOnChain - (book["TREASURY_USDC"]   ?? 0);
+    const htgcDelta  = htgcSupplyOnChain - (-(book["HTGC_ISSUED"] ?? 0)); // LIABILITY: credit > debit
     const totalUsdcDelta = distDelta + treasDelta;
 
     if (Math.abs(totalUsdcDelta) > 0.0000001) {
-      try {
-        const amt = Math.abs(totalUsdcDelta);
-        await post(admin, "backfill:equity:usdc", "[backfill] Opening equity adjustment — USDC", [
-          {
-            code: totalUsdcDelta > 0 ? "OPENING_BALANCE_EQUITY" : "DISTRIBUTOR_USDC",
-            amount: amt, side: "DEBIT",  currency: "USDC",
-          },
-          {
-            code: totalUsdcDelta > 0 ? "DISTRIBUTOR_USDC" : "OPENING_BALANCE_EQUITY",
-            amount: amt, side: "CREDIT", currency: "USDC",
-          },
-        ]);
-        report.opening_equity_adjustment_usdc = totalUsdcDelta;
-      } catch (e) {
-        report.errors.push(`equity:usdc: ${(e as Error).message}`);
-      }
+      const amt = Math.abs(totalUsdcDelta);
+      await safePost(admin, {
+        kind: "equity_adjustment_usdc", sourceKey: "backfill:equity:usdc",
+        description: "[backfill] Opening equity adjustment — USDC",
+        entries: totalUsdcDelta > 0
+          ? [
+              { code: "OPENING_BALANCE_USDC", currency: "USDC", debit:  amt },
+              { code: "DISTRIBUTOR_USDC",     currency: "USDC", credit: amt },
+            ]
+          : [
+              { code: "DISTRIBUTOR_USDC",     currency: "USDC", debit:  amt },
+              { code: "OPENING_BALANCE_USDC", currency: "USDC", credit: amt },
+            ],
+      }, report.errors);
+      report.equity_adjustment_usdc = totalUsdcDelta;
     }
 
     if (Math.abs(htgcDelta) > 0.0000001) {
-      try {
-        const amt = Math.round(Math.abs(htgcDelta));
-        await post(admin, "backfill:equity:htg", "[backfill] Opening equity adjustment — HTG", [
-          {
-            code: htgcDelta > 0 ? "OPENING_BALANCE_EQUITY" : "HTGC_ISSUED",
-            amount: amt, side: "DEBIT",  currency: "HTG",
-          },
-          {
-            code: htgcDelta > 0 ? "HTGC_ISSUED" : "OPENING_BALANCE_EQUITY",
-            amount: amt, side: "CREDIT", currency: "HTG",
-          },
-        ]);
-        report.opening_equity_adjustment_htg = htgcDelta;
-      } catch (e) {
-        report.errors.push(`equity:htg: ${(e as Error).message}`);
-      }
+      const amt = Math.round(Math.abs(htgcDelta));
+      await safePost(admin, {
+        kind: "equity_adjustment_htg", sourceKey: "backfill:equity:htg",
+        description: "[backfill] Opening equity adjustment — HTG",
+        entries: htgcDelta > 0
+          ? [
+              { code: "OPENING_BALANCE_HTG", currency: "HTG", debit:  amt },
+              { code: "HTGC_ISSUED",         currency: "HTG", credit: amt },
+            ]
+          : [
+              { code: "HTGC_ISSUED",         currency: "HTG", debit:  amt },
+              { code: "OPENING_BALANCE_HTG", currency: "HTG", credit: amt },
+            ],
+      }, report.errors);
+      report.equity_adjustment_htg = htgcDelta;
     }
 
     return json({ ok: true, backfill_report: report });

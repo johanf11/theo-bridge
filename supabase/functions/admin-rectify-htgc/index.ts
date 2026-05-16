@@ -178,16 +178,17 @@ Deno.serve(async (req) => {
     steps.push(`Minted ${mintAmount} real HTGC from issuer ${HTGC_ISSUER} — tx ${mintHash}`);
 
     // Post correcting entry: phantom burned / real minted — adjust HTGC_ISSUED supply
-    await safePostLedger(admin, {
-      source_key:  `rectify:${mintHash}`,
+    await safePostLedger(admin, "admin-rectify-htgc", {
+      kind:        "htgc_supply_correction",
       description: `Supply correction: phantom→real HTGC for wallet ${walletId}`,
-      posted_by:   user.id,
+      postedBy:    user.id,
+      sourceKey:   `rectify:${mintHash}`,
       entries: [
         // HTG side balanced: equity absorbs the correction plug
-        { account_code: "OPENING_BALANCE_EQUITY", amount: mintAmount, side: "DEBIT",  currency: "HTG" },
-        { account_code: "HTGC_ISSUED",            amount: mintAmount, side: "CREDIT", currency: "HTG" },
+        { code: "OPENING_BALANCE_HTG", currency: "HTG", debit:  mintAmount },
+        { code: "HTGC_ISSUED",         currency: "HTG", credit: mintAmount },
       ],
-    });
+    }, { stellarTxHash: mintHash });
 
     return json({ ok: true, steps, burnHash, mintHash, mintAmount });
   } catch (e) {

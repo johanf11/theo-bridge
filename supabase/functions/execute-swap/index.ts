@@ -10,7 +10,7 @@ import { distributorPublicKey, signWithDistributor, signWithSecret } from "../_s
 import { assertWithinLimits } from "../_shared/tx-limits.ts";
 import { HTGC_ISSUER, TREASURY_PUBLIC } from "../_shared/stellar-assets.ts";
 import { ensureWalletReady } from "../_shared/ensure-wallet-ready.ts";
-import { safePostLedger } from "../_shared/ledger.ts";
+import { safePostLedger, getOrCreateCustomerUsdcAccount } from "../_shared/ledger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -442,37 +442,46 @@ Deno.serve(async (req) => {
     // ── LEDGER POSTING ──────────────────────────────────────────────────────
     // Only post on success; failed/refunded swaps produce no journal entry.
     if (completed) {
+      const custAcctId = await getOrCreateCustomerUsdcAccount(admin, customer.id).catch(() => null);
       if (direction === "htgc_to_usdc") {
-        await safePostLedger(admin, {
-          source_key:  `swap:${order.id}`,
+        await safePostLedger(admin, "execute-swap", {
+          orderId:     order.id,
+          kind:        "htgc_to_usdc_swap",
           description: `HTG-C → USDC swap ${reference}`,
-          posted_by:   user.id,
+          postedBy:    user.id,
+          sourceKey:   `swap:${order.id}`,
           entries: [
             // HTG side (balanced)
-            { account_code: "FX_CLEARING_HTG",  amount: htgAmount,    side: "DEBIT",  currency: "HTG"  },
-            { account_code: "HTGC_ISSUED",       amount: htgAmount,    side: "CREDIT", currency: "HTG"  },
+            { code: "FX_CLEARING_HTG",  currency: "HTG",  debit:  htgAmount   },
+            { code: "HTGC_ISSUED",      currency: "HTG",  credit: htgAmount   },
             // USDC side (balanced: usdcNet + theoFeeUsdc = usdcGross)
-            { account_code: "DISTRIBUTOR_USDC",  amount: usdcGross,    side: "DEBIT",  currency: "USDC" },
-            { account_code: "CUSTOMER_USDC",     amount: usdcNet,      side: "CREDIT", currency: "USDC", customer_id: customer.id },
-            { account_code: "FEE_REVENUE_USDC",  amount: theoFeeUsdc,  side: "CREDIT", currency: "USDC" },
+            { code: "DISTRIBUTOR_USDC", currency: "USDC", debit:  usdcGross   },
+            ...(custAcctId
+              ? [{ accountId: custAcctId,         currency: "USDC" as const, credit: usdcNet }]
+              : [{ code: "CUSTOMER_USDC_PAYABLE", currency: "USDC" as const, credit: usdcNet }]),
+            { code: "FEE_REVENUE_USDC", currency: "USDC", credit: theoFeeUsdc },
           ],
-        });
+        }, { stellarTxHash: leg2Hash });
       } else {
         // usdc_to_htgc
-        await safePostLedger(admin, {
-          source_key:  `swap:${order.id}`,
+        await safePostLedger(admin, "execute-swap", {
+          orderId:     order.id,
+          kind:        "usdc_to_htgc_swap",
           description: `USDC → HTG-C swap ${reference}`,
-          posted_by:   user.id,
+          postedBy:    user.id,
+          sourceKey:   `swap:${order.id}`,
           entries: [
             // USDC side (balanced: usdcNet + theoFeeUsdc = usdcGross)
-            { account_code: "TREASURY_USDC",     amount: usdcGross,    side: "DEBIT",  currency: "USDC" },
-            { account_code: "CUSTOMER_USDC",     amount: usdcNet,      side: "CREDIT", currency: "USDC", customer_id: customer.id },
-            { account_code: "FEE_REVENUE_USDC",  amount: theoFeeUsdc,  side: "CREDIT", currency: "USDC" },
+            { code: "TREASURY_USDC",    currency: "USDC", debit:  usdcGross   },
+            ...(custAcctId
+              ? [{ accountId: custAcctId,         currency: "USDC" as const, credit: usdcNet }]
+              : [{ code: "CUSTOMER_USDC_PAYABLE", currency: "USDC" as const, credit: usdcNet }]),
+            { code: "FEE_REVENUE_USDC", currency: "USDC", credit: theoFeeUsdc },
             // HTG side (balanced)
-            { account_code: "HTGC_ISSUED",       amount: htgNet,       side: "DEBIT",  currency: "HTG"  },
-            { account_code: "FX_CLEARING_HTG",   amount: htgNet,       side: "CREDIT", currency: "HTG"  },
+            { code: "HTGC_ISSUED",      currency: "HTG",  debit:  htgNet      },
+            { code: "FX_CLEARING_HTG",  currency: "HTG",  credit: htgNet      },
           ],
-        });
+        }, { stellarTxHash: leg2Hash });
       }
     }
 
