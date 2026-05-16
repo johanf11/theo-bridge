@@ -9,6 +9,7 @@ import {
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
 import { signWithSecret } from "../_shared/stellar-signer.ts";
+import { safePostLedger } from "../_shared/ledger.ts";
 
 const HORIZON_URL = "https://horizon-testnet.stellar.org";
 
@@ -175,6 +176,18 @@ Deno.serve(async (req) => {
     const r2 = await server.submitTransaction(mintTx);
     const mintHash = (r2 as { hash: string }).hash;
     steps.push(`Minted ${mintAmount} real HTGC from issuer ${HTGC_ISSUER} — tx ${mintHash}`);
+
+    // Post correcting entry: phantom burned / real minted — adjust HTGC_ISSUED supply
+    await safePostLedger(admin, {
+      source_key:  `rectify:${mintHash}`,
+      description: `Supply correction: phantom→real HTGC for wallet ${walletId}`,
+      posted_by:   user.id,
+      entries: [
+        // HTG side balanced: equity absorbs the correction plug
+        { account_code: "OPENING_BALANCE_EQUITY", amount: mintAmount, side: "DEBIT",  currency: "HTG" },
+        { account_code: "HTGC_ISSUED",            amount: mintAmount, side: "CREDIT", currency: "HTG" },
+      ],
+    });
 
     return json({ ok: true, steps, burnHash, mintHash, mintAmount });
   } catch (e) {

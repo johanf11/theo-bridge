@@ -18,6 +18,7 @@ import Kyb from "./pages/Kyb";
 import AdminKyb from "./pages/AdminKyb";
 import AdminConversions from "./pages/AdminConversions";
 import AdminTools from "./pages/AdminTools";
+import AdminLedger from "./pages/AdminLedger";
 import Compliance from "./pages/Compliance";
 import Billing from "./pages/Billing";
 import Invoices from "./pages/Invoices";
@@ -51,6 +52,7 @@ const App = () => (
           <Route path="/admin/kyb" element={<ProtectedRoute adminOnly><AdminKyb /></ProtectedRoute>} />
           <Route path="/admin/conversions" element={<ProtectedRoute adminOnly><AdminConversions /></ProtectedRoute>} />
           <Route path="/admin/tools" element={<ProtectedRoute adminOnly><AdminTools /></ProtectedRoute>} />
+          <Route path="/admin/ledger" element={<ProtectedRoute adminOnly><AdminLedger /></ProtectedRoute>} />
           <Route path="/compliance" element={<ProtectedRoute><Compliance /></ProtectedRoute>} />
           <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />

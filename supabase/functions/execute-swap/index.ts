@@ -10,6 +10,7 @@ import { distributorPublicKey, signWithDistributor, signWithSecret } from "../_s
 import { assertWithinLimits } from "../_shared/tx-limits.ts";
 import { HTGC_ISSUER, TREASURY_PUBLIC } from "../_shared/stellar-assets.ts";
 import { ensureWalletReady } from "../_shared/ensure-wallet-ready.ts";
+import { safePostLedger } from "../_shared/ledger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -436,6 +437,43 @@ Deno.serve(async (req) => {
       .single();
     if (orderErr) {
       return json({ error: `Swap submitted on-chain but failed to persist: ${orderErr.message}`, leg1Hash, leg2Hash, refundHash }, 500);
+    }
+
+    // ── LEDGER POSTING ──────────────────────────────────────────────────────
+    // Only post on success; failed/refunded swaps produce no journal entry.
+    if (completed) {
+      if (direction === "htgc_to_usdc") {
+        await safePostLedger(admin, {
+          source_key:  `swap:${order.id}`,
+          description: `HTG-C → USDC swap ${reference}`,
+          posted_by:   user.id,
+          entries: [
+            // HTG side (balanced)
+            { account_code: "FX_CLEARING_HTG",  amount: htgAmount,    side: "DEBIT",  currency: "HTG"  },
+            { account_code: "HTGC_ISSUED",       amount: htgAmount,    side: "CREDIT", currency: "HTG"  },
+            // USDC side (balanced: usdcNet + theoFeeUsdc = usdcGross)
+            { account_code: "DISTRIBUTOR_USDC",  amount: usdcGross,    side: "DEBIT",  currency: "USDC" },
+            { account_code: "CUSTOMER_USDC",     amount: usdcNet,      side: "CREDIT", currency: "USDC", customer_id: customer.id },
+            { account_code: "FEE_REVENUE_USDC",  amount: theoFeeUsdc,  side: "CREDIT", currency: "USDC" },
+          ],
+        });
+      } else {
+        // usdc_to_htgc
+        await safePostLedger(admin, {
+          source_key:  `swap:${order.id}`,
+          description: `USDC → HTG-C swap ${reference}`,
+          posted_by:   user.id,
+          entries: [
+            // USDC side (balanced: usdcNet + theoFeeUsdc = usdcGross)
+            { account_code: "TREASURY_USDC",     amount: usdcGross,    side: "DEBIT",  currency: "USDC" },
+            { account_code: "CUSTOMER_USDC",     amount: usdcNet,      side: "CREDIT", currency: "USDC", customer_id: customer.id },
+            { account_code: "FEE_REVENUE_USDC",  amount: theoFeeUsdc,  side: "CREDIT", currency: "USDC" },
+            // HTG side (balanced)
+            { account_code: "HTGC_ISSUED",       amount: htgNet,       side: "DEBIT",  currency: "HTG"  },
+            { account_code: "FX_CLEARING_HTG",   amount: htgNet,       side: "CREDIT", currency: "HTG"  },
+          ],
+        });
+      }
     }
 
     if (!completed) {
