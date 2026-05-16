@@ -265,9 +265,8 @@ export default function AdminLedger() {
                 const isOpen = expanded.has(t.id);
                 const txEntries = entries.filter((e) => e.transaction_id === t.id);
                 return (
-                  <>
+                  <Fragment key={t.id}>
                     <tr
-                      key={t.id}
                       style={{ borderTop: "1px solid hsl(var(--theo-light))", cursor: "pointer" }}
                       onClick={() => {
                         const next = new Set(expanded);
@@ -320,7 +319,7 @@ export default function AdminLedger() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
               {filteredTxs.length === 0 && (
