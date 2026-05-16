@@ -6,6 +6,7 @@ import {
   Asset, Horizon, Keypair, Memo, Networks, Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
+import { postLedger } from "../_shared/ledger.ts";
 
 const HORIZON = "https://horizon-testnet.stellar.org";
 
