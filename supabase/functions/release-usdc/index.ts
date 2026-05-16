@@ -149,6 +149,50 @@ Deno.serve(async (req) => {
       .update({ status: "COMPLETED", stellar_tx_hash: hash, released_at: now, completed_at: now })
       .eq("id", orderId);
 
+    // ── Ledger postings (Phase 1, observational) ─────────────────────
+    try {
+      const htg = Number(locked.htg_amount);
+      const gross = Number(locked.usdc_gross ?? locked.usdc_amount);
+      const fee = Number(locked.fee_usdc ?? 0);
+      const net = Number(locked.usdc_amount);
+
+      // 1) Fiat settlement: close HTG-pending into HTG-settled
+      await postLedger(admin, {
+        orderId,
+        kind: "FIAT_SETTLEMENT",
+        description: `Fiat settled for order ${locked.reference_number}`,
+        postedBy: userRes.user.id,
+        entries: [
+          { code: "CUSTOMER_HTG_PENDING", currency: "HTG", debit: htg },
+          { code: "CUSTOMER_HTG_SETTLED", currency: "HTG", credit: htg },
+        ],
+      });
+
+      // 2) USDC payout: HTG side moves to FX clearing, USDC leaves distributor
+      //    to customer payable, with fee recognised as revenue.
+      const entries = [
+        // HTG leg (per-currency balanced: htg = htg)
+        { code: "CUSTOMER_HTG_SETTLED", currency: "HTG" as const,  debit: htg },
+        { code: "FX_CLEARING_HTG",      currency: "HTG" as const,  credit: htg },
+        // USDC leg (per-currency balanced: gross = net + fee = gross)
+        { code: "FX_CLEARING_USDC",     currency: "USDC" as const, debit: gross },
+        { code: "DISTRIBUTOR_USDC",     currency: "USDC" as const, credit: gross },
+        { code: "CUSTOMER_USDC_PAYABLE",currency: "USDC" as const, credit: net },
+      ];
+      if (fee > 0) entries.push({ code: "FEE_REVENUE_USDC", currency: "USDC", credit: fee });
+      // If fee is 0, net == gross so the USDC leg already balances.
+
+      await postLedger(admin, {
+        orderId,
+        kind: "USDC_PAYOUT",
+        description: `USDC released for order ${locked.reference_number}`,
+        postedBy: userRes.user.id,
+        entries,
+      });
+    } catch (le) {
+      console.error("ledger postings failed (order still COMPLETED)", le);
+    }
+
     return new Response(JSON.stringify({ ok: true, hash }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
