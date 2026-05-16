@@ -284,6 +284,105 @@ export type Database = {
         }
         Relationships: []
       }
+      ledger_accounts: {
+        Row: {
+          code: string
+          created_at: string
+          currency: string
+          id: string
+          name: string
+          type: Database["public"]["Enums"]["ledger_account_type"]
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          currency: string
+          id?: string
+          name: string
+          type: Database["public"]["Enums"]["ledger_account_type"]
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          currency?: string
+          id?: string
+          name?: string
+          type?: Database["public"]["Enums"]["ledger_account_type"]
+        }
+        Relationships: []
+      }
+      ledger_entries: {
+        Row: {
+          account_id: string
+          created_at: string
+          credit: number
+          currency: string
+          debit: number
+          id: string
+          transaction_id: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          credit?: number
+          currency: string
+          debit?: number
+          id?: string
+          transaction_id: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          credit?: number
+          currency?: string
+          debit?: number
+          id?: string
+          transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ledger_entries_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "ledger_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ledger_entries_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "ledger_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ledger_transactions: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          kind: string
+          order_id: string | null
+          posted_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          kind: string
+          order_id?: string | null
+          posted_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          kind?: string
+          order_id?: string | null
+          posted_by?: string | null
+        }
+        Relationships: []
+      }
       orders: {
         Row: {
           completed_at: string | null
@@ -764,6 +863,7 @@ export type Database = {
       }
       is_org_member: { Args: { p_customer_id: string }; Returns: boolean }
       is_org_owner: { Args: { p_customer_id: string }; Returns: boolean }
+      post_ledger_entries: { Args: { payload: Json }; Returns: string }
       seed_default_roles: {
         Args: {
           p_customer_id: string
@@ -778,6 +878,12 @@ export type Database = {
       job_status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED"
       job_type: "SPIH_RECONCILE" | "USDC_RELEASE" | "STELLAR_CONFIRM"
       kyb_status: "PENDING" | "APPROVED" | "REJECTED" | "UNDER_REVIEW"
+      ledger_account_type:
+        | "ASSET"
+        | "LIABILITY"
+        | "EQUITY"
+        | "REVENUE"
+        | "EXPENSE"
       order_kind:
         | "usdc_conversion"
         | "htgc_mint"
@@ -931,6 +1037,13 @@ export const Constants = {
       job_status: ["PENDING", "RUNNING", "COMPLETED", "FAILED"],
       job_type: ["SPIH_RECONCILE", "USDC_RELEASE", "STELLAR_CONFIRM"],
       kyb_status: ["PENDING", "APPROVED", "REJECTED", "UNDER_REVIEW"],
+      ledger_account_type: [
+        "ASSET",
+        "LIABILITY",
+        "EQUITY",
+        "REVENUE",
+        "EXPENSE",
+      ],
       order_kind: [
         "usdc_conversion",
         "htgc_mint",
