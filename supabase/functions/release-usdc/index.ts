@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
       .update({ status: "RELEASING" })
       .eq("id", orderId)
       .eq("status", "FUNDED")
-      .select("id, usdc_amount, reference_number, customer_id, destination_wallet_address, destination_stellar_address")
+      .select("id, usdc_amount, htg_amount, fee_usdc, usdc_gross, reference_number, customer_id, destination_wallet_address, destination_stellar_address")
       .maybeSingle();
     if (lockErr) throw lockErr;
     if (!locked) {
