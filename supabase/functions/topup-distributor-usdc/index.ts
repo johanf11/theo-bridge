@@ -5,6 +5,7 @@ import {
   Asset, Horizon, Keypair, Networks, Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { distributorPublicKey } from "../_shared/stellar-signer.ts";
+import { safePostLedger } from "../_shared/ledger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -71,7 +72,21 @@ Deno.serve(async (req) => {
         .build();
       tx.sign(issuerKp);
       const r = await server.submitTransaction(tx);
-      return json({ ok: true, hash: (r as { hash: string }).hash, amount, distributor: distAddress });
+      const hash = (r as { hash: string }).hash;
+
+      // Ledger: treasury → distributor (asset transfer between Theo accounts).
+      await safePostLedger(admin, "topup-distributor-usdc", {
+        kind: "DISTRIBUTOR_TOPUP",
+        description: `Distributor USDC top-up ${amount}`,
+        postedBy: user.id,
+        sourceKey: `topup-distributor-usdc:${hash}`,
+        entries: [
+          { code: "DISTRIBUTOR_USDC", currency: "USDC", debit:  amount },
+          { code: "TREASURY_USDC",    currency: "USDC", credit: amount },
+        ],
+      }, { stellarTxHash: hash });
+
+      return json({ ok: true, hash, amount, distributor: distAddress });
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: unknown } })?.response?.data
         ? JSON.stringify((e as { response: { data: unknown } }).response.data)

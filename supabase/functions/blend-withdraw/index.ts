@@ -6,6 +6,7 @@ import {
   Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { blendTreasuryKeypair, signWithBlendTreasury } from "../_shared/stellar-signer.ts";
+import { getOrCreateCustomerUsdcAccount, safePostLedger } from "../_shared/ledger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -124,6 +125,26 @@ Deno.serve(async (req) => {
       completed_at: now,
       created_at: now,
     });
+
+    // Ledger: principal back to customer + yield recognized as revenue.
+    try {
+      const customerAcct = await getOrCreateCustomerUsdcAccount(admin, position.customer_id);
+      const principalReturned = Math.min(principal, payoutAmount);
+      const yieldReturned = Math.max(0, payoutAmount - principalReturned);
+      const entries: Array<{ accountId?: string; code?: string; currency: "USDC"; debit?: number; credit?: number }> = [
+        { accountId: customerAcct,      currency: "USDC", debit:  payoutAmount },
+        { code: "BLEND_DEPOSITS_USDC",  currency: "USDC", credit: principalReturned },
+      ];
+      if (yieldReturned > 0) {
+        entries.push({ code: "BLEND_YIELD_USDC", currency: "USDC", credit: yieldReturned });
+      }
+      await safePostLedger(admin, "blend-withdraw", {
+        kind: "BLEND_WITHDRAW",
+        description: `Yield withdrawal ${payoutAmount} USDC (yield ${yieldReturned.toFixed(7)})`,
+        sourceKey: `blend-withdraw:${hash}`,
+        entries,
+      }, { stellarTxHash: hash });
+    } catch (e) { console.error("blend-withdraw ledger post failed", e); }
 
     return json({ ok: true, hash, withdrawn: payoutAmount, accrued });
   } catch (e) {

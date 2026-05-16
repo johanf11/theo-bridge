@@ -6,6 +6,7 @@ import {
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
 import { signWithSecret } from "../_shared/stellar-signer.ts";
+import { safePostLedger } from "../_shared/ledger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -140,6 +141,18 @@ Deno.serve(async (req) => {
     if (orderErr) {
       return json({ error: `Burn succeeded but failed to persist order: ${orderErr.message}`, burnHash }, 500);
     }
+
+    // Ledger: HTG-C burn closes outstanding float; opens HTG payable to customer pending bank wire.
+    await safePostLedger(admin, "execute-withdraw", {
+      orderId: order.id,
+      kind: "HTGC_BURN_WITHDRAW",
+      description: `HTG-C burn for withdrawal ${reference}`,
+      sourceKey: `orders:${order.id}:HTGC_BURN_WITHDRAW`,
+      entries: [
+        { code: "HTGC_ISSUED",           currency: "HTG", debit:  parsedAmount },
+        { code: "CUSTOMER_HTG_PENDING",  currency: "HTG", credit: parsedAmount },
+      ],
+    }, { stellarTxHash: burnHash });
 
     return json({ ok: true, orderId: order.id, hash: burnHash, reference });
   } catch (e) {
