@@ -1,0 +1,354 @@
+import { useEffect, useMemo, useState } from "react";
+import { AppLayout } from "@/components/theo/Layout";
+import { supabase } from "@/integrations/supabase/client";
+import { fetchHorizonBalances } from "@/lib/balance";
+import { ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
+
+const DISTRIBUTOR_PUBLIC = "GCP6VMZS3SJ4CSOT3ZVMMJIOXOHTMJK47YQ4RTUJN7P2KYKDVRCUBS2X";
+
+type Account = {
+  id: string;
+  code: string;
+  name: string;
+  type: "ASSET" | "LIABILITY" | "EQUITY" | "REVENUE" | "EXPENSE";
+  currency: "HTG" | "USDC";
+};
+
+type TxRow = {
+  id: string;
+  order_id: string | null;
+  kind: string;
+  description: string | null;
+  created_at: string;
+};
+
+type EntryRow = {
+  id: string;
+  transaction_id: string;
+  account_id: string;
+  currency: "HTG" | "USDC";
+  debit: number;
+  credit: number;
+};
+
+type AccountAgg = {
+  account: Account;
+  debit: number;
+  credit: number;
+};
+
+const fmt = (n: number, currency: string) =>
+  n.toLocaleString("en-US", { minimumFractionDigits: currency === "HTG" ? 2 : 7, maximumFractionDigits: 7 });
+
+const card: React.CSSProperties = {
+  background: "#fff",
+  borderRadius: 16,
+  border: "1px solid hsl(var(--theo-light))",
+  padding: 20,
+};
+
+const eyebrow: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: "0.18em",
+  color: "hsl(var(--theo-cyan))",
+  marginBottom: 6,
+};
+
+export default function AdminLedger() {
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [entries, setEntries] = useState<EntryRow[]>([]);
+  const [txs, setTxs] = useState<TxRow[]>([]);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [filterKind, setFilterKind] = useState("");
+  const [filterOrder, setFilterOrder] = useState("");
+  const [distChain, setDistChain] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    setLoading(true);
+    const [{ data: a }, { data: e }, { data: t }] = await Promise.all([
+      supabase.from("ledger_accounts").select("*").order("code"),
+      supabase.from("ledger_entries").select("*"),
+      supabase.from("ledger_transactions").select("*").order("created_at", { ascending: false }).limit(200),
+    ]);
+    setAccounts((a ?? []) as Account[]);
+    setEntries(((e ?? []) as unknown) as EntryRow[]);
+    setTxs((t ?? []) as TxRow[]);
+    setLoading(false);
+    const bal = await fetchHorizonBalances(DISTRIBUTOR_PUBLIC);
+    setDistChain(bal.usdc);
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  // ── Trial balance ───────────────────────────────────────
+  const trial: AccountAgg[] = useMemo(() => {
+    const map = new Map<string, AccountAgg>();
+    for (const acc of accounts) map.set(acc.id, { account: acc, debit: 0, credit: 0 });
+    for (const e of entries) {
+      const row = map.get(e.account_id);
+      if (row) {
+        row.debit += Number(e.debit);
+        row.credit += Number(e.credit);
+      }
+    }
+    return Array.from(map.values());
+  }, [accounts, entries]);
+
+  const byCurrency = (cur: "HTG" | "USDC") => trial.filter((t) => t.account.currency === cur);
+
+  const totals = (cur: "HTG" | "USDC") => {
+    const list = byCurrency(cur);
+    const d = list.reduce((s, r) => s + r.debit, 0);
+    const c = list.reduce((s, r) => s + r.credit, 0);
+    return { d, c, balanced: Math.abs(d - c) < 1e-7 };
+  };
+
+  const htgTotals = totals("HTG");
+  const usdcTotals = totals("USDC");
+
+  // ── Filtered transactions ───────────────────────────────
+  const filteredTxs = txs.filter((t) => {
+    if (filterKind && !t.kind.toLowerCase().includes(filterKind.toLowerCase())) return false;
+    if (filterOrder && !(t.order_id ?? "").includes(filterOrder)) return false;
+    return true;
+  });
+
+  // ── Reconciliation: book balance for DISTRIBUTOR_USDC ──
+  const distAccount = accounts.find((a) => a.code === "DISTRIBUTOR_USDC");
+  const distAgg = distAccount ? trial.find((t) => t.account.id === distAccount.id) : null;
+  // ASSET: balance = debit - credit
+  const distBook = distAgg ? distAgg.debit - distAgg.credit : 0;
+  const distDelta = distChain !== null ? distChain - distBook : null;
+
+  return (
+    <AppLayout>
+      <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
+          <div>
+            <div style={eyebrow}>Internal Ledger</div>
+            <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.02em", color: "hsl(var(--theo-ink))", margin: 0 }}>
+              Double-Entry Shadow Ledger
+            </h1>
+            <p style={{ fontSize: 13, color: "hsl(var(--theo-mid))", marginTop: 6, maxWidth: 720 }}>
+              Phase 1 (observational). Every order processed through SPIH simulation and USDC release posts paired
+              debit/credit entries. The trial balance must net to zero in each currency.
+            </p>
+          </div>
+          <button
+            onClick={load}
+            disabled={loading}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "8px 14px", borderRadius: 10,
+              background: "hsl(var(--theo-blue))", color: "#fff",
+              border: "none", cursor: loading ? "wait" : "pointer",
+              fontSize: 13, fontWeight: 600,
+            }}
+          >
+            <RefreshCw style={{ width: 13, height: 13 }} /> Refresh
+          </button>
+        </div>
+
+        {/* Trial Balance */}
+        <div style={card}>
+          <div style={eyebrow}>Trial Balance</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+            {(["HTG", "USDC"] as const).map((cur) => {
+              const list = byCurrency(cur);
+              const t = totals(cur);
+              return (
+                <div key={cur}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-blue))", marginBottom: 8 }}>
+                    {cur} accounts
+                  </div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ color: "hsl(var(--theo-mid))", textAlign: "right" }}>
+                        <th style={{ textAlign: "left", padding: "6px 8px", fontWeight: 600 }}>Account</th>
+                        <th style={{ padding: "6px 8px", fontWeight: 600 }}>Debit</th>
+                        <th style={{ padding: "6px 8px", fontWeight: 600 }}>Credit</th>
+                        <th style={{ padding: "6px 8px", fontWeight: 600 }}>Balance</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {list.map((r) => {
+                        const bal = r.account.type === "LIABILITY" || r.account.type === "REVENUE" || r.account.type === "EQUITY"
+                          ? r.credit - r.debit
+                          : r.debit - r.credit;
+                        return (
+                          <tr key={r.account.id} style={{ borderTop: "1px solid hsl(var(--theo-light))" }}>
+                            <td style={{ padding: "6px 8px" }}>
+                              <div style={{ fontWeight: 600, color: "hsl(var(--theo-ink))" }}>{r.account.name}</div>
+                              <div style={{ fontSize: 10, color: "hsl(var(--theo-mid))", textTransform: "uppercase", letterSpacing: "0.08em" }}>{r.account.type}</div>
+                            </td>
+                            <td style={{ padding: "6px 8px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{fmt(r.debit, cur)}</td>
+                            <td style={{ padding: "6px 8px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{fmt(r.credit, cur)}</td>
+                            <td style={{ padding: "6px 8px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>{fmt(bal, cur)}</td>
+                          </tr>
+                        );
+                      })}
+                      <tr style={{
+                        borderTop: "2px solid hsl(var(--theo-ink))",
+                        background: t.balanced ? "hsl(var(--theo-gold) / 0.15)" : "rgba(220,38,38,0.08)",
+                      }}>
+                        <td style={{ padding: "8px", fontWeight: 700 }}>Totals</td>
+                        <td style={{ padding: "8px", textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmt(t.d, cur)}</td>
+                        <td style={{ padding: "8px", textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmt(t.c, cur)}</td>
+                        <td style={{ padding: "8px", textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+                          {t.balanced ? "Balanced ✓" : fmt(t.d - t.c, cur)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Reconciliation */}
+        <div style={card}>
+          <div style={eyebrow}>Reconciliation — Distributor USDC</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginTop: 8 }}>
+            <ReconCell label="Book balance" value={`${fmt(distBook, "USDC")} USDC`} />
+            <ReconCell label="Chain balance (Horizon)" value={distChain === null ? "—" : `${fmt(distChain, "USDC")} USDC`} />
+            <ReconCell
+              label="Delta (chain − book)"
+              value={distDelta === null ? "—" : `${fmt(distDelta, "USDC")} USDC`}
+              warn={distDelta !== null && Math.abs(distDelta) > 1e-7}
+            />
+          </div>
+          <p style={{ fontSize: 12, color: "hsl(var(--theo-mid))", marginTop: 12 }}>
+            Deltas are <strong>expected during Phase 1</strong> because pre-existing orders, top-ups, swaps,
+            withdrawals, payments, blend movements, and admin rectifications are not yet wired into the ledger.
+            Phase 2 will backfill opening balances and hook the remaining flows so this delta converges to zero.
+          </p>
+        </div>
+
+        {/* Transactions */}
+        <div style={card}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <div style={eyebrow}>Transactions ({filteredTxs.length})</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                placeholder="Filter by kind…"
+                value={filterKind}
+                onChange={(e) => setFilterKind(e.target.value)}
+                style={inputStyle}
+              />
+              <input
+                placeholder="Filter by order id…"
+                value={filterOrder}
+                onChange={(e) => setFilterOrder(e.target.value)}
+                style={inputStyle}
+              />
+            </div>
+          </div>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              <tr style={{ color: "hsl(var(--theo-mid))" }}>
+                <th style={{ padding: "6px 8px", textAlign: "left", width: 24 }}></th>
+                <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: 600 }}>When</th>
+                <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: 600 }}>Kind</th>
+                <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: 600 }}>Order</th>
+                <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: 600 }}>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredTxs.map((t) => {
+                const isOpen = expanded.has(t.id);
+                const txEntries = entries.filter((e) => e.transaction_id === t.id);
+                return (
+                  <>
+                    <tr
+                      key={t.id}
+                      style={{ borderTop: "1px solid hsl(var(--theo-light))", cursor: "pointer" }}
+                      onClick={() => {
+                        const next = new Set(expanded);
+                        if (isOpen) next.delete(t.id); else next.add(t.id);
+                        setExpanded(next);
+                      }}
+                    >
+                      <td style={{ padding: "8px" }}>
+                        {isOpen ? <ChevronDown style={{ width: 12, height: 12 }} /> : <ChevronRight style={{ width: 12, height: 12 }} />}
+                      </td>
+                      <td style={{ padding: "8px", color: "hsl(var(--theo-mid))" }}>
+                        {new Date(t.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </td>
+                      <td style={{ padding: "8px", fontWeight: 600, color: "hsl(var(--theo-blue))" }}>{t.kind}</td>
+                      <td style={{ padding: "8px", fontFamily: "monospace", fontSize: 11, color: "hsl(var(--theo-mid))" }}>
+                        {t.order_id ? t.order_id.slice(0, 8) + "…" : "—"}
+                      </td>
+                      <td style={{ padding: "8px", color: "hsl(var(--theo-ink))" }}>{t.description ?? ""}</td>
+                    </tr>
+                    {isOpen && (
+                      <tr style={{ background: "hsl(var(--theo-cream))" }}>
+                        <td colSpan={5} style={{ padding: 12 }}>
+                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                            <thead>
+                              <tr style={{ color: "hsl(var(--theo-mid))" }}>
+                                <th style={{ padding: 4, textAlign: "left", fontWeight: 600 }}>Account</th>
+                                <th style={{ padding: 4, textAlign: "left", fontWeight: 600 }}>Cur</th>
+                                <th style={{ padding: 4, textAlign: "right", fontWeight: 600 }}>Debit</th>
+                                <th style={{ padding: 4, textAlign: "right", fontWeight: 600 }}>Credit</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {txEntries.map((e) => {
+                                const acc = accounts.find((a) => a.id === e.account_id);
+                                return (
+                                  <tr key={e.id}>
+                                    <td style={{ padding: 4 }}>{acc?.name ?? e.account_id}</td>
+                                    <td style={{ padding: 4 }}>{e.currency}</td>
+                                    <td style={{ padding: 4, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                                      {Number(e.debit) > 0 ? fmt(Number(e.debit), e.currency) : ""}
+                                    </td>
+                                    <td style={{ padding: 4, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                                      {Number(e.credit) > 0 ? fmt(Number(e.credit), e.currency) : ""}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                );
+              })}
+              {filteredTxs.length === 0 && (
+                <tr><td colSpan={5} style={{ padding: 24, textAlign: "center", color: "hsl(var(--theo-mid))" }}>
+                  No ledger transactions yet. Run an order through SPIH simulation to post the first entries.
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </AppLayout>
+  );
+}
+
+function ReconCell({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
+  return (
+    <div style={{ padding: 14, borderRadius: 12, background: "hsl(var(--theo-cream))" }}>
+      <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "hsl(var(--theo-mid))" }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 700, marginTop: 4, fontVariantNumeric: "tabular-nums", color: warn ? "#dc2626" : "hsl(var(--theo-ink))" }}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+const inputStyle: React.CSSProperties = {
+  fontSize: 12, padding: "6px 10px", borderRadius: 8,
+  border: "1px solid hsl(var(--theo-light))", background: "#fff",
+  fontFamily: "inherit", outline: "none",
+};
