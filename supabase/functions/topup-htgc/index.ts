@@ -13,6 +13,7 @@ import {
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
 import { distributorPublicKey } from "../_shared/stellar-signer.ts";
+import { safePostLedger } from "../_shared/ledger.ts";
 
 const HORIZON = "https://horizon-testnet.stellar.org";
 
@@ -68,6 +69,19 @@ Deno.serve(async (req) => {
       .build();
     tx.sign(issuerKp);
     const res = await server.submitTransaction(tx);
+
+    // Ledger: minting fresh HTG-C float (issuer → distributor on-chain, books increase issued + assume external HTG backing).
+    await safePostLedger(admin, "topup-htgc", {
+      kind: "HTGC_MINT",
+      description: `HTG-C reserve top-up ${amount}`,
+      postedBy: user.id,
+      sourceKey: `topup-htgc:${res.hash}`,
+      entries: [
+        { code: "EXTERNAL_FLOW_HTG", currency: "HTG", debit:  amount },
+        { code: "HTGC_ISSUED",       currency: "HTG", credit: amount },
+      ],
+    }, { stellarTxHash: res.hash });
+
     return json({ ok: true, hash: res.hash, amount, distributor: distPub });
   } catch (e) {
     const detail = (e as any)?.response?.data ?? String(e);

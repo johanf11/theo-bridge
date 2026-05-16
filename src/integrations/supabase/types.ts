@@ -289,6 +289,7 @@ export type Database = {
           code: string
           created_at: string
           currency: string
+          customer_id: string | null
           id: string
           name: string
           type: Database["public"]["Enums"]["ledger_account_type"]
@@ -297,6 +298,7 @@ export type Database = {
           code: string
           created_at?: string
           currency: string
+          customer_id?: string | null
           id?: string
           name: string
           type: Database["public"]["Enums"]["ledger_account_type"]
@@ -305,6 +307,7 @@ export type Database = {
           code?: string
           created_at?: string
           currency?: string
+          customer_id?: string | null
           id?: string
           name?: string
           type?: Database["public"]["Enums"]["ledger_account_type"]
@@ -356,6 +359,45 @@ export type Database = {
           },
         ]
       }
+      ledger_posting_failures: {
+        Row: {
+          created_at: string
+          id: string
+          order_id: string | null
+          payload: Json
+          reason: string
+          resolution_tx_id: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          source: string
+          stellar_tx_hash: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          order_id?: string | null
+          payload: Json
+          reason: string
+          resolution_tx_id?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          source: string
+          stellar_tx_hash?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          order_id?: string | null
+          payload?: Json
+          reason?: string
+          resolution_tx_id?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          source?: string
+          stellar_tx_hash?: string | null
+        }
+        Relationships: []
+      }
       ledger_transactions: {
         Row: {
           created_at: string
@@ -364,6 +406,7 @@ export type Database = {
           kind: string
           order_id: string | null
           posted_by: string | null
+          source_key: string | null
         }
         Insert: {
           created_at?: string
@@ -372,6 +415,7 @@ export type Database = {
           kind: string
           order_id?: string | null
           posted_by?: string | null
+          source_key?: string | null
         }
         Update: {
           created_at?: string
@@ -380,6 +424,7 @@ export type Database = {
           kind?: string
           order_id?: string | null
           posted_by?: string | null
+          source_key?: string | null
         }
         Relationships: []
       }
@@ -854,6 +899,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_or_create_customer_usdc_account: {
+        Args: { p_customer_id: string }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
