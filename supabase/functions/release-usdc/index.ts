@@ -7,6 +7,7 @@ import {
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { distributorKeypair, signWithDistributor } from "../_shared/stellar-signer.ts";
 import { assertWithinLimits } from "../_shared/tx-limits.ts";
+import { postLedger } from "../_shared/ledger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -73,7 +74,7 @@ Deno.serve(async (req) => {
       .update({ status: "RELEASING" })
       .eq("id", orderId)
       .eq("status", "FUNDED")
-      .select("id, usdc_amount, reference_number, customer_id, destination_wallet_address, destination_stellar_address")
+      .select("id, usdc_amount, htg_amount, fee_usdc, usdc_gross, reference_number, customer_id, destination_wallet_address, destination_stellar_address")
       .maybeSingle();
     if (lockErr) throw lockErr;
     if (!locked) {
@@ -147,6 +148,48 @@ Deno.serve(async (req) => {
       .from("orders")
       .update({ status: "COMPLETED", stellar_tx_hash: hash, released_at: now, completed_at: now })
       .eq("id", orderId);
+
+    // ── Ledger postings (Phase 1, observational) ─────────────────────
+    try {
+      const htg = Number(locked.htg_amount);
+      const gross = Number(locked.usdc_gross ?? locked.usdc_amount);
+      const fee = Number(locked.fee_usdc ?? 0);
+      const net = Number(locked.usdc_amount);
+
+      // 1) Fiat settlement: close HTG-pending into HTG-settled
+      await postLedger(admin, {
+        orderId,
+        kind: "FIAT_SETTLEMENT",
+        description: `Fiat settled for order ${locked.reference_number}`,
+        postedBy: userRes.user.id,
+        entries: [
+          { code: "CUSTOMER_HTG_PENDING", currency: "HTG", debit: htg },
+          { code: "CUSTOMER_HTG_SETTLED", currency: "HTG", credit: htg },
+        ],
+      });
+
+      // 2) USDC payout. Distributor only sends `net` to the customer; `fee`
+      //    stays in the hot wallet as recognised revenue. Per currency:
+      //      HTG:  dr htg   = cr htg
+      //      USDC: dr gross = cr (net + fee) = gross
+      const entries: { code: string; currency: "HTG" | "USDC"; debit?: number; credit?: number }[] = [
+        { code: "CUSTOMER_HTG_SETTLED", currency: "HTG",  debit: htg },
+        { code: "FX_CLEARING_HTG",      currency: "HTG",  credit: htg },
+        { code: "FX_CLEARING_USDC",     currency: "USDC", debit: gross },
+        { code: "DISTRIBUTOR_USDC",     currency: "USDC", credit: net },
+      ];
+      if (fee > 0) entries.push({ code: "FEE_REVENUE_USDC", currency: "USDC", credit: fee });
+
+      await postLedger(admin, {
+        orderId,
+        kind: "USDC_PAYOUT",
+        description: `USDC released for order ${locked.reference_number}`,
+        postedBy: userRes.user.id,
+        entries,
+      });
+    } catch (le) {
+      console.error("ledger postings failed (order still COMPLETED)", le);
+    }
 
     return new Response(JSON.stringify({ ok: true, hash }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
