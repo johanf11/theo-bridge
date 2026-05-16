@@ -116,8 +116,8 @@ INSERT INTO public.ledger_accounts (code, name, type, currency) VALUES
   ('SPIH_BANK_HTG',         'SPIH Bank (HTG)',           'ASSET',     'HTG'),
   ('CUSTOMER_HTG_PENDING',  'Customer HTG Pending',      'LIABILITY', 'HTG'),
   ('CUSTOMER_HTG_SETTLED',  'Customer HTG Settled',      'LIABILITY', 'HTG'),
-  ('FX_CLEARING_HTG',       'FX Clearing (HTG)',         'EQUITY',    'HTG'),
-  ('FX_CLEARING_USDC',      'FX Clearing (USDC)',        'EQUITY',    'USDC'),
+  ('FX_CLEARING_HTG',       'FX Clearing (HTG)',         'LIABILITY', 'HTG'),
+  ('FX_CLEARING_USDC',      'FX Clearing (USDC)',        'LIABILITY', 'USDC'),
   ('DISTRIBUTOR_USDC',      'Distributor Hot Wallet USDC','ASSET',    'USDC'),
   ('CUSTOMER_USDC_PAYABLE', 'Customer USDC Payable',     'LIABILITY', 'USDC'),
   ('FEE_REVENUE_USDC',      'Fee Revenue (USDC)',        'REVENUE',   'USDC');
