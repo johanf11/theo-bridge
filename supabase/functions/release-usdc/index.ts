@@ -215,34 +215,16 @@ Deno.serve(async (req) => {
         ],
       }, { stellarTxHash: hash });
 
-      // 2) USDC payout. Credit per-customer USDC subaccount if dest is a Theo-managed
-      //    wallet; otherwise route to EXTERNAL_FLOW_USDC (funds left Theo's books).
-      const { data: destWallet } = await admin
-        .from("wallets")
-        .select("customer_id, stellar_secret")
-        .eq("stellar_address", dest)
-        .maybeSingle();
-      const isManaged = !!destWallet?.stellar_secret;
-      const customerHoldingAcct = isManaged
-        ? await getOrCreateCustomerUsdcAccount(admin, destWallet!.customer_id ?? locked.customer_id)
-        : null;
-
-      const entries: { code?: string; accountId?: string; currency: "HTG" | "USDC"; debit?: number; credit?: number }[] = [
+      // 2) USDC payout. Per-currency balance: HTG dr=cr=htg; USDC dr gross = cr (net + fee).
+      // NOTE: Per-customer USDC custody subaccount is intentionally deferred —
+      // requires a paired WALLET_HOLDINGS_USDC asset account to stay balanced.
+      const entries: { code: string; currency: "HTG" | "USDC"; debit?: number; credit?: number }[] = [
         { code: "CUSTOMER_HTG_SETTLED", currency: "HTG",  debit: htg },
         { code: "FX_CLEARING_HTG",      currency: "HTG",  credit: htg },
         { code: "FX_CLEARING_USDC",     currency: "USDC", debit: gross },
         { code: "DISTRIBUTOR_USDC",     currency: "USDC", credit: net },
       ];
-      if (customerHoldingAcct) {
-        entries.push({ accountId: customerHoldingAcct, currency: "USDC", debit: net });
-        entries.push({ code: "DISTRIBUTOR_USDC",        currency: "USDC", credit: 0 }); // no-op placeholder removed below
-      }
-      // Drop placeholder if any
-      const cleaned = entries.filter((e) => (e.debit ?? 0) + (e.credit ?? 0) > 0);
-      if (!customerHoldingAcct) {
-        cleaned.push({ code: "EXTERNAL_FLOW_USDC", currency: "USDC", debit: net });
-      }
-      if (fee > 0) cleaned.push({ code: "FEE_REVENUE_USDC", currency: "USDC", credit: fee });
+      if (fee > 0) entries.push({ code: "FEE_REVENUE_USDC", currency: "USDC", credit: fee });
 
       await safePostLedger(admin, "release-usdc:payout", {
         orderId,
@@ -250,7 +232,7 @@ Deno.serve(async (req) => {
         description: `USDC released for order ${locked.reference_number}`,
         postedBy: userRes.user.id,
         sourceKey: `orders:${orderId}:USDC_PAYOUT`,
-        entries: cleaned,
+        entries,
       }, { stellarTxHash: hash });
     } catch (le) {
       console.error("ledger postings failed (order still COMPLETED)", le);
