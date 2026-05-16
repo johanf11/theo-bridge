@@ -7,7 +7,7 @@ import {
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { distributorKeypair, signWithDistributor } from "../_shared/stellar-signer.ts";
 import { assertWithinLimits } from "../_shared/tx-limits.ts";
-import { postLedger } from "../_shared/ledger.ts";
+import { getOrCreateCustomerUsdcAccount, safePostLedger } from "../_shared/ledger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -107,6 +107,41 @@ Deno.serve(async (req) => {
     const sourceAccount = await server.loadAccount(distributor.publicKey());
     const usdc = new Asset("USDC", usdcIssuer);
 
+    // ── Pre-flight ledger reconciliation gate ───────────────────────────
+    // Compare book DISTRIBUTOR_USDC balance vs live Horizon balance.
+    // Hard-block payout on drift > 0.01 USDC when LEDGER_GATE_ENABLED=true.
+    const gateEnabled = (Deno.env.get("LEDGER_GATE_ENABLED") ?? "false").toLowerCase() === "true";
+    {
+      const usdcBalRaw = (sourceAccount.balances as Array<{ asset_code?: string; asset_issuer?: string; balance: string }>)
+        .find((b) => b.asset_code === "USDC" && b.asset_issuer === usdcIssuer);
+      const chainBal = parseFloat(usdcBalRaw?.balance ?? "0");
+      const { data: bookRow } = await admin
+        .from("ledger_entries")
+        .select("debit, credit, ledger_accounts!inner(code)")
+        .eq("ledger_accounts.code", "DISTRIBUTOR_USDC");
+      const bookBal = (bookRow ?? []).reduce(
+        (sum: number, r: { debit: number; credit: number }) => sum + Number(r.debit) - Number(r.credit),
+        0,
+      );
+      const drift = Math.abs(bookBal - chainBal);
+      if (drift > 0.01) {
+        const msg = `Ledger drift on DISTRIBUTOR_USDC: book=${bookBal.toFixed(7)} chain=${chainBal.toFixed(7)} delta=${drift.toFixed(7)}`;
+        console.warn(`[release-usdc gate] ${msg} (enabled=${gateEnabled})`);
+        if (gateEnabled) {
+          await admin.from("ledger_posting_failures").insert({
+            source: "release-usdc:gate",
+            reason: msg,
+            payload: { orderId, bookBal, chainBal },
+            order_id: orderId,
+          });
+          await admin.from("orders").update({ status: "FUNDED" }).eq("id", orderId);
+          return new Response(JSON.stringify({ error: msg, code: "LEDGER_DRIFT" }), {
+            status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+    }
+
     // Auto-top-up: if distributor USDC balance < order amount, mint shortfall from issuer
     const usdcBal = (sourceAccount.balances as Array<{ asset_code?: string; asset_issuer?: string; balance: string }>)
       .find((b) => b.asset_code === "USDC" && b.asset_issuer === usdcIssuer);
@@ -128,6 +163,17 @@ Deno.serve(async (req) => {
       // Reload distributor account so sequence number is fresh for the next tx
       const refreshed = await server.loadAccount(distributor.publicKey());
       Object.assign(sourceAccount, refreshed);
+
+      // Ledger: mint = external supply increase
+      await safePostLedger(admin, "release-usdc:auto-mint", {
+        kind: "DISTRIBUTOR_AUTO_MINT",
+        description: `Auto-mint ${topUp} USDC to distributor for order ${locked.reference_number}`,
+        sourceKey: `release-usdc-mint:${orderId}`,
+        entries: [
+          { code: "DISTRIBUTOR_USDC", currency: "USDC", debit:  Number(topUp) },
+          { code: "TREASURY_USDC",    currency: "USDC", credit: Number(topUp) },
+        ],
+      });
     }
 
     const tx = new TransactionBuilder(sourceAccount, {
@@ -149,44 +195,63 @@ Deno.serve(async (req) => {
       .update({ status: "COMPLETED", stellar_tx_hash: hash, released_at: now, completed_at: now })
       .eq("id", orderId);
 
-    // ── Ledger postings (Phase 1, observational) ─────────────────────
+    // ── Ledger postings ───────────────────────────────────────────────
     try {
       const htg = Number(locked.htg_amount);
       const gross = Number(locked.usdc_gross ?? locked.usdc_amount);
       const fee = Number(locked.fee_usdc ?? 0);
       const net = Number(locked.usdc_amount);
 
-      // 1) Fiat settlement: close HTG-pending into HTG-settled
-      await postLedger(admin, {
+      // 1) Fiat settlement
+      await safePostLedger(admin, "release-usdc:fiat", {
         orderId,
         kind: "FIAT_SETTLEMENT",
         description: `Fiat settled for order ${locked.reference_number}`,
         postedBy: userRes.user.id,
+        sourceKey: `orders:${orderId}:FIAT_SETTLEMENT`,
         entries: [
           { code: "CUSTOMER_HTG_PENDING", currency: "HTG", debit: htg },
           { code: "CUSTOMER_HTG_SETTLED", currency: "HTG", credit: htg },
         ],
-      });
+      }, { stellarTxHash: hash });
 
-      // 2) USDC payout. Distributor only sends `net` to the customer; `fee`
-      //    stays in the hot wallet as recognised revenue. Per currency:
-      //      HTG:  dr htg   = cr htg
-      //      USDC: dr gross = cr (net + fee) = gross
-      const entries: { code: string; currency: "HTG" | "USDC"; debit?: number; credit?: number }[] = [
+      // 2) USDC payout. Credit per-customer USDC subaccount if dest is a Theo-managed
+      //    wallet; otherwise route to EXTERNAL_FLOW_USDC (funds left Theo's books).
+      const { data: destWallet } = await admin
+        .from("wallets")
+        .select("customer_id, stellar_secret")
+        .eq("stellar_address", dest)
+        .maybeSingle();
+      const isManaged = !!destWallet?.stellar_secret;
+      const customerHoldingAcct = isManaged
+        ? await getOrCreateCustomerUsdcAccount(admin, destWallet!.customer_id ?? locked.customer_id)
+        : null;
+
+      const entries: { code?: string; accountId?: string; currency: "HTG" | "USDC"; debit?: number; credit?: number }[] = [
         { code: "CUSTOMER_HTG_SETTLED", currency: "HTG",  debit: htg },
         { code: "FX_CLEARING_HTG",      currency: "HTG",  credit: htg },
         { code: "FX_CLEARING_USDC",     currency: "USDC", debit: gross },
         { code: "DISTRIBUTOR_USDC",     currency: "USDC", credit: net },
       ];
-      if (fee > 0) entries.push({ code: "FEE_REVENUE_USDC", currency: "USDC", credit: fee });
+      if (customerHoldingAcct) {
+        entries.push({ accountId: customerHoldingAcct, currency: "USDC", debit: net });
+        entries.push({ code: "DISTRIBUTOR_USDC",        currency: "USDC", credit: 0 }); // no-op placeholder removed below
+      }
+      // Drop placeholder if any
+      const cleaned = entries.filter((e) => (e.debit ?? 0) + (e.credit ?? 0) > 0);
+      if (!customerHoldingAcct) {
+        cleaned.push({ code: "EXTERNAL_FLOW_USDC", currency: "USDC", debit: net });
+      }
+      if (fee > 0) cleaned.push({ code: "FEE_REVENUE_USDC", currency: "USDC", credit: fee });
 
-      await postLedger(admin, {
+      await safePostLedger(admin, "release-usdc:payout", {
         orderId,
         kind: "USDC_PAYOUT",
         description: `USDC released for order ${locked.reference_number}`,
         postedBy: userRes.user.id,
-        entries,
-      });
+        sourceKey: `orders:${orderId}:USDC_PAYOUT`,
+        entries: cleaned,
+      }, { stellarTxHash: hash });
     } catch (le) {
       console.error("ledger postings failed (order still COMPLETED)", le);
     }
