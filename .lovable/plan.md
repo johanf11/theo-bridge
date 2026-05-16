@@ -1,137 +1,100 @@
-# Phase 1 — Internal Double-Entry Shadow Ledger
+# Phase 2 — Complete the Shadow Ledger
 
-Build a Modern-Treasury-style ledger inside Theo so every fiat ↔ crypto movement is recorded as paired debit + credit entries. Phase 1 covers the schema, the posting helper, hooks into the two functions that move money in the happy path (`simulate-spih-payment`, `release-usdc`), and an admin-only Ledger view. Other edge functions (`execute-swap`, `execute-withdraw`, `send-payment`, `htgc-issuance`, top-ups, blend, admin rectify/refund) and historical backfill are deferred to Phase 2.
+Phase 1 wired the books for the happy-path conversion (`simulate-spih-payment` → `release-usdc`). Phase 2 closes every other path that moves value, backfills history, and turns the ledger from a passive shadow into an active gate that can block bad payouts.
 
-## What you'll see when it's done
+## Goals
 
-- A new admin page `/admin/ledger` showing:
-  - **Trial Balance** — every ledger account with its debit total, credit total, and signed balance, grouped by account type. Sum of all balances = 0 (proof books are balanced).
-  - **Transactions** — chronological list of ledger transactions, expandable to show the paired entries (account, debit, credit, currency).
-  - **Reconciliation widget** — for the distributor and HTG-C issuer accounts, show *book balance* vs *live Horizon balance* side-by-side with a delta column.
-- Every new order that goes through `simulate-spih-payment` → `release-usdc` writes 3 ledger transactions covering: SPIH cash-in, fiat settlement, and USDC payout (with the fee split going to a revenue account).
-- A database constraint that makes it impossible to commit an unbalanced transaction (debits ≠ credits within a currency).
+1. Every value movement in the system posts a balanced double-entry transaction — no silent on-chain moves.
+2. Historical data is represented as opening-balance transactions so the trial balance reflects reality from day one.
+3. `release-usdc` pre-flight reconciles book vs chain and **hard-blocks** payouts on drift > tolerance.
+4. Per-customer USDC sub-ledgers replace the single `CUSTOMER_USDC_PAYABLE` pool, so we can answer "how much do we owe customer X?" from the ledger alone.
+5. Admin Ledger page gains drill-down + CSV export; reconciliation card covers all chain-held accounts.
 
-Existing data is **not** backfilled in Phase 1 — the ledger only reflects orders processed after this ships. Phase 2 will add an opening-balance backfill so the trial balance ties to Horizon end-to-end.
+## Scope
 
-## Scope boundary
+### 1. Schema additions (migration `phase2_ledger_expansion`)
 
-In Phase 1 the ledger is **observational only**. `release-usdc` will *post* entries, but it will not yet *block* on a reconciliation mismatch — that gate goes in Phase 2 once we've watched the ledger run clean for real orders and finished the backfill. This prevents the ledger from breaking production payouts on day one.
+- New seed accounts:
+  - `TREASURY_USDC` (ASSET / USDC) — for Blend treasury / sweeps
+  - `BLEND_DEPOSITS_USDC` (ASSET / USDC) — Blend principal
+  - `BLEND_YIELD_USDC` (REVENUE / USDC) — accrued interest
+  - `HTGC_ISSUED` (LIABILITY / HTG) — outstanding HTG-C float
+  - `FEE_REVENUE_HTG` (REVENUE / HTG) — for HTG-side fees if any
+  - `OPENING_BALANCE_EQUITY` (EQUITY / both currencies)
+- Per-customer USDC subaccounts: dynamic. Add `customer_id uuid null` to `ledger_accounts` + unique `(code)` still. Helper `getOrCreateCustomerUsdcAccount(customer_id)` in `_shared/ledger.ts` creates `CUSTOMER_USDC_<short_id>` on first use.
+- Index `ledger_entries(account_id, currency)` for fast trial-balance.
 
-## Technical detail
+### 2. Edge function wiring
 
-### 1. Migration: `create_shadow_ledger`
+Add `postLedger` calls (kind in parens) to:
 
-Tables (all `numeric(20,7)` for amounts to match Stellar precision):
+| Function | Posting |
+|---|---|
+| `execute-swap` | `SWAP_HTG_USDC` or `SWAP_USDC_HTG` — multi-leg through `FX_CLEARING_*` |
+| `execute-withdraw` | `WITHDRAW_USDC` — dr `CUSTOMER_USDC_<id>`, cr `DISTRIBUTOR_USDC` |
+| `send-payment` | `PAYOUT_USDC` — dr `CUSTOMER_USDC_<id>`, cr `DISTRIBUTOR_USDC` |
+| `htgc-issuance` | `HTGC_MINT` — dr `SPIH_BANK_HTG`, cr `HTGC_ISSUED` |
+| `topup-distributor-usdc` | `DISTRIBUTOR_TOPUP` — dr `DISTRIBUTOR_USDC`, cr `TREASURY_USDC` |
+| `topup-htgc` | `HTGC_MINT` (manual variant) |
+| `admin-rectify-htgc` | `HTGC_RECTIFY` — adjustable entries with audit note |
+| `admin-refund-distributor` | `DISTRIBUTOR_REFUND` — reverse `DISTRIBUTOR_USDC` |
+| `blend-sweep` | `BLEND_DEPOSIT` — dr `BLEND_DEPOSITS_USDC`, cr `DISTRIBUTOR_USDC` |
+| `blend-withdraw` | `BLEND_WITHDRAW` — reverse; accrued yield → `BLEND_YIELD_USDC` |
+| `release-usdc` | Update to credit per-customer subaccount (replace `CUSTOMER_USDC_PAYABLE`) |
 
-- **`ledger_accounts`**
-  - `id uuid pk`
-  - `code text unique not null` (e.g. `SPIH_BANK_HTG`, `CUSTOMER_HTG_PENDING`, `FX_CLEARING`, `DISTRIBUTOR_USDC`, `FEE_REVENUE_USDC`)
-  - `name text not null`
-  - `type` enum `account_type`: `ASSET | LIABILITY | EQUITY | REVENUE | EXPENSE`
-  - `currency text not null` (HTG or USDC)
-  - `created_at`
+Wrap each posting in try/catch; **on posting failure after a successful chain tx**, write to a new `ledger_posting_failures` table with full payload so ops can replay — never silently swallow.
 
-- **`ledger_transactions`**
-  - `id uuid pk`
-  - `order_id uuid null` (no FK — keep ledger decoupled if orders ever archives)
-  - `kind text not null` (e.g. `SPIH_CASH_IN`, `FIAT_SETTLEMENT`, `USDC_PAYOUT`, `HTGC_MINT`)
-  - `description text`
-  - `posted_by uuid null` (auth user id of admin who triggered it)
-  - `created_at timestamptz default now()`
+### 3. Historical backfill (`backfill-ledger` one-shot edge function, admin-only)
 
-- **`ledger_entries`**
-  - `id uuid pk`
-  - `transaction_id uuid not null references ledger_transactions(id) on delete cascade`
-  - `account_id uuid not null references ledger_accounts(id)`
-  - `currency text not null`
-  - `debit numeric(20,7) not null default 0`
-  - `credit numeric(20,7) not null default 0`
-  - check: exactly one of debit/credit > 0
-  - check: entry.currency = account.currency (enforced via trigger since check can't reference another table)
+- Walk `orders` where `status = COMPLETED` → emit synthetic `SPIH_CASH_IN` + `FIAT_SETTLEMENT` + `USDC_PAYOUT` transactions dated `completed_at`.
+- Walk `payouts` where `status = COMPLETED` → emit `PAYOUT_USDC`.
+- Walk `blend_positions` → emit single `OPENING_BALANCE` transaction for current `deposited_usdc`.
+- Any residual chain balance not explained → `OPENING_BALANCE_EQUITY` adjusting entry, flagged in a `backfill_report` table.
+- Idempotent: keyed by `(source_table, source_id, kind)` via a new `ledger_transactions.source_key text unique` column.
 
-**Balance enforcement.** A deferrable constraint trigger on `ledger_entries` runs at transaction commit and verifies, for every `transaction_id` touched, that `sum(debit) = sum(credit)` *per currency*. Raises `unbalanced ledger transaction` otherwise. Using a constraint trigger (not a CHECK constraint) because CHECK can't aggregate across rows.
+### 4. Pre-flight reconciliation gate in `release-usdc`
 
-**Indexes.** `ledger_entries(transaction_id)`, `ledger_entries(account_id, created_at)`, `ledger_transactions(order_id)`, `ledger_transactions(created_at desc)`.
+Before broadcasting the Stellar tx:
+1. Fetch book `DISTRIBUTOR_USDC` balance.
+2. Fetch live Horizon balance.
+3. If `|book − chain| > 0.01 USDC` → **reject** with HTTP 409 `LEDGER_DRIFT` and write to `ledger_posting_failures` for admin attention.
+4. Same check for `SPIH_BANK_HTG` (book) vs latest `reserve_attestations.htg_balance` if attested within 24h — soft warn only.
 
-**RLS.** Enable on all three tables. Policies: `service_role` full access; `authenticated` SELECT only when `has_role(auth.uid(), 'admin')`. No customer-facing access in Phase 1.
+Toggle via `LEDGER_GATE_ENABLED` env var so we can ship dark first.
 
-**Seed accounts** (inserted in the same migration):
+### 5. Admin Ledger page upgrades
 
-| code | type | currency |
-|---|---|---|
-| `SPIH_BANK_HTG` | ASSET | HTG |
-| `CUSTOMER_HTG_PENDING` | LIABILITY | HTG |
-| `CUSTOMER_HTG_SETTLED` | LIABILITY | HTG |
-| `FX_CLEARING_HTG` | EQUITY | HTG |
-| `FX_CLEARING_USDC` | EQUITY | USDC |
-| `DISTRIBUTOR_USDC` | ASSET | USDC |
-| `CUSTOMER_USDC_PAYABLE` | LIABILITY | USDC |
-| `FEE_REVENUE_USDC` | REVENUE | USDC |
+- **Reconciliation card**: rows for `DISTRIBUTOR_USDC`, `TREASURY_USDC`, `BLEND_DEPOSITS_USDC` (each with book / chain / delta / status).
+- **Trial Balance card**: add per-customer expansion drawer.
+- **Transactions card**: filter by `kind`, `order_id`, date range; CSV export button.
+- **Posting Failures card**: new — lists `ledger_posting_failures`, with "Retry" action calling a `replay-ledger-posting` edge function.
 
-Per-customer USDC subaccounts are deferred to Phase 2 to keep the seed list small.
+### 6. Tests
 
-### 2. Shared posting helper: `supabase/functions/_shared/ledger.ts`
+Deno tests in `supabase/functions/_shared/ledger_test.ts`:
+- Balanced posting succeeds.
+- Unbalanced posting rejected by trigger.
+- Currency mismatch rejected.
+- `getOrCreateCustomerUsdcAccount` idempotent under concurrent calls.
 
-```
-postEntries(admin, {
-  orderId,
-  kind,
-  description,
-  postedBy,
-  entries: [{ accountCode, debit?, credit?, currency }, ...]
-})
-```
+## Out of scope (Phase 3)
 
-- Resolves `accountCode` → `account_id` (cached per cold start).
-- Inserts `ledger_transactions` then `ledger_entries` in one Postgres transaction via an RPC (`post_ledger_entries`) so the balance trigger fires atomically.
-- The RPC is `security definer` and takes a JSON payload, so edge functions don't need raw SQL.
+- Customer-facing statement endpoint backed by ledger (today's PDF stays orders-based).
+- Multi-currency conversion through a real FX desk (FX_CLEARING stays balanced internally).
+- Audit-grade immutability (append-only enforcement, hash chaining).
 
-### 3. Wire into `simulate-spih-payment`
+## Rollout order
 
-Right after flipping `QUOTED → FUNDED` (USDC conversion path), post:
+1. Migration + new seed accounts + per-customer helper.
+2. Wire all 10 edge functions; deploy with `LEDGER_GATE_ENABLED=false`.
+3. Run `backfill-ledger` in staging, verify trial balance = 0 per currency.
+4. Run in prod, manually review `OPENING_BALANCE_EQUITY` adjustments.
+5. Admin UI upgrades.
+6. Flip `LEDGER_GATE_ENABLED=true` after one clean week.
 
-- **kind: `SPIH_CASH_IN`** — `dr SPIH_BANK_HTG htg_amount`, `cr CUSTOMER_HTG_PENDING htg_amount`.
+## Verification checklist
 
-(HTG-C mint path posts a separate `HTGC_MINT` transaction: `dr SPIH_BANK_HTG`, `cr CUSTOMER_HTG_PENDING` — the on-chain mint itself is tracked in Phase 2 once we have an `HTGC_ISSUED` account.)
-
-### 4. Wire into `release-usdc`
-
-After the Stellar payment succeeds (before marking COMPLETED), post two transactions:
-
-- **kind: `FIAT_SETTLEMENT`** — `dr CUSTOMER_HTG_PENDING htg_amount`, `cr CUSTOMER_HTG_SETTLED htg_amount`. Closes the customer's HTG liability and reflects that the fiat side is fully settled.
-- **kind: `USDC_PAYOUT`** — multi-leg, all in USDC:
-  - `dr CUSTOMER_HTG_SETTLED htg_amount` (HTG side) — paired against `cr FX_CLEARING_HTG htg_amount`
-  - `dr FX_CLEARING_USDC usdc_gross`, `cr DISTRIBUTOR_USDC usdc_gross` (USDC leaves the hot wallet)
-  - `dr CUSTOMER_USDC_PAYABLE usdc_net`, plus `dr CUSTOMER_USDC_PAYABLE fee_usdc` already covered by:
-  - `cr CUSTOMER_USDC_PAYABLE usdc_gross` net of fees, `cr FEE_REVENUE_USDC fee_usdc`
-
-  Concretely the USDC leg posts: `dr FX_CLEARING_USDC = gross`, `cr DISTRIBUTOR_USDC = gross`, `dr CUSTOMER_USDC_PAYABLE = net + fee = gross`, `cr CUSTOMER_USDC_PAYABLE = gross`, `cr FEE_REVENUE_USDC = fee`. The balance trigger validates per-currency: USDC debits = USDC credits = `gross`, HTG debits = HTG credits = `htg_amount`.
-
-  (`FX_CLEARING_HTG` and `FX_CLEARING_USDC` are two halves of the conversion bridge — they net to zero across the system over time and let us audit FX P&L separately in Phase 2.)
-
-If `fee_usdc` is null on legacy QUOTED orders (shouldn't happen post-migration), default to 0 and log a warning rather than crash.
-
-### 5. Admin Ledger page: `/admin/ledger`
-
-New file `src/pages/AdminLedger.tsx`. Three sections, vanilla shadcn Cards + Tables, brand tokens:
-
-- **Trial Balance card** — query `ledger_entries` grouped by account, compute `sum(debit) - sum(credit)` signed by account type. Show two columns of accounts (HTG, USDC) and a footer row "Total: 0.0000000" highlighted gold when it ties.
-- **Transactions card** — paginated list of `ledger_transactions` ordered `created_at desc`, click to expand a row showing the entries table. Filter by `kind` and by `order_id`.
-- **Reconciliation card** — for `DISTRIBUTOR_USDC` and (Phase 2: HTG-C issued), fetch live Horizon balance via `fetchHorizonBalances(DISTRIBUTOR)` and show: Book balance, Chain balance, Delta. Color delta red if non-zero. Note in the card: *"Deltas are expected during Phase 1 because pre-existing orders are not yet backfilled."*
-
-Add to admin nav in `src/components/theo/Layout.tsx`: `{ to: "/admin/ledger", label: "Ledger", icon: BookOpen, keywords: ["ledger","double entry","trial balance","reconciliation"] }` and a route in `src/App.tsx` guarded by `<ProtectedRoute adminOnly>`.
-
-### 6. What is NOT in Phase 1
-
-- No hooks in `execute-swap`, `execute-withdraw`, `send-payment`, `htgc-issuance`, `topup-distributor-usdc`, `topup-htgc`, `admin-rectify-htgc`, `admin-refund-distributor`, `blend-sweep`, `blend-withdraw`. Reconciliation deltas will be visible until Phase 2 wires these.
-- No historical backfill. The Reconciliation card will note the expected mismatch.
-- No pre-flight gate in `release-usdc` that blocks payouts on mismatch — added in Phase 2.
-- No per-customer USDC subaccounts — single `CUSTOMER_USDC_PAYABLE` aggregate for now.
-- No customer-facing ledger view.
-
-### 7. Verification after deploy
-
-1. Run a fresh QUOTED order through `simulate-spih-payment`.
-2. Open `/admin/ledger` → Transactions card should show 3 new entries (`SPIH_CASH_IN`, `FIAT_SETTLEMENT`, `USDC_PAYOUT`) tied to that `order_id`.
-3. Trial Balance footer must show `0.0000000` for both HTG and USDC columns.
-4. `DISTRIBUTOR_USDC` book balance should have decreased by exactly `usdc_gross`; chain delta should equal the pre-existing untracked balance (this is the backfill gap, expected).
+- Trial Balance footer = `0.0000000` in both currencies after backfill.
+- Every `payouts.completed_at` and `orders.completed_at` row has a matching `ledger_transactions.source_key`.
+- A deliberate book/chain mismatch (drop a row from `ledger_entries` in staging) causes `release-usdc` to return 409.
+- `ledger_posting_failures` is empty in steady state.
