@@ -7,7 +7,7 @@ import {
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { distributorKeypair, signWithDistributor } from "../_shared/stellar-signer.ts";
 import { assertWithinLimits } from "../_shared/tx-limits.ts";
-import { getOrCreateCustomerUsdcAccount, safePostLedger } from "../_shared/ledger.ts";
+import { safePostLedger } from "../_shared/ledger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
