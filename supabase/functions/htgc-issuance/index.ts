@@ -17,6 +17,7 @@ import {
   Asset, Horizon, Keypair, Memo, Networks,
   Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
+import { safePostLedger } from "../_shared/ledger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -113,6 +114,18 @@ Deno.serve(async (req) => {
         performed_by: user.id,
       }).then(() => {}).catch(() => {});
 
+      // Ledger: minting HTG-C creates outstanding float; backed by external HTG inflow.
+      await safePostLedger(admin, "htgc-issuance:mint", {
+        kind: "HTGC_MINT",
+        description: `Mint ${parsedAmount} HTG-C → ${destinationAddress}`,
+        postedBy: user.id,
+        sourceKey: `htgc_issuance:mint:${hash}`,
+        entries: [
+          { code: "EXTERNAL_FLOW_HTG", currency: "HTG", debit:  parsedAmount },
+          { code: "HTGC_ISSUED",       currency: "HTG", credit: parsedAmount },
+        ],
+      }, { stellarTxHash: hash });
+
       return json({ ok: true, action: "mint", amount: parsedAmount, hash });
 
     } else {
@@ -154,6 +167,18 @@ Deno.serve(async (req) => {
         memo: memo?.trim() || null,
         performed_by: user.id,
       }).then(() => {}).catch(() => {});
+
+      // Ledger: burn reduces outstanding HTG-C float; offsetting external HTG outflow.
+      await safePostLedger(admin, "htgc-issuance:burn", {
+        kind: "HTGC_BURN",
+        description: `Burn ${parsedAmount} HTG-C from ${sourceAddress}`,
+        postedBy: user.id,
+        sourceKey: `htgc_issuance:burn:${hash}`,
+        entries: [
+          { code: "HTGC_ISSUED",       currency: "HTG", debit:  parsedAmount },
+          { code: "EXTERNAL_FLOW_HTG", currency: "HTG", credit: parsedAmount },
+        ],
+      }, { stellarTxHash: hash });
 
       return json({ ok: true, action: "burn", amount: parsedAmount, hash });
     }

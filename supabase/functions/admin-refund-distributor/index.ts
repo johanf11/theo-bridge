@@ -8,6 +8,7 @@ import {
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { distributorKeypair, signWithDistributor } from "../_shared/stellar-signer.ts";
 import { assertWithinLimits } from "../_shared/tx-limits.ts";
+import { safePostLedger } from "../_shared/ledger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -67,6 +68,18 @@ Deno.serve(async (req) => {
       .build();
     signWithDistributor(tx);
     const res = await server.submitTransaction(tx);
+
+    // Ledger: distributor → external (manual refund). Net effect: USDC leaves Theo.
+    await safePostLedger(admin, "admin-refund-distributor", {
+      kind: "DISTRIBUTOR_REFUND",
+      description: `Manual distributor refund to ${destinationAddress}`,
+      postedBy: user.id,
+      sourceKey: `admin-refund-distributor:${res.hash}`,
+      entries: [
+        { code: "EXTERNAL_FLOW_USDC", currency: "USDC", debit:  amt },
+        { code: "DISTRIBUTOR_USDC",   currency: "USDC", credit: amt },
+      ],
+    }, { stellarTxHash: res.hash });
 
     return json({ success: true, txHash: res.hash, amount: amt, destination: destinationAddress });
   } catch (e: any) {
