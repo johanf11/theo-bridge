@@ -168,19 +168,17 @@ Deno.serve(async (req) => {
         ],
       });
 
-      // 2) USDC payout: HTG side moves to FX clearing, USDC leaves distributor
-      //    to customer payable, with fee recognised as revenue.
-      const entries = [
-        // HTG leg (per-currency balanced: htg = htg)
-        { code: "CUSTOMER_HTG_SETTLED", currency: "HTG" as const,  debit: htg },
-        { code: "FX_CLEARING_HTG",      currency: "HTG" as const,  credit: htg },
-        // USDC leg (per-currency balanced: gross = net + fee = gross)
-        { code: "FX_CLEARING_USDC",     currency: "USDC" as const, debit: gross },
-        { code: "DISTRIBUTOR_USDC",     currency: "USDC" as const, credit: gross },
-        { code: "CUSTOMER_USDC_PAYABLE",currency: "USDC" as const, credit: net },
+      // 2) USDC payout. Distributor only sends `net` to the customer; `fee`
+      //    stays in the hot wallet as recognised revenue. Per currency:
+      //      HTG:  dr htg   = cr htg
+      //      USDC: dr gross = cr (net + fee) = gross
+      const entries: { code: string; currency: "HTG" | "USDC"; debit?: number; credit?: number }[] = [
+        { code: "CUSTOMER_HTG_SETTLED", currency: "HTG",  debit: htg },
+        { code: "FX_CLEARING_HTG",      currency: "HTG",  credit: htg },
+        { code: "FX_CLEARING_USDC",     currency: "USDC", debit: gross },
+        { code: "DISTRIBUTOR_USDC",     currency: "USDC", credit: net },
       ];
       if (fee > 0) entries.push({ code: "FEE_REVENUE_USDC", currency: "USDC", credit: fee });
-      // If fee is 0, net == gross so the USDC leg already balances.
 
       await postLedger(admin, {
         orderId,
