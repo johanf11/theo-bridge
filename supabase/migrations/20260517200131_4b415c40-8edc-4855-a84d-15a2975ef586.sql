@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "invoices_public_read" ON public.invoices;

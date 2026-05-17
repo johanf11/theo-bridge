@@ -69,19 +69,17 @@ export default function InvoiceView() {
   useEffect(() => {
     if (!id) return;
     (async () => {
-      const { data, error } = await supabase
-        .from("invoices")
-        .select("*, wallets(label, stellar_address)")
-        .eq("id", id)
-        .maybeSingle();
+      const { data, error } = await supabase.functions.invoke("get-public-invoice", {
+        body: { id },
+      });
 
-      if (error || !data) { setNotFound(true); setLoading(false); return; }
+      if (error || !data?.invoice) { setNotFound(true); setLoading(false); return; }
 
-      // Flatten joined wallet fields
-      const walletData = (data as { wallets?: { label?: string; stellar_address?: string } | null }).wallets;
+      const inv = data.invoice;
+      const walletData = inv.wallets as { label?: string; stellar_address?: string } | null;
       setInvoice({
-        ...data,
-        line_items: (data.line_items ?? []) as LineItem[],
+        ...inv,
+        line_items: (inv.line_items ?? []) as LineItem[],
         wallet_label: walletData?.label ?? null,
         wallet_address: walletData?.stellar_address ?? null,
       } as Invoice);
