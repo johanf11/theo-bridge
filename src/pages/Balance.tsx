@@ -91,6 +91,11 @@ export default function Balance() {
   const [withdrawingId, setWithdrawingId] = useState<string | null>(null);
   const [showBlendTooltip, setShowBlendTooltip] = useState(false);
 
+  // Blend withdraw modal
+  const [blendWithdrawPos, setBlendWithdrawPos] = useState<BlendPosition | null>(null);
+  const [blendWithdrawAmount, setBlendWithdrawAmount] = useState("");
+  const [blendWithdrawing, setBlendWithdrawing] = useState(false);
+
   // Move funds (between own wallets) modal
   const [moveOpen, setMoveOpen] = useState(false);
   const [moveAsset, setMoveAsset] = useState<"USDC" | "HTGC">("USDC");
