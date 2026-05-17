@@ -90,6 +90,7 @@ export default function Balance() {
   const [sweeping, setSweeping] = useState(false);
   const [withdrawingId, setWithdrawingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Wallet | null>(null);
   const [showBlendTooltip, setShowBlendTooltip] = useState(false);
 
   // Blend withdraw modal
@@ -286,13 +287,19 @@ export default function Balance() {
     setMoveOpen(true);
   };
 
-  const handleDeleteWallet = async (walletId: string) => {
-    if (!confirm("Delete this wallet? This cannot be undone.")) return;
+  const handleDeleteWallet = (wallet: Wallet) => {
+    setDeleteTarget(wallet);
+  };
+
+  const confirmDeleteWallet = async () => {
+    if (!deleteTarget) return;
+    const walletId = deleteTarget.id;
     setDeletingId(walletId);
     const { error } = await supabase.from("wallets").delete().eq("id", walletId);
     setDeletingId(null);
     if (error) { toast.error(error.message); return; }
     toast.success("Wallet deleted.");
+    setDeleteTarget(null);
     loadWallets();
   };
 
@@ -575,7 +582,7 @@ export default function Balance() {
                 >
                   {canDeleteWallet && (
                     <button
-                      onClick={(e) => { e.stopPropagation(); handleDeleteWallet(w.id); }}
+                      onClick={(e) => { e.stopPropagation(); handleDeleteWallet(w); }}
                       disabled={deletingId === w.id}
                       title="Delete empty wallet"
                       style={{
@@ -861,6 +868,77 @@ export default function Balance() {
                 {sweeping
                   ? <><Loader2 size={13} className="animate-spin" /> Sweeping…</>
                   : <><ArrowDownToLine size={13} /> Sweep {sweepAmountNum > 0 ? `$${fmt(sweepAmountNum)}` : ""} to Blend</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete wallet confirmation modal ── */}
+      {deleteTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: "rgba(15, 29, 84, 0.45)" }}
+          onClick={() => !deletingId && setDeleteTarget(null)}
+        >
+          <div
+            className="bg-card rounded-2xl shadow-xl"
+            style={{ width: 420, maxWidth: "90vw", padding: 24 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center rounded-lg" style={{ width: 32, height: 32, background: "rgba(220, 38, 38, 0.1)" }}>
+                  <X size={16} color="hsl(0 72% 51%)" />
+                </div>
+                <div>
+                  <div className="font-extrabold" style={{ fontSize: 16, color: "hsl(var(--theo-blue))", letterSpacing: "-0.01em" }}>
+                    Delete wallet?
+                  </div>
+                  <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))", marginTop: 1 }}>
+                    This action cannot be undone
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => !deletingId && setDeleteTarget(null)}
+                style={{ background: "transparent", border: "none", cursor: "pointer", padding: 4 }}
+                aria-label="Close"
+              >
+                <X size={16} color="hsl(var(--theo-mid))" />
+              </button>
+            </div>
+
+            <div style={{ fontSize: 13, color: "hsl(var(--theo-ink))", lineHeight: 1.5, marginBottom: 20 }}>
+              You are about to permanently delete the{" "}
+              <span style={{ fontWeight: 700 }}>{deleteTarget.label}</span> wallet. It has no
+              balance and no active positions, so nothing will be lost — but the wallet itself
+              will be removed from your account.
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={!!deletingId}
+                style={{
+                  padding: "10px 16px", borderRadius: 10, border: "1px solid hsl(var(--border))",
+                  background: "transparent", color: "hsl(var(--theo-ink))",
+                  fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteWallet}
+                disabled={!!deletingId}
+                style={{
+                  padding: "10px 16px", borderRadius: 10, border: "none",
+                  background: "hsl(0 72% 51%)", color: "white",
+                  fontSize: 13, fontWeight: 700, cursor: deletingId ? "not-allowed" : "pointer",
+                  fontFamily: "inherit", opacity: deletingId ? 0.6 : 1,
+                }}
+              >
+                {deletingId ? "Deleting…" : "Delete wallet"}
               </button>
             </div>
           </div>
