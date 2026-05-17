@@ -163,6 +163,7 @@ export default function Balance() {
       .from("wallets")
       .select("id, label, stellar_address, usdc_balance, wallet_type")
       .eq("customer_id", c.id)
+      .order("display_order", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: true });
 
     if ((!w || w.length === 0) && c.stellar_wallet_address) {
