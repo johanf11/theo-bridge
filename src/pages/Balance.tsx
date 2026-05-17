@@ -609,23 +609,26 @@ export default function Balance() {
           <div className="font-bold uppercase mb-2.5" style={{ fontSize: 11, letterSpacing: "0.14em", color: "hsl(var(--theo-mid))" }}>
             Wallets
           </div>
-          <div className="grid gap-3 mb-5" style={{ gridTemplateColumns: `repeat(${Math.min(wallets.length, 3)}, 1fr)` }}>
-            {wallets.map((w, i) => {
-              const pos = blendPositions[w.id];
-              const bal = balances[w.id] ?? 0;
-              const htgc = htgcBalances[w.id] ?? 0;
-              const displayUsdcZero = Number(bal.toFixed(2)) === 0;
-              const displayHtgcZero = Math.round(htgc) === 0;
-              const canDeleteWallet = displayUsdcZero && displayHtgcZero && !pos;
-              return (
-                <div
-                  key={w.id}
-                  className="relative overflow-hidden"
-                  style={{ borderRadius: 14, padding: 20, background: walletColors[i % walletColors.length], minHeight: 130 }}
-                >
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={wallets.map((w) => w.id)} strategy={rectSortingStrategy}>
+              <div className="grid gap-3 mb-5" style={{ gridTemplateColumns: `repeat(${Math.min(wallets.length, 3)}, 1fr)` }}>
+                {wallets.map((w, i) => {
+                  const pos = blendPositions[w.id];
+                  const bal = balances[w.id] ?? 0;
+                  const htgc = htgcBalances[w.id] ?? 0;
+                  const displayUsdcZero = Number(bal.toFixed(2)) === 0;
+                  const displayHtgcZero = Math.round(htgc) === 0;
+                  const canDeleteWallet = displayUsdcZero && displayHtgcZero && !pos;
+                  return (
+                    <SortableWalletCard
+                      key={w.id}
+                      id={w.id}
+                      background={walletColors[i % walletColors.length]}
+                    >
                   {canDeleteWallet && (
                     <button
                       onClick={(e) => { e.stopPropagation(); handleDeleteWallet(w); }}
+                      onPointerDown={(e) => e.stopPropagation()}
                       disabled={deletingId === w.id}
                       title="Delete empty wallet"
                       style={{
@@ -652,6 +655,7 @@ export default function Balance() {
                         onChange={(e) => setEditingValue(e.target.value)}
                         onBlur={() => saveEdit(w.id)}
                         onKeyDown={(e) => { if (e.key === "Enter") saveEdit(w.id); if (e.key === "Escape") setEditingId(null); }}
+                        onPointerDown={(e) => e.stopPropagation()}
                         style={{
                           background: "rgba(255,255,255,0.12)", color: "#fff", border: "none", outline: "none",
                           padding: "2px 6px", borderRadius: 4, fontSize: 10, letterSpacing: "0.12em",
@@ -661,7 +665,7 @@ export default function Balance() {
                     ) : (
                       <span
                         onClick={() => can("accounts_manage") && startEdit(w)}
-                        title={can("accounts_manage") ? "Click to rename" : undefined}
+                        title={can("accounts_manage") ? "Click to rename · hold to drag" : "Hold to drag"}
                         style={{ cursor: can("accounts_manage") ? "pointer" : "default" }}
                       >
                         {w.label ?? `Wallet ${i + 1}`}
@@ -702,6 +706,7 @@ export default function Balance() {
                       href={`https://stellar.expert/explorer/public/account/${w.stellar_address}`}
                       target="_blank"
                       rel="noopener noreferrer"
+                      onPointerDown={(e) => e.stopPropagation()}
                       style={{
                         fontSize: 11, color: "rgba(255,255,255,0.50)", fontWeight: 500,
                         textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 3,
@@ -718,6 +723,7 @@ export default function Balance() {
                     {can("payout_send") && wallets.length >= 2 && (
                       <button
                         onClick={() => openMoveModal(w.id)}
+                        onPointerDown={(e) => e.stopPropagation()}
                         title="Move funds to another account"
                         style={{
                           flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
@@ -732,6 +738,7 @@ export default function Balance() {
                     )}
                     <button
                       onClick={() => openSweepModal(w)}
+                      onPointerDown={(e) => e.stopPropagation()}
                       style={{
                         flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
                         background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)",
@@ -743,10 +750,12 @@ export default function Balance() {
                       Earn
                     </button>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                    </SortableWalletCard>
+                  );
+                })}
+              </div>
+            </SortableContext>
+          </DndContext>
         </>
       )}
 
