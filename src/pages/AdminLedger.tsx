@@ -156,6 +156,49 @@ export default function AdminLedger() {
   const htgTotals = totals("HTG");
   const usdcTotals = totals("USDC");
 
+  // ── SPIH settlement form state ──────────────────────────
+  const [settlAmount, setSettlAmount] = useState("");
+  const [settlRef, setSettlRef] = useState("");
+  const [settlOrderId, setSettlOrderId] = useState("");
+  const [settlPosting, setSettlPosting] = useState(false);
+  const [settlResult, setSettlResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const handleSettle = async () => {
+    const amount = parseInt(settlAmount, 10);
+    if (!amount || amount <= 0) { setSettlResult({ ok: false, msg: "Enter a valid HTG amount (whole number)" }); return; }
+    if (!settlRef.trim()) { setSettlResult({ ok: false, msg: "Reference is required" }); return; }
+    setSettlPosting(true);
+    setSettlResult(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-spih-settlement`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session?.access_token}`,
+            "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({ amount, reference: settlRef.trim(), orderId: settlOrderId.trim() || undefined }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Settlement failed");
+      setSettlResult({ ok: true, msg: `Posted — tx ${String(data.txId).slice(0, 8)}… | ${amount.toLocaleString()} HTG discharged` });
+      setSettlAmount(""); setSettlRef(""); setSettlOrderId("");
+      load(); // refresh trial balance
+    } catch (e) {
+      setSettlResult({ ok: false, msg: (e as Error).message });
+    } finally {
+      setSettlPosting(false);
+    }
+  };
+
+  // Outstanding HTG obligation from FX_CLEARING_HTG
+  const fxHtgAgg = trial.find((r) => r.account.code === "FX_CLEARING_HTG");
+  const outstandingHtg = fxHtgAgg ? fxHtgAgg.credit - fxHtgAgg.debit : 0;
+
   // ── Filtered transactions ───────────────────────────────
   const filteredTxs = txs.filter((t) => {
     if (filterKind && !t.kind.toLowerCase().includes(filterKind.toLowerCase())) return false;
@@ -340,6 +383,71 @@ export default function AdminLedger() {
             withdrawals, payments, blend movements, and admin rectifications are not yet wired into the ledger.
             Phase 2 will backfill opening balances and hook the remaining flows so this delta converges to zero.
           </p>
+        </div>
+
+        {/* SPIH Settlement */}
+        <div style={card}>
+          <div style={eyebrow}>SPIH Bank Settlement</div>
+          <p style={{ fontSize: 13, color: "hsl(var(--theo-mid))", marginTop: 0, marginBottom: 16 }}>
+            Record a confirmed SPIH bank transfer that discharges an HTG obligation.
+            Posts <strong>Dr FX Clearing (HTG) / Cr SPIH Bank (HTG)</strong>.
+            Outstanding HTG obligation:{" "}
+            <strong style={{ color: outstandingHtg > 0 ? "hsl(var(--theo-ink))" : "hsl(var(--theo-mid))" }}>
+              {outstandingHtg.toLocaleString("en-US", { maximumFractionDigits: 0 })} HTG
+            </strong>
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "160px 1fr 180px auto", gap: 10, alignItems: "flex-end" }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-mid))", marginBottom: 4 }}>Amount (HTG)</div>
+              <input
+                type="number"
+                placeholder="e.g. 500000"
+                value={settlAmount}
+                onChange={(e) => setSettlAmount(e.target.value)}
+                style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
+              />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-mid))", marginBottom: 4 }}>Reference</div>
+              <input
+                placeholder="e.g. SPIH-2026-05-17-batch-1"
+                value={settlRef}
+                onChange={(e) => setSettlRef(e.target.value)}
+                style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
+              />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-mid))", marginBottom: 4 }}>Order ID (optional)</div>
+              <input
+                placeholder="uuid…"
+                value={settlOrderId}
+                onChange={(e) => setSettlOrderId(e.target.value)}
+                style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
+              />
+            </div>
+            <button
+              onClick={handleSettle}
+              disabled={settlPosting}
+              style={{
+                padding: "8px 18px", borderRadius: 10,
+                background: "hsl(var(--theo-blue))", color: "#fff",
+                border: "none", cursor: settlPosting ? "wait" : "pointer",
+                fontSize: 13, fontWeight: 600, whiteSpace: "nowrap",
+              }}
+            >
+              {settlPosting ? "Posting…" : "Post Settlement"}
+            </button>
+          </div>
+          {settlResult && (
+            <div style={{
+              marginTop: 12, padding: "10px 14px", borderRadius: 8, fontSize: 13,
+              background: settlResult.ok ? "hsl(var(--theo-gold) / 0.15)" : "rgba(220,38,38,0.08)",
+              color: settlResult.ok ? "hsl(var(--theo-ink))" : "#dc2626",
+              border: `1px solid ${settlResult.ok ? "hsl(var(--theo-gold) / 0.4)" : "rgba(220,38,38,0.3)"}`,
+            }}>
+              {settlResult.ok ? "✓ " : "✗ "}{settlResult.msg}
+            </div>
+          )}
         </div>
 
         {/* Transactions */}
