@@ -61,6 +61,7 @@ Deno.serve(async (req) => {
       secret: wallet.stellar_secret,
       usdcIssuer,
       htgcIssuerSecret,
+      usdcIssuerSecret,
     });
 
     if (!result.ok) return json({ error: result.error }, 502);
