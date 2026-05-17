@@ -213,21 +213,53 @@ export default function Balance() {
     await Promise.all([loadWallets(), refreshBlend(), refreshTotal()]);
   };
 
-  const handleWithdraw = async (walletId: string) => {
+  const openBlendWithdraw = (walletId: string) => {
     const pos = blendPositions[walletId];
     if (!pos) return;
-    setWithdrawingId(walletId);
+    const total = pos.deposited + pos.accrued;
+    setBlendWithdrawPos(pos);
+    setBlendWithdrawAmount(total.toFixed(2));
+  };
+
+  const closeBlendWithdraw = () => {
+    if (blendWithdrawing) return;
+    setBlendWithdrawPos(null);
+    setBlendWithdrawAmount("");
+  };
+
+  const handleBlendWithdraw = async () => {
+    if (!blendWithdrawPos) return;
+    const amount = parseFloat(blendWithdrawAmount);
+    if (!amount || amount <= 0) return;
+    setBlendWithdrawing(true);
     const { data, error } = await supabase.functions.invoke("blend-withdraw", {
-      body: { walletId, amount: "max" },
+      body: { walletId: blendWithdrawPos.walletId, amount },
     });
-    setWithdrawingId(null);
+    setBlendWithdrawing(false);
     if (error || (data as { error?: string })?.error) {
-      const msg = (data as { error?: string })?.error ?? error?.message ?? "Withdraw failed";
-      toast.error(msg);
+      toast.error((data as { error?: string })?.error ?? error?.message ?? "Withdraw failed");
       return;
     }
-    const hash = (data as { hash?: string })?.hash ?? "";
-    toast.success(`Withdrawn from Blend · ${hash.slice(0, 8)}…`);
+    const hash = (data as { hash?: string; withdrawn?: number; accrued?: number })?.hash ?? "";
+    const withdrawn = (data as { withdrawn?: number })?.withdrawn ?? amount;
+    const accrued = (data as { accrued?: number })?.accrued ?? 0;
+    toast.success(`Withdrawn $${fmt(withdrawn)} USDC from Blend · ${hash.slice(0, 8)}…`);
+    // Generate receipt
+    const { generateReceipt } = await import("@/lib/receipt");
+    generateReceipt({
+      kind: "yield",
+      referenceNumber: `blend-withdraw`,
+      createdAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+      usdcAmount: withdrawn,
+      accruedAmount: accrued,
+      principalBalance: blendWithdrawPos.deposited,
+      stellarTxHash: hash,
+      status: "COMPLETED",
+      walletLabel: blendWithdrawPos.walletLabel,
+      memo: "blend-withdraw",
+    });
+    closeBlendWithdraw();
     await Promise.all([loadWallets(), refreshBlend(), refreshTotal()]);
   };
 
