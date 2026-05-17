@@ -24,6 +24,7 @@ Deno.serve(async (req) => {
     const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const usdcIssuer = Deno.env.get("STELLAR_USDC_ISSUER");
     const htgcIssuerSecret = Deno.env.get("STELLAR_HTGC_ISSUER_SECRET");
+    const usdcIssuerSecret = Deno.env.get("STELLAR_USDC_ISSUER_SECRET");
     if (!usdcIssuer) return json({ error: "STELLAR_USDC_ISSUER not configured" }, 500);
     if (!htgcIssuerSecret) return json({ error: "STELLAR_HTGC_ISSUER_SECRET not configured" }, 500);
 
