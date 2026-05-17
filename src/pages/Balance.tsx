@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, type ReactNode, type CSSProperties } from "react";
+import { useEffect, useState, useMemo, useRef, type ReactNode, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
