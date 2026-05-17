@@ -459,17 +459,17 @@ export default function Balance() {
                   </div>
                 </div>
                 <button
-                  onClick={() => handleWithdraw(pos.walletId)}
-                  disabled={withdrawingId === pos.walletId}
+                  onClick={() => openBlendWithdraw(pos.walletId)}
+                  disabled={blendWithdrawing && blendWithdrawPos?.walletId === pos.walletId}
                   style={{
                     display: "flex", alignItems: "center", gap: 5,
                     background: "#fff", border: "1.5px solid #86EFAC",
                     color: "#15803D", borderRadius: 7, padding: "6px 12px",
-                    fontSize: 12, fontWeight: 700, cursor: withdrawingId === pos.walletId ? "wait" : "pointer",
+                    fontSize: 12, fontWeight: 700, cursor: blendWithdrawing && blendWithdrawPos?.walletId === pos.walletId ? "wait" : "pointer",
                     fontFamily: "inherit", whiteSpace: "nowrap",
                   }}
                 >
-                  {withdrawingId === pos.walletId
+                  {blendWithdrawing && blendWithdrawPos?.walletId === pos.walletId
                     ? <><Loader2 size={11} className="animate-spin" /> Withdrawing…</>
                     : <><ArrowUpFromLine size={11} /> Withdraw</>}
                 </button>
