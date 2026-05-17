@@ -64,6 +64,8 @@ export default function AdminLedger() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [filterKind, setFilterKind] = useState("");
   const [filterOrder, setFilterOrder] = useState("");
+  const [filterFrom, setFilterFrom] = useState("");
+  const [filterTo, setFilterTo] = useState("");
   const [distChain, setDistChain] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -116,6 +118,16 @@ export default function AdminLedger() {
   const filteredTxs = txs.filter((t) => {
     if (filterKind && !t.kind.toLowerCase().includes(filterKind.toLowerCase())) return false;
     if (filterOrder && !(t.order_id ?? "").includes(filterOrder)) return false;
+    if (filterFrom) {
+      const from = new Date(filterFrom);
+      from.setHours(0, 0, 0, 0);
+      if (new Date(t.created_at) < from) return false;
+    }
+    if (filterTo) {
+      const to = new Date(filterTo);
+      to.setHours(23, 59, 59, 999);
+      if (new Date(t.created_at) > to) return false;
+    }
     return true;
   });
 
@@ -290,9 +302,9 @@ export default function AdminLedger() {
 
         {/* Transactions */}
         <div style={card}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
             <div style={eyebrow}>Transactions ({filteredTxs.length})</div>
-            <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <input
                 placeholder="Filter by kind…"
                 value={filterKind}
@@ -305,6 +317,32 @@ export default function AdminLedger() {
                 onChange={(e) => setFilterOrder(e.target.value)}
                 style={inputStyle}
               />
+              <input
+                type="date"
+                value={filterFrom}
+                onChange={(e) => setFilterFrom(e.target.value)}
+                title="From date"
+                style={{ ...inputStyle, color: filterFrom ? "hsl(var(--theo-ink))" : "hsl(var(--theo-mid))" }}
+              />
+              <input
+                type="date"
+                value={filterTo}
+                onChange={(e) => setFilterTo(e.target.value)}
+                title="To date"
+                style={{ ...inputStyle, color: filterTo ? "hsl(var(--theo-ink))" : "hsl(var(--theo-mid))" }}
+              />
+              {(filterFrom || filterTo) && (
+                <button
+                  onClick={() => { setFilterFrom(""); setFilterTo(""); }}
+                  style={{
+                    fontSize: 12, padding: "6px 10px", borderRadius: 8,
+                    border: "1px solid hsl(var(--theo-light))", background: "#fff",
+                    cursor: "pointer", color: "hsl(var(--theo-mid))", fontFamily: "inherit",
+                  }}
+                >
+                  Clear dates
+                </button>
+              )}
             </div>
           </div>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
