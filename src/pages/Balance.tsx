@@ -582,7 +582,7 @@ export default function Balance() {
                 >
                   {canDeleteWallet && (
                     <button
-                      onClick={(e) => { e.stopPropagation(); handleDeleteWallet(w.id); }}
+                      onClick={(e) => { e.stopPropagation(); handleDeleteWallet(w); }}
                       disabled={deletingId === w.id}
                       title="Delete empty wallet"
                       style={{
