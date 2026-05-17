@@ -142,15 +142,16 @@ Deno.serve(async (req) => {
       return json({ error: `Burn succeeded but failed to persist order: ${orderErr.message}`, burnHash }, 500);
     }
 
-    // Ledger: HTG-C burn closes outstanding float; opens HTG payable to customer pending bank wire.
+    // Ledger: HTG-C burn reduces outstanding issuance liability; clears through FX_CLEARING_HTG.
+    // The bank wire payout is handled operationally and is not a separate Stellar event.
     await safePostLedger(admin, "execute-withdraw", {
       orderId: order.id,
-      kind: "HTGC_BURN_WITHDRAW",
+      kind: "htgc_burn_withdraw",
       description: `HTG-C burn for withdrawal ${reference}`,
-      sourceKey: `orders:${order.id}:HTGC_BURN_WITHDRAW`,
+      sourceKey: `orders:${order.id}:htgc_burn_withdraw`,
       entries: [
-        { code: "HTGC_ISSUED",           currency: "HTG", debit:  parsedAmount },
-        { code: "CUSTOMER_HTG_PENDING",  currency: "HTG", credit: parsedAmount },
+        { code: "HTGC_ISSUED",      currency: "HTG", debit:  parsedAmount },
+        { code: "FX_CLEARING_HTG",  currency: "HTG", credit: parsedAmount },
       ],
     }, { stellarTxHash: burnHash });
 
