@@ -572,8 +572,8 @@ export default function Transactions() {
 
                     {/* Reference */}
                     <td className="px-5 py-3" style={{ fontFamily: "monospace", fontSize: 12, color: "hsl(var(--theo-mid))" }}>
-                      {(tx.type === "conversion" || tx.type === "swap" || tx.type === "htgc_mint")
-                        ? tx.reference_number
+                      {(tx.type === "conversion" || tx.type === "swap" || tx.type === "htgc_mint" || tx.type === "withdraw")
+                        ? (tx.reference_number ?? <span style={{ color: "hsl(var(--theo-mid))" }}>—</span>)
                         : tx.memo
                           ? <span style={{ fontFamily: "inherit", color: "hsl(var(--theo-mid))" }}>{tx.memo}</span>
                           : <span style={{ color: "hsl(var(--theo-mid))" }}>—</span>
