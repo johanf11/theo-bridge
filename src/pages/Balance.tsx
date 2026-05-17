@@ -576,7 +576,7 @@ export default function Balance() {
                       disabled={deletingId === w.id}
                       title="Delete empty wallet"
                       style={{
-                        position: "absolute", top: 10, right: 10,
+                        position: "absolute", top: 10, right: 10, zIndex: 2,
                         background: "rgba(255,255,255,0.15)", border: "none",
                         color: "rgba(255,255,255,0.6)", borderRadius: "50%",
                         width: 22, height: 22, cursor: "pointer",
