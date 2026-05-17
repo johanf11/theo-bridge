@@ -4,7 +4,14 @@
 //   leg 2: distributor sends destination asset back to user (signed by STELLAR_DISTRIBUTOR_SECRET)
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import {
-  Asset, Horizon, Keypair, Memo, Networks, Operation, TransactionBuilder, BASE_FEE,
+  Asset,
+  Horizon,
+  Keypair,
+  Memo,
+  Networks,
+  Operation,
+  TransactionBuilder,
+  BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { distributorPublicKey, signWithDistributor, signWithSecret } from "../_shared/stellar-signer.ts";
 import { assertWithinLimits } from "../_shared/tx-limits.ts";
@@ -27,8 +34,8 @@ type HorizonBalance = {
 };
 
 const realHtgcBalance = (balances: HorizonBalance[]) => {
-  const bal = balances.find((b) =>
-    b.asset_type !== "native" && b.asset_code === "HTGC" && b.asset_issuer === HTGC_ISSUER
+  const bal = balances.find(
+    (b) => b.asset_type !== "native" && b.asset_code === "HTGC" && b.asset_issuer === HTGC_ISSUER,
   );
   return bal ? Number(bal.balance) : 0;
 };
@@ -72,7 +79,10 @@ Deno.serve(async (req) => {
 
     // Auth — verify caller
     const userClient = createClient(url, anon, { global: { headers: { Authorization: authHeader } } });
-    const { data: { user }, error: ue } = await userClient.auth.getUser();
+    const {
+      data: { user },
+      error: ue,
+    } = await userClient.auth.getUser();
     if (ue || !user) return json({ error: "Unauthorized" }, 401);
 
     const admin = createClient(url, service);
@@ -84,14 +94,16 @@ Deno.serve(async (req) => {
       .eq("user_id", user.id)
       .maybeSingle();
     if (!customer) return json({ error: "Customer not found" }, 404);
-    const theoBps  = (customer as { fee_bps?: number | null }).fee_bps ?? 130;
-    const corrBps  = (customer as { corridor_bps?: number | null }).corridor_bps ?? 70;
+    const theoBps = (customer as { fee_bps?: number | null }).fee_bps ?? 130;
+    const corrBps = (customer as { corridor_bps?: number | null }).corridor_bps ?? 70;
     const totalBps = theoBps + corrBps;
 
     // Body
     const body = await req.json().catch(() => ({}));
     const { wallet_id, amount, direction } = body as {
-      wallet_id?: string; amount?: number; direction?: "htgc_to_usdc" | "usdc_to_htgc";
+      wallet_id?: string;
+      amount?: number;
+      direction?: "htgc_to_usdc" | "usdc_to_htgc";
     };
     if (!wallet_id) return json({ error: "wallet_id required" }, 400);
     if (direction !== "htgc_to_usdc" && direction !== "usdc_to_htgc") {
@@ -149,16 +161,19 @@ Deno.serve(async (req) => {
       htgAmount = destAmount;
     }
 
-    try { assertWithinLimits(usdcAmount, "Swap amount"); }
-    catch (e) { return json({ error: (e as Error).message }, 400); }
+    try {
+      assertWithinLimits(usdcAmount, "Swap amount");
+    } catch (e) {
+      return json({ error: (e as Error).message }, 400);
+    }
 
-    const usdcGross   = Math.round(usdcAmount * 1e7) / 1e7;
-    const feeUsdc     = Math.round(usdcGross * (totalBps / 10_000) * 1e7) / 1e7;
-    const theoFeeUsdc = Math.round(usdcGross * (theoBps  / 10_000) * 1e7) / 1e7;
-    const usdcNet     = Math.round((usdcGross - feeUsdc) * 1e7) / 1e7;
+    const usdcGross = Math.round(usdcAmount * 1e7) / 1e7;
+    const feeUsdc = Math.round(usdcGross * (totalBps / 10_000) * 1e7) / 1e7;
+    const theoFeeUsdc = Math.round(usdcGross * (theoBps / 10_000) * 1e7) / 1e7;
+    const usdcNet = Math.round((usdcGross - feeUsdc) * 1e7) / 1e7;
     // HTG has no cents — convert net USDC once and round to whole gourdes.
-    const htgNet      = Math.round(usdcNet * rate);
-    const leg2Amount  = direction === "htgc_to_usdc" ? usdcNet : htgNet;
+    const htgNet = Math.round(usdcNet * rate);
+    const leg2Amount = direction === "htgc_to_usdc" ? usdcNet : htgNet;
     // Persisted htg_amount must be NET of fees for usdc_to_htgc; for htgc_to_usdc
     // the user supplied gross HTGC so htgAmount stays as-is.
     if (direction === "usdc_to_htgc") {
@@ -174,8 +189,11 @@ Deno.serve(async (req) => {
     const htgcIssuerSecret = Deno.env.get("STELLAR_HTGC_ISSUER_SECRET") ?? undefined;
     {
       const ready = await ensureWalletReady({
-        server, address: wallet.stellar_address, secret: wallet.stellar_secret,
-        usdcIssuer, htgcIssuerSecret,
+        server,
+        address: wallet.stellar_address,
+        secret: wallet.stellar_secret,
+        usdcIssuer,
+        htgcIssuerSecret,
       });
       if (!ready.ok) return json({ error: `Wallet not ready: ${ready.error}` }, 502);
     }
@@ -188,18 +206,26 @@ Deno.serve(async (req) => {
         const shortfall = sourceAmount - have;
         if (shortfall > 0) {
           if (!htgcIssuerSecret) {
-            return json({ error: `Wallet has ${have} HTGC from issuer ${HTGC_ISSUER}, needs ${sourceAmount}. STELLAR_HTGC_ISSUER_SECRET not configured.` }, 400);
+            return json(
+              {
+                error: `Wallet has ${have} HTGC from issuer ${HTGC_ISSUER}, needs ${sourceAmount}. STELLAR_HTGC_ISSUER_SECRET not configured.`,
+              },
+              400,
+            );
           }
           const issuerKp = Keypair.fromSecret(htgcIssuerSecret);
           const issuerAccount = await server.loadAccount(issuerKp.publicKey());
           const mintTx = new TransactionBuilder(issuerAccount, {
-            fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
+            fee: BASE_FEE,
+            networkPassphrase: Networks.TESTNET,
           })
-            .addOperation(Operation.payment({
-              destination: wallet.stellar_address,
-              asset: htgc,
-              amount: shortfall.toFixed(7),
-            }))
+            .addOperation(
+              Operation.payment({
+                destination: wallet.stellar_address,
+                asset: htgc,
+                amount: shortfall.toFixed(7),
+              }),
+            )
             .setTimeout(60)
             .build();
           mintTx.sign(issuerKp);
@@ -219,26 +245,32 @@ Deno.serve(async (req) => {
     if (direction === "usdc_to_htgc") {
       try {
         const acct = await server.loadAccount(wallet.stellar_address);
-        const usdcBal = (acct.balances as HorizonBalance[]).find((b) =>
-          b.asset_type !== "native" && b.asset_code === "USDC" && b.asset_issuer === usdcIssuer
+        const usdcBal = (acct.balances as HorizonBalance[]).find(
+          (b) => b.asset_type !== "native" && b.asset_code === "USDC" && b.asset_issuer === usdcIssuer,
         );
         const have = usdcBal ? Number(usdcBal.balance) : 0;
         const shortfall = sourceAmount - have;
         if (shortfall > 0) {
           const usdcIssuerSecret = Deno.env.get("STELLAR_USDC_ISSUER_SECRET");
           if (!usdcIssuerSecret) {
-            return json({ error: `Wallet has ${have} USDC, needs ${sourceAmount}. STELLAR_USDC_ISSUER_SECRET not configured.` }, 400);
+            return json(
+              { error: `Wallet has ${have} USDC, needs ${sourceAmount}. STELLAR_USDC_ISSUER_SECRET not configured.` },
+              400,
+            );
           }
           const issuerKp = Keypair.fromSecret(usdcIssuerSecret);
           const issuerAccount = await server.loadAccount(issuerKp.publicKey());
           const mintTx = new TransactionBuilder(issuerAccount, {
-            fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
+            fee: BASE_FEE,
+            networkPassphrase: Networks.TESTNET,
           })
-            .addOperation(Operation.payment({
-              destination: wallet.stellar_address,
-              asset: usdc,
-              amount: shortfall.toFixed(7),
-            }))
+            .addOperation(
+              Operation.payment({
+                destination: wallet.stellar_address,
+                asset: usdc,
+                amount: shortfall.toFixed(7),
+              }),
+            )
             .setTimeout(60)
             .build();
           mintTx.sign(issuerKp);
@@ -261,13 +293,16 @@ Deno.serve(async (req) => {
     try {
       const userAccount = await server.loadAccount(userKp.publicKey());
       const tx1 = new TransactionBuilder(userAccount, {
-        fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
+        fee: BASE_FEE,
+        networkPassphrase: Networks.TESTNET,
       })
-        .addOperation(Operation.payment({
-          destination: leg1Destination,
-          asset: sourceAsset,
-          amount: sourceAmount.toFixed(7),
-        }))
+        .addOperation(
+          Operation.payment({
+            destination: leg1Destination,
+            asset: sourceAsset,
+            amount: sourceAmount.toFixed(7),
+          }),
+        )
         .addMemo(Memo.text(reference.slice(0, 28)))
         .setTimeout(60)
         .build();
@@ -282,16 +317,19 @@ Deno.serve(async (req) => {
     }
 
     if (direction === "htgc_to_usdc") {
-      const before = htgcBalanceBeforeLeg1 ?? await loadRealHtgcBalance(server, wallet.stellar_address);
+      const before = htgcBalanceBeforeLeg1 ?? (await loadRealHtgcBalance(server, wallet.stellar_address));
       const debit = await waitForRealHtgcDebit(server, wallet.stellar_address, before, sourceAmount);
       if (!debit.ok) {
-        return json({
-          error: `Leg 1 safety check failed: real HTGC balance did not decrease by ${sourceAmount.toFixed(7)}. USDC payout aborted.`,
-          leg1Hash,
-          before,
-          after: debit.latest,
-          issuer: HTGC_ISSUER,
-        }, 502);
+        return json(
+          {
+            error: `Leg 1 safety check failed: real HTGC balance did not decrease by ${sourceAmount.toFixed(7)}. USDC payout aborted.`,
+            leg1Hash,
+            before,
+            after: debit.latest,
+            issuer: HTGC_ISSUER,
+          },
+          502,
+        );
       }
     }
 
@@ -308,13 +346,16 @@ Deno.serve(async (req) => {
         const issuerKp = Keypair.fromSecret(htgcIssuerSecret);
         const issuerAccount = await server.loadAccount(issuerKp.publicKey());
         tx2 = new TransactionBuilder(issuerAccount, {
-          fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
+          fee: BASE_FEE,
+          networkPassphrase: Networks.TESTNET,
         })
-          .addOperation(Operation.payment({
-            destination: wallet.stellar_address,
-            asset: htgc,
-            amount: leg2Amount.toFixed(7),
-          }))
+          .addOperation(
+            Operation.payment({
+              destination: wallet.stellar_address,
+              asset: htgc,
+              amount: leg2Amount.toFixed(7),
+            }),
+          )
           .addMemo(Memo.text(reference.slice(0, 28)))
           .setTimeout(60)
           .build();
@@ -322,13 +363,16 @@ Deno.serve(async (req) => {
       } else {
         const distAccount = await server.loadAccount(distPubkey);
         tx2 = new TransactionBuilder(distAccount, {
-          fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
+          fee: BASE_FEE,
+          networkPassphrase: Networks.TESTNET,
         })
-          .addOperation(Operation.payment({
-            destination: wallet.stellar_address,
-            asset: usdc,
-            amount: leg2Amount.toFixed(7),
-          }))
+          .addOperation(
+            Operation.payment({
+              destination: wallet.stellar_address,
+              asset: usdc,
+              amount: leg2Amount.toFixed(7),
+            }),
+          )
           .addMemo(Memo.text(reference.slice(0, 28)))
           .setTimeout(60)
           .build();
@@ -358,13 +402,16 @@ Deno.serve(async (req) => {
           const treasuryKp = Keypair.fromSecret(treasurySecret);
           const treasuryAccount = await server.loadAccount(TREASURY_PUBLIC);
           txR = new TransactionBuilder(treasuryAccount, {
-            fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
+            fee: BASE_FEE,
+            networkPassphrase: Networks.TESTNET,
           })
-            .addOperation(Operation.payment({
-              destination: wallet.stellar_address,
-              asset: sourceAsset,
-              amount: sourceAmount.toFixed(7),
-            }))
+            .addOperation(
+              Operation.payment({
+                destination: wallet.stellar_address,
+                asset: sourceAsset,
+                amount: sourceAmount.toFixed(7),
+              }),
+            )
             .addMemo(Memo.text(refundMemo))
             .setTimeout(60)
             .build();
@@ -372,13 +419,16 @@ Deno.serve(async (req) => {
         } else {
           const distAccount = await server.loadAccount(distPubkey);
           txR = new TransactionBuilder(distAccount, {
-            fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
+            fee: BASE_FEE,
+            networkPassphrase: Networks.TESTNET,
           })
-            .addOperation(Operation.payment({
-              destination: wallet.stellar_address,
-              asset: sourceAsset,
-              amount: sourceAmount.toFixed(7),
-            }))
+            .addOperation(
+              Operation.payment({
+                destination: wallet.stellar_address,
+                asset: sourceAsset,
+                amount: sourceAmount.toFixed(7),
+              }),
+            )
             .addMemo(Memo.text(refundMemo))
             .setTimeout(60)
             .build();
@@ -436,7 +486,10 @@ Deno.serve(async (req) => {
       .select("id")
       .single();
     if (orderErr) {
-      return json({ error: `Swap submitted on-chain but failed to persist: ${orderErr.message}`, leg1Hash, leg2Hash, refundHash }, 500);
+      return json(
+        { error: `Swap submitted on-chain but failed to persist: ${orderErr.message}`, leg1Hash, leg2Hash, refundHash },
+        500,
+      );
     }
 
     // ── LEDGER POSTING ──────────────────────────────────────────────────────
@@ -444,69 +497,84 @@ Deno.serve(async (req) => {
     if (completed) {
       const custAcctId = await getOrCreateCustomerUsdcAccount(admin, customer.id).catch(() => null);
       if (direction === "htgc_to_usdc") {
-        await safePostLedger(admin, "execute-swap", {
-          orderId:     order.id,
-          kind:        "htgc_to_usdc_swap",
-          description: `HTG-C → USDC swap ${reference}`,
-          postedBy:    user.id,
-          sourceKey:   `swap:${order.id}`,
-          entries: [
-            // HTG side (balanced)
-            { code: "FX_CLEARING_HTG",  currency: "HTG",  debit:  htgAmount   },
-            { code: "HTGC_ISSUED",      currency: "HTG",  credit: htgAmount   },
-            // USDC side (balanced: usdcNet + theoFeeUsdc = usdcGross)
-            { code: "DISTRIBUTOR_USDC", currency: "USDC", debit:  usdcGross   },
-            ...(custAcctId
-              ? [{ accountId: custAcctId,         currency: "USDC" as const, credit: usdcNet }]
-              : [{ code: "CUSTOMER_USDC_PAYABLE", currency: "USDC" as const, credit: usdcNet }]),
-            { code: "FEE_REVENUE_USDC", currency: "USDC", credit: theoFeeUsdc },
-          ],
-        }, { stellarTxHash: leg2Hash });
+        await safePostLedger(
+          admin,
+          "execute-swap",
+          {
+            orderId: order.id,
+            kind: "htgc_to_usdc_swap",
+            description: `HTG-C → USDC swap ${reference}`,
+            postedBy: user.id,
+            sourceKey: `swap:${order.id}`,
+            entries: [
+              // HTG side (balanced)
+              { code: "FX_CLEARING_HTG", currency: "HTG", debit: htgAmount },
+              { code: "HTGC_ISSUED", currency: "HTG", credit: htgAmount },
+              // USDC side (balanced: usdcNet + feeUsdc = usdcGross)
+              { code: "DISTRIBUTOR_USDC", currency: "USDC", debit: usdcGross },
+              ...(custAcctId
+                ? [{ accountId: custAcctId, currency: "USDC" as const, credit: usdcNet }]
+                : [{ code: "CUSTOMER_USDC_PAYABLE", currency: "USDC" as const, credit: usdcNet }]),
+              { code: "FEE_REVENUE_USDC", currency: "USDC", credit: feeUsdc },
+            ],
+          },
+          { stellarTxHash: leg2Hash },
+        );
       } else {
         // usdc_to_htgc
-        await safePostLedger(admin, "execute-swap", {
-          orderId:     order.id,
-          kind:        "usdc_to_htgc_swap",
-          description: `USDC → HTG-C swap ${reference}`,
-          postedBy:    user.id,
-          sourceKey:   `swap:${order.id}`,
-          entries: [
-            // USDC side (balanced: usdcNet + theoFeeUsdc = usdcGross)
-            { code: "TREASURY_USDC",    currency: "USDC", debit:  usdcGross   },
-            ...(custAcctId
-              ? [{ accountId: custAcctId,         currency: "USDC" as const, credit: usdcNet }]
-              : [{ code: "CUSTOMER_USDC_PAYABLE", currency: "USDC" as const, credit: usdcNet }]),
-            { code: "FEE_REVENUE_USDC", currency: "USDC", credit: theoFeeUsdc },
-            // HTG side (balanced)
-            { code: "HTGC_ISSUED",      currency: "HTG",  debit:  htgNet      },
-            { code: "FX_CLEARING_HTG",  currency: "HTG",  credit: htgNet      },
-          ],
-        }, { stellarTxHash: leg2Hash });
+        await safePostLedger(
+          admin,
+          "execute-swap",
+          {
+            orderId: order.id,
+            kind: "usdc_to_htgc_swap",
+            description: `USDC → HTG-C swap ${reference}`,
+            postedBy: user.id,
+            sourceKey: `swap:${order.id}`,
+            entries: [
+              // USDC side (balanced: usdcNet + feeUsdc = usdcGross)
+              { code: "TREASURY_USDC", currency: "USDC", debit: usdcGross },
+              ...(custAcctId
+                ? [{ accountId: custAcctId, currency: "USDC" as const, credit: usdcNet }]
+                : [{ code: "CUSTOMER_USDC_PAYABLE", currency: "USDC" as const, credit: usdcNet }]),
+              { code: "FEE_REVENUE_USDC", currency: "USDC", credit: feeUsdc },
+              // HTG side (balanced)
+              { code: "HTGC_ISSUED", currency: "HTG", debit: htgNet },
+              { code: "FX_CLEARING_HTG", currency: "HTG", credit: htgNet },
+            ],
+          },
+          { stellarTxHash: leg2Hash },
+        );
       }
     }
 
     if (!completed) {
       if (refundHash) {
-        return json({
-          error: `Swap couldn't complete — your funds were returned to your wallet.`,
+        return json(
+          {
+            error: `Swap couldn't complete — your funds were returned to your wallet.`,
+            orderId: order.id,
+            leg1Hash,
+            refundHash,
+            refunded: true,
+            detail: leg2Error,
+          },
+          502,
+        );
+      }
+      return json(
+        {
+          error: `Swap failed and auto-refund also failed. Theo support has been notified — funds are held at the distributor and will be returned manually.`,
           orderId: order.id,
           leg1Hash,
-          refundHash,
-          refunded: true,
-          detail: leg2Error,
-        }, 502);
-      }
-      return json({
-        error: `Swap failed and auto-refund also failed. Theo support has been notified — funds are held at the distributor and will be returned manually.`,
-        orderId: order.id,
-        leg1Hash,
-        refundFailed: true,
-        detail: `leg2: ${leg2Error}; refund: ${refundError}`,
-      }, 502);
+          refundFailed: true,
+          detail: `leg2: ${leg2Error}; refund: ${refundError}`,
+        },
+        502,
+      );
     }
 
     return json({ ok: true, orderId: order.id, hash: leg2Hash, reference });
-
   } catch (e) {
     console.error("execute-swap error", e);
     return json({ error: (e as Error).message }, 500);
