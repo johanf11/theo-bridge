@@ -177,6 +177,27 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Self-heal destination wallet: ensure USDC trustline exists AND is authorized.
+    // USDC issuer has AUTH_REQUIRED — without this, payment fails with op_not_authorized.
+    {
+      const { data: destWallet } = await admin
+        .from("wallets")
+        .select("stellar_secret")
+        .eq("stellar_address", dest)
+        .maybeSingle();
+      if (destWallet?.stellar_secret) {
+        const ready = await ensureWalletReady({
+          server,
+          address: dest,
+          secret: destWallet.stellar_secret,
+          usdcIssuer,
+          htgcIssuerSecret: Deno.env.get("STELLAR_HTGC_ISSUER_SECRET") ?? undefined,
+          usdcIssuerSecret: Deno.env.get("STELLAR_USDC_ISSUER_SECRET") ?? undefined,
+        });
+        if (!ready.ok) throw new Error(`Destination wallet not ready: ${ready.error}`);
+      }
+    }
+
     const tx = new TransactionBuilder(sourceAccount, {
       fee: BASE_FEE,
       networkPassphrase: Networks.TESTNET,
