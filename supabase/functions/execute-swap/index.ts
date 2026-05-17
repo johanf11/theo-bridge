@@ -506,14 +506,16 @@ Deno.serve(async (req) => {
           postedBy:    user.id,
           sourceKey:   `swap:${order.id}`,
           entries: [
-            // HTG side (balanced)
+            // HTG side (balanced): HTG-C burned, HTG obligation cleared via FX
             { code: "FX_CLEARING_HTG",  currency: "HTG",  debit:  htgAmount  },
             { code: "HTGC_ISSUED",      currency: "HTG",  credit: htgAmount  },
             // USDC side (balanced: usdcNet + feeUsdc = usdcGross)
-            // FX_CLEARING_USDC absorbs the gross value; DISTRIBUTOR_USDC is credited
-            // because USDC physically leaves the distributor to the customer wallet.
-            { code: "FX_CLEARING_USDC", currency: "USDC", debit:  usdcGross  },
-            { code: "DISTRIBUTOR_USDC", currency: "USDC", credit: usdcNet    },
+            // DISTRIBUTOR_USDC is debited (USDC leaves); customer account credited for net;
+            // fee stays as revenue. Symmetric with usdc_to_htgc direction.
+            { code: "DISTRIBUTOR_USDC", currency: "USDC", debit:  usdcGross  },
+            ...(custAcctId
+              ? [{ accountId: custAcctId,         currency: "USDC" as const, credit: usdcNet }]
+              : [{ code: "CUSTOMER_USDC_PAYABLE", currency: "USDC" as const, credit: usdcNet }]),
             { code: "FEE_REVENUE_USDC", currency: "USDC", credit: feeUsdc    },
           ],
         }, { stellarTxHash: leg2Hash });

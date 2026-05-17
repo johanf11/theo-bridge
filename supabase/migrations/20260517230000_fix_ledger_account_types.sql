@@ -2,12 +2,46 @@
 -- Fix ledger account types and post correcting entries for backfill gaps.
 -- ─────────────────────────────────────────────────────────────────────────────
 
--- 1. FX_CLEARING_USDC is used exclusively as a debit-normal account
---    (tracks cumulative USDC released through the FX channel).
---    Changing from LIABILITY → ASSET so the balance displays as positive.
-UPDATE public.ledger_accounts
-SET    type = 'ASSET'
-WHERE  code = 'FX_CLEARING_USDC';
+-- 1. FX_CLEARING_USDC: retire by zeroing existing balance with an equity entry.
+--    The account was seeded as LIABILITY but was only ever debited (no credits),
+--    giving it a permanently negative balance. The underlying flows in
+--    execute-swap and release-usdc have been fixed to use DISTRIBUTOR_USDC +
+--    per-customer USDC account directly. This correcting entry zeros out the
+--    historical debit balance so the account can be ignored going forward.
+DO $$
+DECLARE
+  v_gap          numeric;
+  v_fx_usdc_id   uuid;
+  v_ob_usdc_id   uuid;
+BEGIN
+  SELECT SUM(le.debit) - SUM(le.credit) INTO v_gap
+  FROM   public.ledger_entries le
+  JOIN   public.ledger_accounts la ON la.id = le.account_id
+  WHERE  la.code = 'FX_CLEARING_USDC';
+
+  IF v_gap IS NULL OR v_gap <= 0 THEN
+    RAISE NOTICE 'FX_CLEARING_USDC gap is % — no correction needed', v_gap;
+  ELSE
+    SELECT id INTO v_fx_usdc_id FROM public.ledger_accounts WHERE code = 'FX_CLEARING_USDC';
+    SELECT id INTO v_ob_usdc_id FROM public.ledger_accounts WHERE code = 'OPENING_BALANCE_USDC';
+
+    IF v_fx_usdc_id IS NULL OR v_ob_usdc_id IS NULL THEN
+      RAISE EXCEPTION 'Required ledger accounts not found';
+    END IF;
+
+    PERFORM public.post_ledger_entries(jsonb_build_object(
+      'kind',        'opening_balance',
+      'description', 'Retire FX_CLEARING_USDC: credit to zero historical debit balance',
+      'source_key',  'correction:FX_CLEARING_USDC:retire',
+      'entries', jsonb_build_array(
+        jsonb_build_object('account_id', v_ob_usdc_id,  'currency', 'USDC', 'debit', v_gap, 'credit', 0),
+        jsonb_build_object('account_id', v_fx_usdc_id,  'currency', 'USDC', 'debit', 0,     'credit', v_gap)
+      )
+    ));
+    RAISE NOTICE 'Zeroed FX_CLEARING_USDC with correction of %', v_gap;
+  END IF;
+END;
+$$;
 
 -- 2. Correcting entry for CUSTOMER_HTG_SETTLED:
 --    The backfill posted USDC_PAYOUT (Dr CUSTOMER_HTG_SETTLED) for all

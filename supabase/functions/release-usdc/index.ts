@@ -7,7 +7,7 @@ import {
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { distributorKeypair, signWithDistributor } from "../_shared/stellar-signer.ts";
 import { assertWithinLimits } from "../_shared/tx-limits.ts";
-import { safePostLedger } from "../_shared/ledger.ts";
+import { safePostLedger, getOrCreateCustomerUsdcAccount } from "../_shared/ledger.ts";
 import { ensureWalletReady } from "../_shared/ensure-wallet-ready.ts";
 
 const corsHeaders = {
@@ -238,13 +238,19 @@ Deno.serve(async (req) => {
       }, { stellarTxHash: hash });
 
       // 2) USDC payout. Per-currency balance: HTG dr=cr=htg; USDC dr gross = cr (net + fee).
-      // NOTE: Per-customer USDC custody subaccount is intentionally deferred —
-      // requires a paired WALLET_HOLDINGS_USDC asset account to stay balanced.
-      const entries: { code: string; currency: "HTG" | "USDC"; debit?: number; credit?: number }[] = [
+      // DISTRIBUTOR_USDC debited (USDC leaves); customer subaccount credited for net amount.
+      const custAcctId = locked.customer_id
+        ? await getOrCreateCustomerUsdcAccount(admin, locked.customer_id).catch(() => null)
+        : null;
+      const custCreditEntry = custAcctId
+        ? { accountId: custAcctId,          currency: "USDC" as const, credit: net }
+        : { code: "CUSTOMER_USDC_PAYABLE",  currency: "USDC" as const, credit: net };
+
+      const entries: ({ code?: string; accountId?: string; currency: "HTG" | "USDC"; debit?: number; credit?: number })[] = [
         { code: "CUSTOMER_HTG_SETTLED", currency: "HTG",  debit: htg },
         { code: "FX_CLEARING_HTG",      currency: "HTG",  credit: htg },
-        { code: "FX_CLEARING_USDC",     currency: "USDC", debit: gross },
-        { code: "DISTRIBUTOR_USDC",     currency: "USDC", credit: net },
+        { code: "DISTRIBUTOR_USDC",     currency: "USDC", debit: gross },
+        custCreditEntry,
       ];
       if (fee > 0) entries.push({ code: "FEE_REVENUE_USDC", currency: "USDC", credit: fee });
 
