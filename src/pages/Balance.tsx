@@ -10,6 +10,22 @@ import { useBlendPositions } from "@/hooks/useBlendPositions";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useRoles } from "@/lib/auth";
 import { TrendingUp, Zap, X, Loader2, ArrowDownToLine, ArrowUpFromLine, Info, ArrowLeftRight } from "lucide-react";
+import {
+  DndContext,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 type Wallet = {
   id: string;
