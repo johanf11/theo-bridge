@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchHorizonBalances } from "@/lib/balance";
-import { ChevronDown, ChevronRight, Download, ExternalLink, RefreshCw } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Download, ExternalLink, RefreshCw, RotateCcw } from "lucide-react";
 
 const DISTRIBUTOR_PUBLIC = "GCP6VMZS3SJ4CSOT3ZVMMJIOXOHTMJK47YQ4RTUJN7P2KYKDVRCUBS2X";
 
@@ -12,6 +12,16 @@ type Account = {
   name: string;
   type: "ASSET" | "LIABILITY" | "EQUITY" | "REVENUE" | "EXPENSE";
   currency: "HTG" | "USDC";
+};
+
+type FailureRow = {
+  id: string;
+  source: string;
+  reason: string;
+  stellar_tx_hash: string | null;
+  order_id: string | null;
+  resolved_at: string | null;
+  created_at: string;
 };
 
 type TxRow = {
@@ -66,22 +76,54 @@ export default function AdminLedger() {
   const [filterOrder, setFilterOrder] = useState("");
   const [filterFrom, setFilterFrom] = useState("");
   const [filterTo, setFilterTo] = useState("");
+  const [failures, setFailures] = useState<FailureRow[]>([]);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [retryError, setRetryError] = useState<Record<string, string>>({});
   const [distChain, setDistChain] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
     setLoading(true);
-    const [{ data: a }, { data: e }, { data: t }] = await Promise.all([
+    const [{ data: a }, { data: e }, { data: t }, { data: f }] = await Promise.all([
       supabase.from("ledger_accounts").select("*").order("code"),
       supabase.from("ledger_entries").select("*"),
       supabase.from("ledger_transactions").select("*").order("created_at", { ascending: false }).limit(200),
+      supabase.from("ledger_posting_failures").select("*").is("resolved_at", null).order("created_at", { ascending: false }),
     ]);
     setAccounts((a ?? []) as Account[]);
     setEntries(((e ?? []) as unknown) as EntryRow[]);
     setTxs((t ?? []) as TxRow[]);
+    setFailures((f ?? []) as FailureRow[]);
     setLoading(false);
     const bal = await fetchHorizonBalances(DISTRIBUTOR_PUBLIC);
     setDistChain(bal.usdc);
+  };
+
+  const handleRetry = async (failureId: string) => {
+    setRetryingId(failureId);
+    setRetryError((prev) => { const n = { ...prev }; delete n[failureId]; return n; });
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/replay-ledger-failure`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session?.access_token}`,
+            "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({ failureId }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Retry failed");
+      setFailures((prev) => prev.filter((f) => f.id !== failureId));
+    } catch (e) {
+      setRetryError((prev) => ({ ...prev, [failureId]: (e as Error).message }));
+    } finally {
+      setRetryingId(null);
+    }
   };
 
   useEffect(() => {
@@ -450,6 +492,71 @@ export default function AdminLedger() {
               )}
             </tbody>
           </table>
+        </div>
+        {/* Posting Failures */}
+        <div style={{ ...card, borderColor: failures.length > 0 ? "rgba(220,38,38,0.3)" : "hsl(var(--theo-light))" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+            {failures.length > 0 && <AlertTriangle style={{ width: 14, height: 14, color: "#dc2626" }} />}
+            <div style={{ ...eyebrow, color: failures.length > 0 ? "#dc2626" : "hsl(var(--theo-cyan))" }}>
+              Posting Failures ({failures.length})
+            </div>
+          </div>
+          {failures.length === 0 ? (
+            <p style={{ fontSize: 13, color: "hsl(var(--theo-mid))", margin: 0 }}>
+              No unresolved posting failures. All ledger entries posted successfully.
+            </p>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ color: "hsl(var(--theo-mid))" }}>
+                  <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: 600 }}>When</th>
+                  <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: 600 }}>Source</th>
+                  <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: 600 }}>Error</th>
+                  <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: 600 }}>Order</th>
+                  <th style={{ padding: "6px 8px", textAlign: "center", fontWeight: 600, width: 90 }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {failures.map((f) => (
+                  <tr key={f.id} style={{ borderTop: "1px solid hsl(var(--theo-light))" }}>
+                    <td style={{ padding: "8px", color: "hsl(var(--theo-mid))", whiteSpace: "nowrap" }}>
+                      {new Date(f.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </td>
+                    <td style={{ padding: "8px", fontWeight: 600, color: "hsl(var(--theo-blue))" }}>{f.source}</td>
+                    <td style={{ padding: "8px", color: "#dc2626", maxWidth: 400 }}>
+                      <div style={{ fontFamily: "monospace", fontSize: 11, lineHeight: 1.4 }}>{f.reason}</div>
+                      {retryError[f.id] && (
+                        <div style={{ marginTop: 4, color: "#dc2626", fontStyle: "italic" }}>
+                          Retry failed: {retryError[f.id]}
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ padding: "8px", fontFamily: "monospace", fontSize: 11, color: "hsl(var(--theo-mid))" }}>
+                      {f.order_id ? f.order_id.slice(0, 8) + "…" : "—"}
+                    </td>
+                    <td style={{ padding: "8px", textAlign: "center" }}>
+                      <button
+                        onClick={() => handleRetry(f.id)}
+                        disabled={retryingId === f.id}
+                        style={{
+                          display: "inline-flex", alignItems: "center", gap: 4,
+                          fontSize: 11, fontWeight: 600,
+                          color: retryingId === f.id ? "hsl(var(--theo-mid))" : "hsl(var(--theo-blue))",
+                          background: "hsl(var(--theo-blue-soft))",
+                          border: "1px solid hsl(var(--theo-blue) / 0.25)",
+                          borderRadius: 6, padding: "4px 10px",
+                          cursor: retryingId === f.id ? "wait" : "pointer",
+                        }}
+                      >
+                        <RotateCcw style={{ width: 10, height: 10 }} />
+                        {retryingId === f.id ? "Retrying…" : "Retry"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </AppLayout>
