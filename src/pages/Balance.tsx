@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, type ReactNode, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
@@ -1434,10 +1434,10 @@ function SortableWalletCard({
 }: {
   id: string;
   background: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
-  const style: React.CSSProperties = {
+  const style: CSSProperties = {
     borderRadius: 14,
     padding: 20,
     background,
