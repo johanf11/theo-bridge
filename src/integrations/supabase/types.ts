@@ -407,6 +407,7 @@ export type Database = {
           order_id: string | null
           posted_by: string | null
           source_key: string | null
+          stellar_tx_hash: string | null
         }
         Insert: {
           created_at?: string
@@ -416,6 +417,7 @@ export type Database = {
           order_id?: string | null
           posted_by?: string | null
           source_key?: string | null
+          stellar_tx_hash?: string | null
         }
         Update: {
           created_at?: string
@@ -425,6 +427,7 @@ export type Database = {
           order_id?: string | null
           posted_by?: string | null
           source_key?: string | null
+          stellar_tx_hash?: string | null
         }
         Relationships: []
       }
