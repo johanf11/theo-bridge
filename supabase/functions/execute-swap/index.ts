@@ -509,9 +509,7 @@ Deno.serve(async (req) => {
             // HTG side (balanced): HTG-C burned, HTG obligation cleared via FX
             { code: "FX_CLEARING_HTG",  currency: "HTG",  debit:  htgAmount  },
             { code: "HTGC_ISSUED",      currency: "HTG",  credit: htgAmount  },
-            // USDC side (balanced: usdcNet + feeUsdc = usdcGross)
-            // DISTRIBUTOR_USDC is debited (USDC leaves); customer account credited for net;
-            // fee stays as revenue. Symmetric with usdc_to_htgc direction.
+            // USDC side (balanced): DISTRIBUTOR_USDC debited (USDC leaves); customer account credited for net. Symmetric with usdc_to_htgc.
             { code: "DISTRIBUTOR_USDC", currency: "USDC", debit:  usdcGross  },
             ...(custAcctId
               ? [{ accountId: custAcctId,         currency: "USDC" as const, credit: usdcNet }]
