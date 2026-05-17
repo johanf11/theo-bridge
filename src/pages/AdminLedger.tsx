@@ -119,16 +119,34 @@ export default function AdminLedger() {
     return true;
   });
 
-  // ── CSV export ──────────────────────────────────────────
+  // ── CSV export (one row per entry line, QB-importable) ─
   const handleExportCSV = () => {
-    const headers = ["When", "Kind", "Order ID", "Description", "Stellar TX Hash"];
-    const rows = filteredTxs.map((t) => [
-      new Date(t.created_at).toISOString(),
-      t.kind,
-      t.order_id ?? "",
-      t.description ?? "",
-      t.stellar_tx_hash ?? "",
-    ]);
+    const headers = [
+      "Date", "Transaction ID", "Kind", "Order ID", "Description",
+      "Account Code", "Account Name", "Account Type", "Currency",
+      "Debit", "Credit", "Stellar TX Hash",
+    ];
+    const rows: string[][] = [];
+    for (const t of filteredTxs) {
+      const txEntries = entries.filter((e) => e.transaction_id === t.id);
+      for (const e of txEntries) {
+        const acc = accounts.find((a) => a.id === e.account_id);
+        rows.push([
+          new Date(t.created_at).toISOString(),
+          t.id,
+          t.kind,
+          t.order_id ?? "",
+          t.description ?? "",
+          acc?.code ?? e.account_id,
+          acc?.name ?? "",
+          acc?.type ?? "",
+          e.currency,
+          Number(e.debit) > 0 ? Number(e.debit).toFixed(7) : "",
+          Number(e.credit) > 0 ? Number(e.credit).toFixed(7) : "",
+          t.stellar_tx_hash ?? "",
+        ]);
+      }
+    }
     const csv = [headers, ...rows]
       .map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
       .join("\n");
