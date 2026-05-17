@@ -1426,3 +1426,33 @@ function LedgerRow({
     </tr>
   );
 }
+
+function SortableWalletCard({
+  id,
+  background,
+  children,
+}: {
+  id: string;
+  background: string;
+  children: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style: React.CSSProperties = {
+    borderRadius: 14,
+    padding: 20,
+    background,
+    minHeight: 130,
+    transform: CSS.Transform.toString(transform),
+    transition,
+    cursor: isDragging ? "grabbing" : "grab",
+    touchAction: "none",
+    zIndex: isDragging ? 10 : "auto",
+    boxShadow: isDragging ? "0 18px 40px -12px rgba(0,0,0,0.45)" : undefined,
+    opacity: isDragging ? 0.96 : 1,
+  };
+  return (
+    <div ref={setNodeRef} className="relative overflow-hidden" style={style} {...attributes} {...listeners}>
+      {children}
+    </div>
+  );
+}
