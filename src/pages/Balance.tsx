@@ -345,6 +345,8 @@ export default function Balance() {
       loadWallets();
     }
   };
+
+  const moveAmountNum = parseFloat(moveAmount) || 0;
   const moveAssetBalances = moveAsset === "HTGC" ? htgcBalances : balances;
   const moveSourceBalance = moveSourceId ? (moveAssetBalances[moveSourceId] ?? 0) : 0;
   const moveSourceLabel = wallets.find((w) => w.id === moveSourceId)?.label ?? "Source";
