@@ -8,6 +8,7 @@ import {
 import { distributorKeypair, signWithDistributor } from "../_shared/stellar-signer.ts";
 import { assertWithinLimits } from "../_shared/tx-limits.ts";
 import { safePostLedger } from "../_shared/ledger.ts";
+import { ensureWalletReady } from "../_shared/ensure-wallet-ready.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
