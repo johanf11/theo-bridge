@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
       }
       const r = await ensureWalletReady({
         server, address: w.stellar_address, secret: w.stellar_secret,
-        usdcIssuer, htgcIssuerSecret,
+        usdcIssuer, htgcIssuerSecret, usdcIssuerSecret,
       });
       if (r.ok) results.push({ id: w.id, label: w.label, address: w.stellar_address, ok: true, healed: r.healed });
       else results.push({ id: w.id, label: w.label, address: w.stellar_address, ok: false, error: r.error });
