@@ -89,6 +89,7 @@ export default function Balance() {
   const [sweepAmount, setSweepAmount] = useState("");
   const [sweeping, setSweeping] = useState(false);
   const [withdrawingId, setWithdrawingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showBlendTooltip, setShowBlendTooltip] = useState(false);
 
   // Blend withdraw modal
@@ -283,6 +284,16 @@ export default function Balance() {
     setMoveAmount("");
     setMoveMemo("");
     setMoveOpen(true);
+  };
+
+  const handleDeleteWallet = async (walletId: string) => {
+    if (!confirm("Delete this wallet? This cannot be undone.")) return;
+    setDeletingId(walletId);
+    const { error } = await supabase.from("wallets").delete().eq("id", walletId);
+    setDeletingId(null);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Wallet deleted.");
+    loadWallets();
   };
 
   const moveAmountNum = parseFloat(moveAmount) || 0;
@@ -559,6 +570,25 @@ export default function Balance() {
                   className="relative overflow-hidden"
                   style={{ borderRadius: 14, padding: 20, background: walletColors[i % walletColors.length], minHeight: 130 }}
                 >
+                  {bal === 0 && htgc === 0 && !pos && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDeleteWallet(w.id); }}
+                      disabled={deletingId === w.id}
+                      title="Delete empty wallet"
+                      style={{
+                        position: "absolute", top: 10, right: 10,
+                        background: "rgba(255,255,255,0.15)", border: "none",
+                        color: "rgba(255,255,255,0.6)", borderRadius: "50%",
+                        width: 22, height: 22, cursor: "pointer",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        padding: 0, fontFamily: "inherit",
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,80,80,0.5)")}
+                      onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.15)")}
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
                   <div className="absolute pointer-events-none" style={{ top: -30, right: -30, width: 120, height: 120, borderRadius: "50%", background: "rgba(255,255,255,0.07)" }} />
 
                   {/* Label */}
