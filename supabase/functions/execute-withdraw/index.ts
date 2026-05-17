@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
       .from("orders")
       .insert({
         customer_id: customer.id,
-        order_kind: "htgc_withdraw",
+        order_kind: "htgc_withdrawal",
         status: "COMPLETED",
         htg_amount: parsedAmount,
         usdc_amount: 0,
