@@ -2,7 +2,7 @@ import { useState } from "react";
 import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, ShieldCheck, AlertCircle, CheckCircle2, Coins } from "lucide-react";
+import { Loader2, ShieldCheck, AlertCircle, CheckCircle2, Coins, Wallet } from "lucide-react";
 import { IssuanceControls } from "@/components/theo/IssuanceControls";
 
 type BackfillResult = {
@@ -17,6 +17,29 @@ export default function AdminTools() {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<BackfillResult | null>(null);
   const [topupRunning, setTopupRunning] = useState(false);
+  const [setupWalletId, setSetupWalletId] = useState("1a9f1522-febd-47eb-af5b-3c2cd6af2f63");
+  const [setupRunning, setSetupRunning] = useState(false);
+
+  async function runSetupWallet(id?: string) {
+    const walletId = (id ?? setupWalletId).trim();
+    if (!walletId) {
+      toast.error("Wallet ID required");
+      return;
+    }
+    setSetupRunning(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-setup-wallet", { body: { walletId } });
+      if (error) throw error;
+      const r = data as { ok?: boolean; healed?: string[]; error?: string };
+      if (!r.ok) throw new Error(r.error || "Setup failed");
+      const healed = r.healed ?? [];
+      toast.success(healed.length ? `Wallet ready. Healed: ${healed.join(", ")}` : "Wallet already healthy.");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSetupRunning(false);
+    }
+  }
 
   async function runBackfill() {
     setRunning(true);
@@ -64,6 +87,45 @@ export default function AdminTools() {
         </div>
 
         <IssuanceControls />
+
+        <div className="bg-card rounded-2xl border border-border p-6 space-y-4">
+          <div className="flex items-start gap-4">
+            <div className="rounded-[22%] bg-primary/10 p-3 text-primary">
+              <Wallet className="h-6 w-6" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-lg font-bold text-foreground">Setup wallet</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Runs ensureWalletReady on a single wallet — opens USDC + HTG-C trustlines
+                and authorizes HTG-C if needed. Idempotent.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="text"
+              value={setupWalletId}
+              onChange={(e) => setSetupWalletId(e.target.value)}
+              placeholder="Wallet ID (uuid)"
+              className="flex-1 rounded-[10px] border border-border bg-background px-3 py-2 text-sm font-mono"
+            />
+            <button
+              onClick={() => runSetupWallet()}
+              disabled={setupRunning}
+              className="rounded-[10px] bg-primary text-primary-foreground px-5 py-2.5 font-semibold text-sm disabled:opacity-60 inline-flex items-center justify-center gap-2"
+            >
+              {setupRunning ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Running…
+                </>
+              ) : (
+                "Setup wallet"
+              )}
+            </button>
+          </div>
+        </div>
 
         <div className="bg-card rounded-2xl border border-border p-6 space-y-4">
           <div className="flex items-start gap-4">
