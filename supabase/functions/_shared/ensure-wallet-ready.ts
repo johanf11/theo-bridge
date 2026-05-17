@@ -36,6 +36,7 @@ export async function ensureWalletReady(opts: {
   secret: string;          // wallet's signing key (we own it)
   usdcIssuer: string;
   htgcIssuerSecret?: string; // optional — required only if HTGC trustline needs auth
+  usdcIssuerSecret?: string; // optional — required only if USDC trustline needs auth
   network?: "TESTNET" | "PUBLIC";
 }): Promise<EnsureResult> {
   const network = opts.network ?? "TESTNET";
