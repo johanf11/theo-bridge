@@ -35,10 +35,11 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const { data: claims, error: cErr } = await supabase.auth.getClaims(
-      authHeader.replace("Bearer ", "")
-    );
-    if (cErr || !claims?.claims) {
+    const {
+      data: { user },
+      error: authErr,
+    } = await supabase.auth.getUser();
+    if (authErr || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -49,15 +50,42 @@ Deno.serve(async (req) => {
     const label = String(body.label ?? "").trim().slice(0, 60) || "New account";
 
     // Find caller's customer record (filter explicitly — admins can see all rows)
-    const userId = claims.claims.sub as string;
-    const { data: customer, error: custErr } = await admin
+    const userId = user.id;
+    let { data: customer, error: custErr } = await admin
       .from("customers")
       .select("id")
       .eq("user_id", userId)
       .maybeSingle();
-    if (custErr || !customer) {
-      return new Response(JSON.stringify({ error: "Customer not found" }), {
-        status: 404,
+
+    if (custErr) throw custErr;
+
+    if (!customer) {
+      const metadata = user.user_metadata ?? {};
+      const fallbackEmail = user.email ?? `${userId}@theo.local`;
+      const { data: createdCustomer, error: createCustErr } = await admin
+        .from("customers")
+        .insert({
+          user_id: userId,
+          company_name: String(metadata.company_name ?? metadata.full_name ?? metadata.name ?? fallbackEmail),
+          email: fallbackEmail,
+          phone: typeof metadata.phone === "string" ? metadata.phone : null,
+        })
+        .select("id")
+        .single();
+
+      if (createCustErr || !createdCustomer) {
+        return new Response(JSON.stringify({ error: createCustErr?.message ?? "Customer profile could not be created" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      customer = createdCustomer;
+    }
+
+    if (!customer) {
+      return new Response(JSON.stringify({ error: "Customer profile unavailable" }), {
+        status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
