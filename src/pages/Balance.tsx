@@ -1092,6 +1092,7 @@ export default function Balance() {
             </div>
           </div>
         </div>
+      )}
       {/* ── Withdraw from Blend modal ── */}
       {blendWithdrawPos && (
         <div
