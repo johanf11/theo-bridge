@@ -48,10 +48,12 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const label = String(body.label ?? "").trim().slice(0, 60) || "New account";
 
-    // Find caller's customer record
-    const { data: customer, error: custErr } = await supabase
+    // Find caller's customer record (filter explicitly — admins can see all rows)
+    const userId = claims.claims.sub as string;
+    const { data: customer, error: custErr } = await admin
       .from("customers")
       .select("id")
+      .eq("user_id", userId)
       .maybeSingle();
     if (custErr || !customer) {
       return new Response(JSON.stringify({ error: "Customer not found" }), {
