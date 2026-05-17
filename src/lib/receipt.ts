@@ -437,14 +437,13 @@ function _buildPdf(data: ReceiptData): void {
 
     secGap();
     drawSection("Transaction Breakdown");
-    if (data.usdcAmount)      drawRow("USDC Submitted", fmtUsdc(data.usdcAmount), { bold: true });
-    if (data.feeUsdc != null) drawRow("Network Fee",    "− $" + fmtN(data.feeUsdc), { indent: true });
-    const netUsdc = (data.usdcAmount ?? 0) - (data.feeUsdc ?? 0);
-    drawTotal("Net USDC Sent", fmtUsdc(netUsdc));
+    drawRow("HTG Withdrawn", fmtHtgInteger(data.htgAmount ?? 0), { bold: true });
+    drawTotal("HTG-C Burned", fmtHtgInteger(data.htgAmount ?? 0));
 
     secGap();
     drawSection("Settlement");
-    drawRow("Network", "Stellar Network → SWIFT (USD)");
+    drawRow("Method",  "Haitian bank transfer via SPIH");
+    drawRow("Network", "Stellar Network (HTG-C burn)");
     if (data.stellarTxHash) {
       drawRow("On-chain", "CONFIRMED", { status: "completed" });
       drawTxHash(data.stellarTxHash);
