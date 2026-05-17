@@ -187,6 +187,7 @@ Deno.serve(async (req) => {
     // Self-heal user wallet — guarantees USDC + HTGC trustlines exist and are
     // authorized before any payment runs. Idempotent.
     const htgcIssuerSecret = Deno.env.get("STELLAR_HTGC_ISSUER_SECRET") ?? undefined;
+    const usdcIssuerSecretEnv = Deno.env.get("STELLAR_USDC_ISSUER_SECRET") ?? undefined;
     {
       const ready = await ensureWalletReady({
         server,
@@ -194,6 +195,7 @@ Deno.serve(async (req) => {
         secret: wallet.stellar_secret,
         usdcIssuer,
         htgcIssuerSecret,
+        usdcIssuerSecret: usdcIssuerSecretEnv,
       });
       if (!ready.ok) return json({ error: `Wallet not ready: ${ready.error}` }, 502);
     }

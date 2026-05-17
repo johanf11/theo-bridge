@@ -128,6 +128,8 @@ Deno.serve(async (req) => {
             address: recipientAddress.trim(),
             secret: recipientWallet.stellar_secret,
             usdcIssuer,
+            htgcIssuerSecret: Deno.env.get("STELLAR_HTGC_ISSUER_SECRET") ?? undefined,
+            usdcIssuerSecret: Deno.env.get("STELLAR_USDC_ISSUER_SECRET") ?? undefined,
           });
           if (!ready.ok) {
             await admin.from("payouts").update({ status: "FAILED", failure_reason: ready.error }).eq("id", payout.id);

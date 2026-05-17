@@ -24,6 +24,7 @@ Deno.serve(async (req) => {
     const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const usdcIssuer = Deno.env.get("STELLAR_USDC_ISSUER");
     const htgcIssuerSecret = Deno.env.get("STELLAR_HTGC_ISSUER_SECRET");
+    const usdcIssuerSecret = Deno.env.get("STELLAR_USDC_ISSUER_SECRET");
     if (!usdcIssuer) return json({ error: "STELLAR_USDC_ISSUER not configured" }, 500);
     if (!htgcIssuerSecret) return json({ error: "STELLAR_HTGC_ISSUER_SECRET not configured" }, 500);
 
@@ -59,7 +60,7 @@ Deno.serve(async (req) => {
       }
       const r = await ensureWalletReady({
         server, address: w.stellar_address, secret: w.stellar_secret,
-        usdcIssuer, htgcIssuerSecret,
+        usdcIssuer, htgcIssuerSecret, usdcIssuerSecret,
       });
       if (r.ok) results.push({ id: w.id, label: w.label, address: w.stellar_address, ok: true, healed: r.healed });
       else results.push({ id: w.id, label: w.label, address: w.stellar_address, ok: false, error: r.error });

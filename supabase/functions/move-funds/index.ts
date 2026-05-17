@@ -101,6 +101,7 @@ Deno.serve(async (req) => {
     // Self-heal both wallets (trustlines + HTGC authorization). Idempotent —
     // does nothing if everything is already in the correct state.
     const htgcIssuerSecret = Deno.env.get("STELLAR_HTGC_ISSUER_SECRET") ?? undefined;
+    const usdcIssuerSecret = Deno.env.get("STELLAR_USDC_ISSUER_SECRET") ?? undefined;
     for (const w of [
       { label: "source", address: srcWallet.stellar_address, secret: srcWallet.stellar_secret },
       { label: "destination", address: dstWallet.stellar_address, secret: dstWallet.stellar_secret },
@@ -108,7 +109,7 @@ Deno.serve(async (req) => {
       if (!w.secret) continue; // external wallet — can't heal, payment will fail loudly if untrusted
       const ready = await ensureWalletReady({
         server, address: w.address, secret: w.secret,
-        usdcIssuer, htgcIssuerSecret,
+        usdcIssuer, htgcIssuerSecret, usdcIssuerSecret,
       });
       if (!ready.ok) {
         await admin.from("payouts").update({
