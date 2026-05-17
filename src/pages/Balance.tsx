@@ -1092,6 +1092,114 @@ export default function Balance() {
             </div>
           </div>
         </div>
+      {/* ── Withdraw from Blend modal ── */}
+      {blendWithdrawPos && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: "rgba(15, 29, 84, 0.5)" }}
+          onClick={() => !blendWithdrawing && closeBlendWithdraw()}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: 460, maxWidth: "92vw", borderRadius: 18, padding: 28, background: "#fff", boxShadow: "0 24px 64px rgba(0,0,0,0.22)" }}
+          >
+            {/* Modal header */}
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center justify-center rounded-lg" style={{ width: 26, height: 26, background: "#1A7F37" }}>
+                    <TrendingUp size={13} color="#fff" />
+                  </div>
+                  <span className="font-extrabold" style={{ fontSize: 18, color: "hsl(var(--theo-blue))", letterSpacing: "-0.02em" }}>
+                    Withdraw from Blend
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>
+                  {blendWithdrawPos.walletLabel} · ${fmt(blendWithdrawPos.deposited + blendWithdrawPos.accrued)} available
+                </div>
+              </div>
+              <button
+                onClick={closeBlendWithdraw}
+                style={{ background: "transparent", border: "none", cursor: "pointer", color: "hsl(var(--theo-mid))", padding: 4 }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Breakdown */}
+            <div className="rounded-xl mb-4" style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", padding: "14px 16px" }}>
+              {[
+                { label: "Principal deposited", value: `$${fmt(blendWithdrawPos.deposited)}` },
+                { label: "Accrued yield", value: `+$${fmt(blendWithdrawPos.accrued)}` },
+              ].map((s) => (
+                <div key={s.label} className="flex items-center justify-between mb-2 last:mb-0">
+                  <span style={{ fontSize: 12, color: "#15803D" }}>{s.label}</span>
+                  <span className="font-bold" style={{ fontSize: 13, color: "#14532D" }}>{s.value}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Amount input */}
+            <div className="mb-5">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="font-bold uppercase" style={{ fontSize: 11, letterSpacing: "0.14em", color: "hsl(var(--theo-mid))" }}>
+                  Amount to withdraw
+                </span>
+                <button
+                  onClick={() => setBlendWithdrawAmount((blendWithdrawPos.deposited + blendWithdrawPos.accrued).toFixed(2))}
+                  style={{ background: "#F0FDF4", border: "none", color: "#15803D", borderRadius: 5, padding: "2px 8px", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  Max ${fmt(blendWithdrawPos.deposited + blendWithdrawPos.accrued)}
+                </button>
+              </div>
+              <div className="flex items-center gap-2 rounded-xl" style={{ border: "1.5px solid hsl(var(--border))", padding: "10px 14px" }}>
+                <span style={{ fontSize: 18, fontWeight: 700, color: "hsl(var(--theo-mid))", marginRight: 2 }}>$</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={blendWithdrawAmount}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/,/g, "");
+                    if (raw === "" || /^\d*\.?\d*$/.test(raw)) setBlendWithdrawAmount(raw);
+                  }}
+                  placeholder="0.00"
+                  style={{ flex: 1, border: "none", outline: "none", fontSize: 22, fontWeight: 800, color: "hsl(var(--theo-ink))", fontFamily: "inherit", letterSpacing: "-0.02em", background: "transparent" }}
+                />
+                <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>USDC</span>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2">
+              <button
+                onClick={closeBlendWithdraw}
+                disabled={blendWithdrawing}
+                style={{
+                  flex: 1, background: "transparent", border: "1.5px solid hsl(var(--border))",
+                  color: "hsl(var(--theo-ink))", borderRadius: 10, padding: "10px",
+                  fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBlendWithdraw}
+                disabled={!blendWithdrawAmount || parseFloat(blendWithdrawAmount) <= 0 || parseFloat(blendWithdrawAmount) > blendWithdrawPos.deposited + blendWithdrawPos.accrued + 0.001 || blendWithdrawing}
+                style={{
+                  flex: 2, background: "#1A7F37", border: "none", color: "#fff", borderRadius: 10, padding: "10px",
+                  fontSize: 13, fontWeight: 700, cursor: blendWithdrawing ? "wait" : "pointer", fontFamily: "inherit",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  opacity: blendWithdrawing ? 0.7 : 1,
+                }}
+              >
+                {blendWithdrawing
+                  ? <><Loader2 size={13} className="animate-spin" /> Withdrawing…</>
+                  : <><ArrowUpFromLine size={13} /> Withdraw ${blendWithdrawAmount ? fmt(parseFloat(blendWithdrawAmount) || 0) : "0.00"}</>
+                }
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </AppLayout>
   );
