@@ -8,6 +8,7 @@ import {
 import { distributorKeypair, signWithDistributor } from "../_shared/stellar-signer.ts";
 import { assertWithinLimits } from "../_shared/tx-limits.ts";
 import { safePostLedger } from "../_shared/ledger.ts";
+import { ensureWalletReady } from "../_shared/ensure-wallet-ready.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -174,6 +175,27 @@ Deno.serve(async (req) => {
           { code: "TREASURY_USDC",    currency: "USDC", credit: Number(topUp) },
         ],
       });
+    }
+
+    // Self-heal destination wallet: ensure USDC trustline exists AND is authorized.
+    // USDC issuer has AUTH_REQUIRED — without this, payment fails with op_not_authorized.
+    {
+      const { data: destWallet } = await admin
+        .from("wallets")
+        .select("stellar_secret")
+        .eq("stellar_address", dest)
+        .maybeSingle();
+      if (destWallet?.stellar_secret) {
+        const ready = await ensureWalletReady({
+          server,
+          address: dest,
+          secret: destWallet.stellar_secret,
+          usdcIssuer,
+          htgcIssuerSecret: Deno.env.get("STELLAR_HTGC_ISSUER_SECRET") ?? undefined,
+          usdcIssuerSecret: Deno.env.get("STELLAR_USDC_ISSUER_SECRET") ?? undefined,
+        });
+        if (!ready.ok) throw new Error(`Destination wallet not ready: ${ready.error}`);
+      }
     }
 
     const tx = new TransactionBuilder(sourceAccount, {
