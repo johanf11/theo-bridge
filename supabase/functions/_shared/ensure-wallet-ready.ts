@@ -109,6 +109,29 @@ export async function ensureWalletReady(opts: {
     }
   }
 
+  // 3) Authorize USDC trustline if not yet authorized (signed by USDC issuer).
+  const usdcTrust = findTrustOnAccount(account.balances as Balance[], usdc);
+  const usdcAuthorized = usdcTrust?.is_authorized === true;
+  if (!usdcAuthorized && opts.usdcIssuerSecret) {
+    try {
+      const usdcIssuerKp = Keypair.fromSecret(opts.usdcIssuerSecret);
+      const issuerAccount = await opts.server.loadAccount(usdcIssuerKp.publicKey());
+      const authTx = new TransactionBuilder(issuerAccount, { fee: BASE_FEE, networkPassphrase: passphrase })
+        .addOperation(Operation.setTrustLineFlags({
+          trustor: opts.address,
+          asset: usdc,
+          flags: { authorized: true },
+        }))
+        .setTimeout(60)
+        .build();
+      authTx.sign(usdcIssuerKp);
+      await opts.server.submitTransaction(authTx);
+      healed.push("auth:USDC");
+    } catch (e) {
+      return { ok: false, error: `USDC trustline authorization failed: ${stellarErrMsg(e)}` };
+    }
+  }
+
   return { ok: true, healed };
 }
 
