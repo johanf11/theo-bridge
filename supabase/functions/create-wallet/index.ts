@@ -150,6 +150,36 @@ Deno.serve(async (req) => {
       }
     }
 
+    // The USDC issuer also has AUTH_REQUIRED — authorize the new wallet's USDC
+    // trustline using the USDC issuer secret. Without this, payments fail with op_not_authorized.
+    const usdcOk = trustResults.find((r) => r.asset === "USDC")?.ok;
+    if (usdcOk) {
+      const usdcIssuerSecret = Deno.env.get("STELLAR_USDC_ISSUER_SECRET");
+      if (usdcIssuerSecret) {
+        try {
+          const issuerKp = Keypair.fromSecret(usdcIssuerSecret);
+          const issuerAcct = await server.loadAccount(issuerKp.publicKey());
+          const authTx = new TransactionBuilder(issuerAcct, {
+            fee: BASE_FEE, networkPassphrase: Networks.TESTNET,
+          })
+            .addOperation(Operation.setTrustLineFlags({
+              trustor: publicKey,
+              asset: usdc,
+              flags: { authorized: true },
+            }))
+            .setTimeout(60)
+            .build();
+          authTx.sign(issuerKp);
+          await server.submitTransaction(authTx);
+        } catch (err: unknown) {
+          const msg = (err as { response?: { data?: unknown } })?.response?.data
+            ? JSON.stringify((err as { response: { data: unknown } }).response.data)
+            : (err as Error).message;
+          console.error(`USDC trustline authorization failed for ${publicKey}`, msg);
+        }
+      }
+    }
+
     // 4. Persist (service role bypasses RLS; trustworthy because user verified above)
     const { data: inserted, error: insErr } = await admin
       .from("wallets")
