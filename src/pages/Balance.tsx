@@ -90,6 +90,7 @@ export default function Balance() {
   const [sweeping, setSweeping] = useState(false);
   const [withdrawingId, setWithdrawingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Wallet | null>(null);
   const [showBlendTooltip, setShowBlendTooltip] = useState(false);
 
   // Blend withdraw modal
