@@ -320,7 +320,31 @@ export default function Balance() {
     loadWallets();
   };
 
-  const moveAmountNum = parseFloat(moveAmount) || 0;
+  // Drag-and-drop reordering (hold to pick up)
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { delay: 220, tolerance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 6 } }),
+  );
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = wallets.findIndex((w) => w.id === active.id);
+    const newIndex = wallets.findIndex((w) => w.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const next = arrayMove(wallets, oldIndex, newIndex);
+    setWallets(next);
+    // Persist new order
+    const updates = next.map((w, idx) =>
+      supabase.from("wallets").update({ display_order: idx + 1 }).eq("id", w.id)
+    );
+    const results = await Promise.all(updates);
+    const failed = results.find((r) => r.error);
+    if (failed?.error) {
+      toast.error("Could not save new order");
+      loadWallets();
+    }
+  };
   const moveAssetBalances = moveAsset === "HTGC" ? htgcBalances : balances;
   const moveSourceBalance = moveSourceId ? (moveAssetBalances[moveSourceId] ?? 0) : 0;
   const moveSourceLabel = wallets.find((w) => w.id === moveSourceId)?.label ?? "Source";
