@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchHorizonBalances } from "@/lib/balance";
-import { ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, ExternalLink, RefreshCw } from "lucide-react";
 
 const DISTRIBUTOR_PUBLIC = "GCP6VMZS3SJ4CSOT3ZVMMJIOXOHTMJK47YQ4RTUJN7P2KYKDVRCUBS2X";
 
@@ -19,6 +19,7 @@ type TxRow = {
   order_id: string | null;
   kind: string;
   description: string | null;
+  stellar_tx_hash: string | null;
   created_at: string;
 };
 
@@ -118,6 +119,28 @@ export default function AdminLedger() {
     return true;
   });
 
+  // ── CSV export ──────────────────────────────────────────
+  const handleExportCSV = () => {
+    const headers = ["When", "Kind", "Order ID", "Description", "Stellar TX Hash"];
+    const rows = filteredTxs.map((t) => [
+      new Date(t.created_at).toISOString(),
+      t.kind,
+      t.order_id ?? "",
+      t.description ?? "",
+      t.stellar_tx_hash ?? "",
+    ]);
+    const csv = [headers, ...rows]
+      .map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ledger-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   // ── Reconciliation: book balance for DISTRIBUTOR_USDC ──
   const distAccount = accounts.find((a) => a.code === "DISTRIBUTOR_USDC");
   const distAgg = distAccount ? trial.find((t) => t.account.id === distAccount.id) : null;
@@ -140,19 +163,35 @@ export default function AdminLedger() {
               debit/credit entries. The trial balance must net to zero in each currency.
             </p>
           </div>
-          <button
-            onClick={load}
-            disabled={loading}
-            style={{
-              display: "flex", alignItems: "center", gap: 6,
-              padding: "8px 14px", borderRadius: 10,
-              background: "hsl(var(--theo-blue))", color: "#fff",
-              border: "none", cursor: loading ? "wait" : "pointer",
-              fontSize: 13, fontWeight: 600,
-            }}
-          >
-            <RefreshCw style={{ width: 13, height: 13 }} /> Refresh
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={handleExportCSV}
+              disabled={loading || filteredTxs.length === 0}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "8px 14px", borderRadius: 10,
+                background: "#fff", color: "hsl(var(--theo-blue))",
+                border: "1px solid hsl(var(--theo-blue) / 0.35)",
+                cursor: loading || filteredTxs.length === 0 ? "not-allowed" : "pointer",
+                fontSize: 13, fontWeight: 600, opacity: filteredTxs.length === 0 ? 0.4 : 1,
+              }}
+            >
+              <Download style={{ width: 13, height: 13 }} /> Export CSV
+            </button>
+            <button
+              onClick={load}
+              disabled={loading}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "8px 14px", borderRadius: 10,
+                background: "hsl(var(--theo-blue))", color: "#fff",
+                border: "none", cursor: loading ? "wait" : "pointer",
+                fontSize: 13, fontWeight: 600,
+              }}
+            >
+              <RefreshCw style={{ width: 13, height: 13 }} /> Refresh
+            </button>
+          </div>
         </div>
 
         {/* Trial Balance */}
@@ -258,6 +297,7 @@ export default function AdminLedger() {
                 <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: 600 }}>Kind</th>
                 <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: 600 }}>Order</th>
                 <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: 600 }}>Description</th>
+                <th style={{ padding: "6px 8px", textAlign: "center", fontWeight: 600, width: 80 }}>On-chain</th>
               </tr>
             </thead>
             <tbody>
@@ -285,10 +325,35 @@ export default function AdminLedger() {
                         {t.order_id ? t.order_id.slice(0, 8) + "…" : "—"}
                       </td>
                       <td style={{ padding: "8px", color: "hsl(var(--theo-ink))" }}>{t.description ?? ""}</td>
+                      <td style={{ padding: "8px", textAlign: "center" }}>
+                        {t.stellar_tx_hash ? (
+                          <a
+                            href={`https://stellar.expert/explorer/testnet/tx/${t.stellar_tx_hash}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(ev) => ev.stopPropagation()}
+                            title={t.stellar_tx_hash}
+                            style={{
+                              display: "inline-flex", alignItems: "center", gap: 4,
+                              fontSize: 11, fontWeight: 600,
+                              color: "hsl(var(--theo-cyan))",
+                              textDecoration: "none",
+                              padding: "3px 7px", borderRadius: 6,
+                              border: "1px solid hsl(var(--theo-cyan) / 0.35)",
+                              background: "hsl(var(--theo-cyan) / 0.07)",
+                            }}
+                          >
+                            <ExternalLink style={{ width: 10, height: 10 }} />
+                            View
+                          </a>
+                        ) : (
+                          <span style={{ color: "hsl(var(--theo-light))", fontSize: 11 }}>—</span>
+                        )}
+                      </td>
                     </tr>
                     {isOpen && (
                       <tr style={{ background: "hsl(var(--theo-cream))" }}>
-                        <td colSpan={5} style={{ padding: 12 }}>
+                        <td colSpan={6} style={{ padding: 12 }}>
                           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
                             <thead>
                               <tr style={{ color: "hsl(var(--theo-mid))" }}>
@@ -323,7 +388,7 @@ export default function AdminLedger() {
                 );
               })}
               {filteredTxs.length === 0 && (
-                <tr><td colSpan={5} style={{ padding: 24, textAlign: "center", color: "hsl(var(--theo-mid))" }}>
+                <tr><td colSpan={6} style={{ padding: 24, textAlign: "center", color: "hsl(var(--theo-mid))" }}>
                   No ledger transactions yet. Run an order through SPIH simulation to post the first entries.
                 </td></tr>
               )}

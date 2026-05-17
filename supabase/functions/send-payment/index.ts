@@ -269,7 +269,7 @@ Deno.serve(async (req) => {
         sourceKey: `payouts:${payout.id}:PAYOUT_USDC`,
         entries: [
           { accountId: customerAcct,    currency: "USDC", debit:  parsedAmount },
-          { code: "EXTERNAL_FLOW_USDC", currency: "USDC", credit: parsedAmount },
+          { code: "DISTRIBUTOR_USDC",    currency: "USDC", credit: parsedAmount },
         ],
       }, { stellarTxHash: hash });
     } catch (e) {

@@ -15,7 +15,8 @@ export type LedgerPost = {
   kind: string;
   description?: string;
   postedBy?: string | null;
-  sourceKey?: string | null;   // idempotency key (backfills, replays)
+  sourceKey?: string | null;      // idempotency key (backfills, replays)
+  stellarTxHash?: string | null;  // stored on ledger_transactions for chain link
   entries: LedgerEntry[];
 };
 
@@ -33,6 +34,7 @@ export async function postLedger(
     description: post.description ?? null,
     posted_by: post.postedBy ?? null,
     source_key: post.sourceKey ?? null,
+    stellar_tx_hash: post.stellarTxHash ?? null,
     entries: post.entries.map((e) => ({
       code: e.code,
       account_id: e.accountId,
@@ -74,7 +76,10 @@ export async function safePostLedger(
   context: { stellarTxHash?: string | null } = {},
 ): Promise<{ txId: string | null; failureId: string | null; error: string | null }> {
   try {
-    const txId = await postLedger(admin, post);
+    const txId = await postLedger(admin, {
+      ...post,
+      stellarTxHash: context.stellarTxHash ?? post.stellarTxHash ?? null,
+    });
     return { txId, failureId: null, error: null };
   } catch (e) {
     const reason = e instanceof Error ? e.message : String(e);
