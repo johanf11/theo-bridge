@@ -564,13 +564,16 @@ export default function Balance() {
               const pos = blendPositions[w.id];
               const bal = balances[w.id] ?? 0;
               const htgc = htgcBalances[w.id] ?? 0;
+              const displayUsdcZero = Number(bal.toFixed(2)) === 0;
+              const displayHtgcZero = Math.round(htgc) === 0;
+              const canDeleteWallet = displayUsdcZero && displayHtgcZero && !pos;
               return (
                 <div
                   key={w.id}
                   className="relative overflow-hidden"
                   style={{ borderRadius: 14, padding: 20, background: walletColors[i % walletColors.length], minHeight: 130 }}
                 >
-                  {bal === 0 && htgc === 0 && !pos && (
+                  {canDeleteWallet && (
                     <button
                       onClick={(e) => { e.stopPropagation(); handleDeleteWallet(w.id); }}
                       disabled={deletingId === w.id}
@@ -623,7 +626,7 @@ export default function Balance() {
                   <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.50)", marginTop: 3 }}>USDC</div>
 
                   {/* HTG-C balance row */}
-                  {htgc > 0 && (
+                  {!displayHtgcZero && (
                     <div className="flex items-center gap-1.5 mt-2.5 pt-2.5" style={{ borderTop: "1px solid rgba(255,255,255,0.12)" }}>
                       <span style={{ fontSize: 16, fontWeight: 800, color: "hsl(var(--theo-gold))", letterSpacing: "-0.5px" }}>
                         {Math.round(htgc).toLocaleString("en-US")}
