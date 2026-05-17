@@ -224,21 +224,20 @@ Deno.serve(async (req) => {
       const fee = Number(locked.fee_usdc ?? 0);
       const net = Number(locked.usdc_amount);
 
-      // 1) Fiat settlement
+      // 1) HTG deposit receipt: customer's HTG lands in SPIH segregated pool; FX clearing tracks obligation
       await safePostLedger(admin, "release-usdc:fiat", {
         orderId,
         kind: "FIAT_SETTLEMENT",
-        description: `Fiat settled for order ${locked.reference_number}`,
+        description: `HTG deposit received for order ${locked.reference_number}`,
         postedBy: userRes.user.id,
         sourceKey: `orders:${orderId}:FIAT_SETTLEMENT`,
         entries: [
-          { code: "CUSTOMER_HTG_PENDING", currency: "HTG", debit: htg },
-          { code: "CUSTOMER_HTG_SETTLED", currency: "HTG", credit: htg },
+          { code: "SPIH_BANK_HTG",    currency: "HTG", debit:  htg },
+          { code: "FX_CLEARING_HTG",  currency: "HTG", credit: htg },
         ],
       }, { stellarTxHash: hash });
 
-      // 2) USDC payout. Per-currency balance: HTG dr=cr=htg; USDC dr gross = cr (net + fee).
-      // DISTRIBUTOR_USDC debited (USDC leaves); customer subaccount credited for net amount.
+      // 2) USDC payout: DISTRIBUTOR_USDC debited (USDC leaves); customer subaccount credited for net amount.
       const custAcctId = locked.customer_id
         ? await getOrCreateCustomerUsdcAccount(admin, locked.customer_id).catch(() => null)
         : null;
@@ -247,9 +246,7 @@ Deno.serve(async (req) => {
         : { code: "CUSTOMER_USDC_PAYABLE",  currency: "USDC" as const, credit: net };
 
       const entries: ({ code?: string; accountId?: string; currency: "HTG" | "USDC"; debit?: number; credit?: number })[] = [
-        { code: "CUSTOMER_HTG_SETTLED", currency: "HTG",  debit: htg },
-        { code: "FX_CLEARING_HTG",      currency: "HTG",  credit: htg },
-        { code: "DISTRIBUTOR_USDC",     currency: "USDC", debit: gross },
+        { code: "DISTRIBUTOR_USDC", currency: "USDC", debit: gross },
         custCreditEntry,
       ];
       if (fee > 0) entries.push({ code: "FEE_REVENUE_USDC", currency: "USDC", credit: fee });

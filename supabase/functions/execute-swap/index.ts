@@ -506,10 +506,10 @@ Deno.serve(async (req) => {
           postedBy:    user.id,
           sourceKey:   `swap:${order.id}`,
           entries: [
-            // HTG side (balanced): HTG-C burned, HTG obligation cleared via FX
-            { code: "FX_CLEARING_HTG",  currency: "HTG",  debit:  htgAmount  },
-            { code: "HTGC_ISSUED",      currency: "HTG",  credit: htgAmount  },
-            // USDC side (balanced): DISTRIBUTOR_USDC debited (USDC leaves); customer account credited for net. Symmetric with usdc_to_htgc.
+            // HTG side: deposit lands in SPIH pool; FX clearing tracks the obligation
+            { code: "SPIH_BANK_HTG",    currency: "HTG",  debit:  htgAmount  },
+            { code: "FX_CLEARING_HTG",  currency: "HTG",  credit: htgAmount  },
+            // USDC side: DISTRIBUTOR_USDC debited (USDC leaves); customer credited net
             { code: "DISTRIBUTOR_USDC", currency: "USDC", debit:  usdcGross  },
             ...(custAcctId
               ? [{ accountId: custAcctId,         currency: "USDC" as const, credit: usdcNet }]
@@ -518,7 +518,7 @@ Deno.serve(async (req) => {
           ],
         }, { stellarTxHash: leg2Hash });
       } else {
-        // usdc_to_htgc
+        // usdc_to_htgc: customer receives HTGC backed by HTG leaving the SPIH pool
         await safePostLedger(admin, "execute-swap", {
           orderId:     order.id,
           kind:        "usdc_to_htgc_swap",
@@ -532,9 +532,9 @@ Deno.serve(async (req) => {
               ? [{ accountId: custAcctId,         currency: "USDC" as const, credit: usdcNet }]
               : [{ code: "CUSTOMER_USDC_PAYABLE", currency: "USDC" as const, credit: usdcNet }]),
             { code: "FEE_REVENUE_USDC", currency: "USDC", credit: feeUsdc    },
-            // HTG side (balanced)
-            { code: "HTGC_ISSUED",      currency: "HTG",  debit:  htgNet     },
-            { code: "FX_CLEARING_HTG",  currency: "HTG",  credit: htgNet     },
+            // HTG side: FX clearing discharged; HTG leaves SPIH pool
+            { code: "FX_CLEARING_HTG",  currency: "HTG",  debit:  htgNet     },
+            { code: "SPIH_BANK_HTG",    currency: "HTG",  credit: htgNet     },
           ],
         }, { stellarTxHash: leg2Hash });
       }
