@@ -1437,6 +1437,16 @@ function SortableWalletCard({
   children: ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const [hoverLong, setHoverLong] = useState(false);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onEnter = () => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(() => setHoverLong(true), 600);
+  };
+  const onLeave = () => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    setHoverLong(false);
+  };
   const style: CSSProperties = {
     borderRadius: 14,
     padding: 20,
@@ -1444,14 +1454,14 @@ function SortableWalletCard({
     minHeight: 130,
     transform: CSS.Transform.toString(transform),
     transition,
-    cursor: isDragging ? "grabbing" : "grab",
+    cursor: isDragging ? "grabbing" : hoverLong ? "grab" : "default",
     touchAction: "none",
     zIndex: isDragging ? 10 : "auto",
     boxShadow: isDragging ? "0 18px 40px -12px rgba(0,0,0,0.45)" : undefined,
     opacity: isDragging ? 0.96 : 1,
   };
   return (
-    <div ref={setNodeRef} className="relative overflow-hidden" style={style} {...attributes} {...listeners}>
+    <div ref={setNodeRef} className="relative overflow-hidden" style={style} {...attributes} {...listeners} onMouseEnter={onEnter} onMouseLeave={onLeave}>
       {children}
     </div>
   );
