@@ -287,13 +287,19 @@ export default function Balance() {
     setMoveOpen(true);
   };
 
-  const handleDeleteWallet = async (walletId: string) => {
-    if (!confirm("Delete this wallet? This cannot be undone.")) return;
+  const handleDeleteWallet = (wallet: Wallet) => {
+    setDeleteTarget(wallet);
+  };
+
+  const confirmDeleteWallet = async () => {
+    if (!deleteTarget) return;
+    const walletId = deleteTarget.id;
     setDeletingId(walletId);
     const { error } = await supabase.from("wallets").delete().eq("id", walletId);
     setDeletingId(null);
     if (error) { toast.error(error.message); return; }
     toast.success("Wallet deleted.");
+    setDeleteTarget(null);
     loadWallets();
   };
 
