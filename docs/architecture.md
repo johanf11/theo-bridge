@@ -182,6 +182,9 @@ Convert tab has a "Wire" tab stub for future international wire functionality. N
 | `blend-positions` | user | List Blend yield positions with live accrued interest |
 | `blend-sweep` | admin | Sweep yield earnings from Blend pools |
 | `blend-withdraw` | user | Withdraw from a Blend yield position |
+| `backfill-ledger` | admin | Replay all historical orders/payouts into the ledger |
+| `replay-ledger-failure` | admin | Retry a failed ledger posting from `ledger_posting_failures` |
+| `admin-spih-settlement` | admin | Manual Dr FX_CLEARING_HTG / Cr SPIH_BANK_HTG entry |
 
 ### Shared edge function helpers (`supabase/functions/_shared/`)
 
@@ -191,6 +194,7 @@ Convert tab has a "Wire" tab stub for future international wire functionality. N
 | `stellar-signer.ts` | `signWithSecret`, `signWithDistributor`, `distributorKeypair`, `distributorPublicKey` — the ONLY place that reads `STELLAR_DISTRIBUTOR_SECRET` |
 | `tx-limits.ts` | `assertWithinLimits(amount)` — min 1 USDC, max 1,000,000 USDC |
 | `ensure-wallet-ready.ts` | Idempotent: ensures USDC + HTG-C trustlines exist and are authorized on any Theo-managed wallet |
+| `ledger.ts` | `safePostLedger` — wraps `post_ledger_entries` RPC; on failure records to `ledger_posting_failures` and returns null. `getOrCreateCustomerUsdcAccount` — idempotent per-customer USDC account upsert. |
 
 ### Supabase layer
 
@@ -360,6 +364,142 @@ Platform-level roles (not org-level).
 | `blend_positions` | Yield position tracking |
 | `spih_imports` | SPIH reconciliation import audit |
 | `job_queue` | Background job queue (types: `SPIH_RECONCILE \| USDC_RELEASE \| STELLAR_CONFIRM`) |
+
+---
+
+## 5b. Double-entry ledger
+
+Every money event posts a balanced journal entry. The ledger is observational (Phase 1 — `LEDGER_GATE_ENABLED=false`). When the gate is enabled, ledger drift on `DISTRIBUTOR_USDC` blocks payouts.
+
+### `ledger_accounts`
+
+One row per account instance. System accounts have `customer_id = NULL`; per-customer USDC accounts have a `customer_id`.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid PK | |
+| `code` | text | Chart of accounts code (e.g. `DISTRIBUTOR_USDC`, `SPIH_BANK_HTG`) |
+| `name` | text | Human-readable label |
+| `type` | enum | `ASSET \| LIABILITY \| EQUITY \| REVENUE \| EXPENSE` |
+| `currency` | text | `USDC \| HTG` |
+| `customer_id` | uuid FK | NULL for system accounts |
+
+**Chart of accounts:**
+
+| Code | Type | Currency | Meaning |
+|---|---|---|---|
+| `DISTRIBUTOR_USDC` | ASSET | USDC | Stellar hot wallet USDC balance |
+| `TREASURY_USDC` | ASSET | USDC | Treasury cold wallet USDC |
+| `SPIH_BANK_HTG` | ASSET | HTG | Physical HTG in SPIH segregated pool |
+| `CUSTOMER_USDC_PAYABLE` | LIABILITY | USDC | System-level USDC owed to customers (no per-customer acct) |
+| `FX_CLEARING_HTG` | LIABILITY | HTG | HTG committed to FX; drained by USDC→HTG outflows |
+| `HTGC_ISSUED` | LIABILITY | HTG | Outstanding HTG-C on-chain (admin rectifications only) |
+| `FEE_REVENUE_USDC` | REVENUE | USDC | Theo platform + corridor fees |
+| `OPENING_BALANCE_USDC` | EQUITY | USDC | Historical correction equity plug (USDC) |
+| `OPENING_BALANCE_HTG` | EQUITY | HTG | Historical correction equity plug (HTG) |
+| `CUSTOMER_USDC_*` | ASSET | USDC | Per-customer USDC subaccount (one row per customer) |
+
+### `ledger_transactions`
+
+Journal header. One row per economic event.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid PK | |
+| `source_key` | text UNIQUE | Idempotency key — prevents duplicate postings |
+| `kind` | text | `htgc_to_usdc_swap \| usdc_to_htgc_swap \| USDC_PAYOUT \| FIAT_SETTLEMENT \| htgc_burn_withdraw \| opening_balance \| SPIH_CASH_IN \| ...` |
+| `description` | text | |
+| `order_id` | uuid FK orders | Populated for order-linked entries |
+| `stellar_tx_hash` | text | Links to Stellar Explorer |
+| `posted_by` | uuid FK auth.users | NULL for system/backfill entries |
+| `created_at` | timestamptz | |
+
+**source_key patterns:**
+
+| Pattern | Event |
+|---|---|
+| `orders:{order_id}:FIAT_SETTLEMENT` | HTG deposit receipt (release-usdc) |
+| `orders:{order_id}:USDC_PAYOUT` | USDC released (release-usdc) |
+| `swap:{order_id}` | Atomic swap (execute-swap) |
+| `orders:{order_id}:htgc_burn_withdraw` | HTG-C burn / withdrawal (execute-withdraw) |
+| `spih-settlement:{ref}:{amount}` | Manual SPIH settlement |
+| `correction:{code}:{reason}` | Migration correcting entry |
+| `backfill:order:{order_id}` | Backfill entry |
+
+### `ledger_entries`
+
+Individual debit/credit lines. Two or more per transaction; must balance per currency.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid PK | |
+| `transaction_id` | uuid FK ledger_transactions | |
+| `account_id` | uuid FK ledger_accounts | |
+| `currency` | text | `USDC \| HTG` |
+| `debit` | numeric(18,7) | |
+| `credit` | numeric(18,7) | |
+
+### `ledger_posting_failures`
+
+Failed ledger posts captured by `safePostLedger`. Viewable and retryable from Admin › Ledger.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid PK | |
+| `source` | text | Edge function that failed (e.g. `execute-withdraw`) |
+| `reason` | text | Error message |
+| `payload` | jsonb | Original post payload — used for retry |
+| `order_id` | uuid | |
+| `stellar_tx_hash` | text | |
+| `resolved_at` | timestamptz | NULL = unresolved |
+| `resolved_by` | uuid FK auth.users | Admin who retried |
+| `resolution_tx_id` | uuid FK ledger_transactions | |
+
+### Ledger journal entries by event type
+
+**HTG→USDC swap (`execute-swap`, `htgc_to_usdc`):**
+```
+Dr SPIH_BANK_HTG        +htg      HTG received into SPIH pool
+Cr FX_CLEARING_HTG      +htg      FX obligation created
+Dr DISTRIBUTOR_USDC     +usdc     USDC leaves distributor
+Cr CUSTOMER_USDC        +net      Customer receives net USDC
+Cr FEE_REVENUE_USDC     +fee      Fee earned
+```
+
+**USDC→HTG swap (`execute-swap`, `usdc_to_htgc`):**
+```
+Dr TREASURY_USDC        +usdc     USDC received at treasury
+Cr CUSTOMER_USDC        +net      Customer's USDC subaccount credited
+Cr FEE_REVENUE_USDC     +fee      Fee earned
+Dr FX_CLEARING_HTG      +htg      FX obligation discharged
+Cr SPIH_BANK_HTG        +htg      HTG leaves SPIH pool
+```
+
+**HTG deposit + USDC release (`release-usdc`):**
+```
+FIAT_SETTLEMENT:
+  Dr SPIH_BANK_HTG      +htg      HTG received into pool
+  Cr FX_CLEARING_HTG    +htg      FX obligation created
+
+USDC_PAYOUT:
+  Dr DISTRIBUTOR_USDC   +gross    USDC leaves distributor
+  Cr CUSTOMER_USDC      +net      Customer receives USDC
+  Cr FEE_REVENUE_USDC   +fee      Fee earned
+```
+
+**HTG-C withdrawal (`execute-withdraw`):**
+```
+Dr FX_CLEARING_HTG      +htg      FX obligation discharged
+Cr SPIH_BANK_HTG        +htg      HTG leaves SPIH pool
+```
+
+### Admin ledger page (`/admin/ledger`)
+
+- **Trial balance** — per-currency debit/credit totals; must net to zero in each currency
+- **SPIH Segregated Pool** — live pool balance (deposits − outflows)
+- **Reconciliation** — book vs. Horizon chain balance for `DISTRIBUTOR_USDC`; drift > 0.01 USDC flags red
+- **Transactions** — filterable by kind, order ID, date range; expandable journal entries; CSV export (QuickBooks-importable, one row per debit/credit line)
+- **Posting Failures** — unresolved failures with Retry button (calls `replay-ledger-failure`)
 
 ---
 
