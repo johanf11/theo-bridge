@@ -509,12 +509,13 @@ Deno.serve(async (req) => {
             // HTG side: deposit lands in SPIH pool; FX clearing tracks the obligation
             { code: "SPIH_BANK_HTG",    currency: "HTG",  debit:  htgAmount  },
             { code: "FX_CLEARING_HTG",  currency: "HTG",  credit: htgAmount  },
-            // USDC side: DISTRIBUTOR_USDC debited (USDC leaves); customer credited net
-            { code: "DISTRIBUTOR_USDC", currency: "USDC", debit:  usdcGross  },
+            // USDC side: DISTRIBUTOR_USDC credited (USDC leaves — asset decreases to match chain).
+            // Customer account debited by gross; Dr gross = Cr net + Cr fee.
+            { code: "DISTRIBUTOR_USDC", currency: "USDC", credit: usdcNet   },
             ...(custAcctId
-              ? [{ accountId: custAcctId,         currency: "USDC" as const, credit: usdcNet }]
-              : [{ code: "CUSTOMER_USDC_PAYABLE", currency: "USDC" as const, credit: usdcNet }]),
-            { code: "FEE_REVENUE_USDC", currency: "USDC", credit: feeUsdc    },
+              ? [{ accountId: custAcctId,         currency: "USDC" as const, debit: usdcGross }]
+              : [{ code: "CUSTOMER_USDC_PAYABLE", currency: "USDC" as const, debit: usdcGross }]),
+            { code: "FEE_REVENUE_USDC", currency: "USDC", credit: feeUsdc   },
           ],
         }, { stellarTxHash: leg2Hash });
       } else {

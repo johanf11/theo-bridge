@@ -237,17 +237,19 @@ Deno.serve(async (req) => {
         ],
       }, { stellarTxHash: hash });
 
-      // 2) USDC payout: DISTRIBUTOR_USDC debited (USDC leaves); customer subaccount credited for net amount.
+      // 2) USDC payout: DISTRIBUTOR_USDC credited (USDC leaves — asset decreases to match chain).
+      // Customer account debited by gross; fee credited to FEE_REVENUE_USDC.
+      // Balances per currency: Dr gross = Cr net + Cr fee.
       const custAcctId = locked.customer_id
         ? await getOrCreateCustomerUsdcAccount(admin, locked.customer_id).catch(() => null)
         : null;
-      const custCreditEntry = custAcctId
-        ? { accountId: custAcctId,          currency: "USDC" as const, credit: net }
-        : { code: "CUSTOMER_USDC_PAYABLE",  currency: "USDC" as const, credit: net };
+      const custDebitEntry = custAcctId
+        ? { accountId: custAcctId,          currency: "USDC" as const, debit: gross }
+        : { code: "CUSTOMER_USDC_PAYABLE",  currency: "USDC" as const, debit: gross };
 
       const entries: ({ code?: string; accountId?: string; currency: "HTG" | "USDC"; debit?: number; credit?: number })[] = [
-        { code: "DISTRIBUTOR_USDC", currency: "USDC", debit: gross },
-        custCreditEntry,
+        { code: "DISTRIBUTOR_USDC", currency: "USDC", credit: net },
+        custDebitEntry,
       ];
       if (fee > 0) entries.push({ code: "FEE_REVENUE_USDC", currency: "USDC", credit: fee });
 

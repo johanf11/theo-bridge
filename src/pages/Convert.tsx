@@ -77,9 +77,9 @@ export default function Convert() {
   const [htgAmountRaw, setHtgAmountRaw] = useState(50000);
   const [htgBusy, setHtgBusy] = useState(false);
   // Two-field widget (HTG → USDC mode): mirrored USDC net side
-  const [htgUsdcNetRaw, setHtgUsdcNetRaw] = useState(0);
-  const [htgUsdcNetDisplay, setHtgUsdcNetDisplay] = useState("");
-  const [htgLastEdited, setHtgLastEdited] = useState<"htg" | "usdc">("htg");
+  const [htgUsdcNetRaw, setHtgUsdcNetRaw] = useState(10000);
+  const [htgUsdcNetDisplay, setHtgUsdcNetDisplay] = useState("10,000");
+  const [htgLastEdited, setHtgLastEdited] = useState<"htg" | "usdc">("usdc");
   const [htgFlipped, setHtgFlipped] = useState(false);
   // Tab 2: HTG-C ↔ USDC
   const [swapDir, setSwapDir] = useState<"htgc_to_usdc" | "usdc_to_htgc">("htgc_to_usdc");
@@ -863,7 +863,7 @@ export default function Convert() {
                 <div style={{ marginBottom: 14, position: "relative" }}>
                   <div className="rounded-xl" style={{ border: "1px solid hsl(var(--theo-blue-chip))", background: "white", overflow: "hidden", display: "flex", flexDirection: "column" }}>
                     {/* You send · HTG */}
-                    <div style={{ padding: "12px 14px", order: htgFlipped ? 2 : 0 }}>
+                    <div style={{ padding: "12px 14px", order: htgFlipped ? 0 : 2 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: "hsl(var(--theo-mid))", marginBottom: 6 }}>
                         You send
                       </div>
@@ -889,7 +889,7 @@ export default function Convert() {
                     <div style={{ height: 1, background: "hsl(var(--theo-blue-chip))", order: 1 }} />
 
                     {/* You receive · USDC */}
-                    <div style={{ padding: "12px 14px", order: htgFlipped ? 0 : 2 }}>
+                    <div style={{ padding: "12px 14px", order: htgFlipped ? 2 : 0 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: "hsl(var(--theo-mid))", marginBottom: 6 }}>
                         You receive
                       </div>
@@ -904,11 +904,11 @@ export default function Convert() {
                           style={{
                             flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent",
                             fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em",
-                            color: htgLastEdited === "usdc" ? "hsl(var(--theo-blue))" : "hsl(var(--theo-mid))",
+                            color: "hsl(var(--theo-blue))",
                             fontFamily: "inherit", padding: 0,
                           }}
                         />
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "hsl(var(--theo-mid))" }}>USDC</span>
+                        <span style={{ fontSize: 14, fontWeight: 800, color: "hsl(var(--theo-blue))", letterSpacing: "0.04em" }}>USDC</span>
                       </div>
                     </div>
                   </div>
