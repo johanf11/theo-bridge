@@ -151,7 +151,7 @@ Deno.serve(async (req) => {
     
     if (currentBal < needed) {
       if (!issuerSecret) throw new Error("Distributor USDC insufficient and STELLAR_HTGC_ISSUER_SECRET not set");
-      const topUp = (needed - currentBal + 1000).toFixed(7); // shortfall + 1 000 USDC buffer
+      const topUp = (needed - currentBal).toFixed(7); // mint exact shortfall — no buffer
       const issuerKp = Keypair.fromSecret(issuerSecret);
       const issuerAcct = await server.loadAccount(issuerKp.publicKey());
       const mintTx = new TransactionBuilder(issuerAcct, { fee: BASE_FEE, networkPassphrase: Networks.TESTNET })
@@ -223,33 +223,30 @@ Deno.serve(async (req) => {
       const gross = Number(locked.usdc_gross ?? locked.usdc_amount);
       const fee = Number(locked.fee_usdc ?? 0);
       const net = Number(locked.usdc_amount);
+      const customerId = locked.customer_id ?? undefined;
 
-      // 1) HTG deposit receipt: customer's HTG lands in SPIH segregated pool; FX clearing tracks obligation
-      await safePostLedger(admin, "release-usdc:fiat", {
+      // 1) FX conversion: discharge the customer's HTG liability (opened at SPIH
+      //    cash-in) and open the USDC liability. The HTG cash already landed in
+      //    SPIH_BANK_HTG at cash-in — do NOT debit it again here.
+      await safePostLedger(admin, "release-usdc:fx", {
         orderId,
-        kind: "FIAT_SETTLEMENT",
-        description: `HTG deposit received for order ${locked.reference_number}`,
+        kind: "FX_CONVERSION",
+        description: `HTG→USDC conversion for order ${locked.reference_number}`,
         postedBy: userRes.user.id,
-        sourceKey: `orders:${orderId}:FIAT_SETTLEMENT`,
+        sourceKey: `orders:${orderId}:FX_CONVERSION`,
         entries: [
-          { code: "SPIH_BANK_HTG",    currency: "HTG", debit:  htg },
-          { code: "FX_CLEARING_HTG",  currency: "HTG", credit: htg },
+          { code: "CUSTOMER_HTG_PENDING",  currency: "HTG",  debit:  htg, customerId },
+          { code: "FX_CLEARING_HTG",       currency: "HTG",  credit: htg },
+          { code: "FX_CLEARING_USDC",      currency: "USDC", debit:  gross },
+          { code: "CUSTOMER_USDC_PAYABLE", currency: "USDC", credit: gross, customerId },
         ],
       }, { stellarTxHash: hash });
 
-      // 2) USDC payout: DISTRIBUTOR_USDC credited (USDC leaves — asset decreases to match chain).
-      // Customer account debited by gross; fee credited to FEE_REVENUE_USDC.
-      // Balances per currency: Dr gross = Cr net + Cr fee.
-      const custAcctId = locked.customer_id
-        ? await getOrCreateCustomerUsdcAccount(admin, locked.customer_id).catch(() => null)
-        : null;
-      const custDebitEntry = custAcctId
-        ? { accountId: custAcctId,          currency: "USDC" as const, debit: gross }
-        : { code: "CUSTOMER_USDC_PAYABLE",  currency: "USDC" as const, debit: gross };
-
-      const entries: ({ code?: string; accountId?: string; currency: "HTG" | "USDC"; debit?: number; credit?: number })[] = [
-        { code: "DISTRIBUTOR_USDC", currency: "USDC", credit: net },
-        custDebitEntry,
+      // 2) USDC payout: discharge the USDC liability in full (gross). Net leaves
+      //    the distributor hot wallet to the customer; fee recognised as revenue.
+      const entries: ({ code: string; currency: "HTG" | "USDC"; debit?: number; credit?: number; customerId?: string })[] = [
+        { code: "CUSTOMER_USDC_PAYABLE", currency: "USDC", debit:  gross, customerId },
+        { code: "DISTRIBUTOR_USDC",      currency: "USDC", credit: net                },
       ];
       if (fee > 0) entries.push({ code: "FEE_REVENUE_USDC", currency: "USDC", credit: fee });
 
