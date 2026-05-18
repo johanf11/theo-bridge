@@ -129,32 +129,22 @@ Deno.serve(async (req) => {
       return json({ ok: true, action: "mint", amount: parsedAmount, hash });
 
     } else {
-      // ── BURN: source wallet → issuer ────────────────────────────────────────
-      // The source must sign — we look up the secret from the wallets table
       const { sourceAddress } = body;
       if (!sourceAddress?.startsWith("G")) return json({ error: "Valid sourceAddress required" }, 400);
 
-      const { data: walletRow } = await admin
-        .from("wallets")
-        .select("stellar_secret")
-        .eq("stellar_address", sourceAddress)
-        .maybeSingle();
-      if (!walletRow?.stellar_secret) return json({ error: "Source wallet not found or has no signing key" }, 404);
+      const issuerAccount = await server.loadAccount(htgcIssuer);
 
-      const sourceKp = Keypair.fromSecret(walletRow.stellar_secret);
-      const sourceAccount = await server.loadAccount(sourceKp.publicKey());
-
-      const tx = new TransactionBuilder(sourceAccount, { fee: BASE_FEE, networkPassphrase: Networks.TESTNET })
-        .addOperation(Operation.payment({
-          destination: htgcIssuer,
+      const tx = new TransactionBuilder(issuerAccount, { fee: BASE_FEE, networkPassphrase: Networks.TESTNET })
+        .addOperation(Operation.clawback({
           asset: htgc,
+          from: sourceAddress,
           amount: parsedAmount.toFixed(7),
         }))
         .setTimeout(60);
 
       if (memo?.trim()) tx.addMemo(Memo.text(memo.trim().slice(0, 28)));
       const built = tx.build();
-      built.sign(sourceKp);
+      built.sign(issuerKp);
 
       const result = await server.submitTransaction(built);
       const hash = (result as { hash: string }).hash;
@@ -168,15 +158,14 @@ Deno.serve(async (req) => {
         performed_by: user.id,
       }).then(() => {}).catch(() => {});
 
-      // Ledger: burn reduces outstanding HTG-C float; offsetting external HTG outflow.
       await safePostLedger(admin, "htgc-issuance:burn", {
         kind: "HTGC_BURN",
         description: `Burn ${parsedAmount} HTG-C from ${sourceAddress}`,
         postedBy: user.id,
         sourceKey: `htgc_issuance:burn:${hash}`,
         entries: [
-          { code: "HTGC_ISSUED",       currency: "HTG", debit:  parsedAmount },
-          { code: "EXTERNAL_FLOW_HTG", currency: "HTG", credit: parsedAmount },
+          { code: "HTGC_ISSUED",   currency: "HTG", debit:  parsedAmount },
+          { code: "SPIH_BANK_HTG", currency: "HTG", credit: parsedAmount },
         ],
       }, { stellarTxHash: hash });
 
