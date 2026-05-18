@@ -260,7 +260,9 @@ Deno.serve(async (req) => {
       completed_at: new Date().toISOString(),
     }).eq("id", payout.id);
 
-    // Ledger: USDC leaves customer's managed wallet to an external recipient.
+    // Ledger: USDC leaves customer's Stellar wallet to an external recipient.
+    // The distributor is NOT involved — do not touch DISTRIBUTOR_USDC.
+    // Dr CUSTOMER_USDC_PAYABLE (Theo owes customer less) / Cr EXTERNAL_COUNTERPARTY_FLOW_USDC (USDC left ecosystem).
     try {
       const customerAcct = await getOrCreateCustomerUsdcAccount(admin, customer.id);
       await safePostLedger(admin, "send-payment", {
@@ -268,8 +270,8 @@ Deno.serve(async (req) => {
         description: `External USDC payout to ${recipientName.trim()}`,
         sourceKey: `payouts:${payout.id}:PAYOUT_USDC`,
         entries: [
-          { accountId: customerAcct,    currency: "USDC", debit:  parsedAmount },
-          { code: "DISTRIBUTOR_USDC",    currency: "USDC", credit: parsedAmount },
+          { accountId: customerAcct,                    currency: "USDC", debit:  parsedAmount },
+          { code: "EXTERNAL_COUNTERPARTY_FLOW_USDC",    currency: "USDC", credit: parsedAmount },
         ],
       }, { stellarTxHash: hash });
     } catch (e) {
