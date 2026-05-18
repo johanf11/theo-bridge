@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
           stellarTxHash: hash,
           entries: [
             { code: "SPIH_BANK_HTG", currency: "HTG", debit:  htg },
-            { code: "HTGC_ISSUED",   currency: "HTG", credit: htg },
+            { code: "HTGC_ISSUED",   currency: "HTG", credit: htg, customerId: existing.customer_id ?? undefined },
           ],
         });
       } catch (le) {
