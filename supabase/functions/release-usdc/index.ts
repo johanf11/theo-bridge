@@ -226,37 +226,40 @@ Deno.serve(async (req) => {
       const customerId = locked.customer_id ?? undefined;
 
       // 1) FX conversion: discharge the customer's HTG liability (opened at SPIH
-      //    cash-in) and open the USDC liability. The HTG cash already landed in
-      //    SPIH_BANK_HTG at cash-in — do NOT debit it again here.
+      //    cash-in), open the USDC liability for the NET owed to the customer,
+      //    and recognise the fee as revenue — the moment the rate is locked.
+      //    The HTG cash already landed in SPIH_BANK_HTG at cash-in — do NOT
+      //    debit it again here. HTG leg and USDC leg each balance within their
+      //    own currency: USDC leg is Dr gross = Cr net + Cr fee.
+      const fxEntries: ({ code: string; currency: "HTG" | "USDC"; debit?: number; credit?: number; customerId?: string })[] = [
+        { code: "CUSTOMER_HTG_PENDING",  currency: "HTG",  debit:  htg, customerId },
+        { code: "FX_CLEARING_HTG",       currency: "HTG",  credit: htg },
+        { code: "FX_CLEARING_USDC",      currency: "USDC", debit:  gross },
+        { code: "CUSTOMER_USDC_PAYABLE", currency: "USDC", credit: net, customerId },
+      ];
+      if (fee > 0) fxEntries.push({ code: "FEE_REVENUE_USDC", currency: "USDC", credit: fee });
+
       await safePostLedger(admin, "release-usdc:fx", {
         orderId,
         kind: "FX_CONVERSION",
         description: `HTG→USDC conversion for order ${locked.reference_number}`,
         postedBy: userRes.user.id,
         sourceKey: `orders:${orderId}:FX_CONVERSION`,
-        entries: [
-          { code: "CUSTOMER_HTG_PENDING",  currency: "HTG",  debit:  htg, customerId },
-          { code: "FX_CLEARING_HTG",       currency: "HTG",  credit: htg },
-          { code: "FX_CLEARING_USDC",      currency: "USDC", debit:  gross },
-          { code: "CUSTOMER_USDC_PAYABLE", currency: "USDC", credit: gross, customerId },
-        ],
+        entries: fxEntries,
       }, { stellarTxHash: hash });
 
-      // 2) USDC payout: discharge the USDC liability in full (gross). Net leaves
-      //    the distributor hot wallet to the customer; fee recognised as revenue.
-      const entries: ({ code: string; currency: "HTG" | "USDC"; debit?: number; credit?: number; customerId?: string })[] = [
-        { code: "CUSTOMER_USDC_PAYABLE", currency: "USDC", debit:  gross, customerId },
-        { code: "DISTRIBUTOR_USDC",      currency: "USDC", credit: net                },
-      ];
-      if (fee > 0) entries.push({ code: "FEE_REVENUE_USDC", currency: "USDC", credit: fee });
-
+      // 2) USDC payout: discharge the USDC liability (net). The customer
+      //    receives exactly the net amount from the distributor hot wallet.
       await safePostLedger(admin, "release-usdc:payout", {
         orderId,
         kind: "USDC_PAYOUT",
         description: `USDC released for order ${locked.reference_number}`,
         postedBy: userRes.user.id,
         sourceKey: `orders:${orderId}:USDC_PAYOUT`,
-        entries,
+        entries: [
+          { code: "CUSTOMER_USDC_PAYABLE", currency: "USDC", debit:  net, customerId },
+          { code: "DISTRIBUTOR_USDC",      currency: "USDC", credit: net             },
+        ],
       }, { stellarTxHash: hash });
     } catch (le) {
       console.error("ledger postings failed (order still COMPLETED)", le);
