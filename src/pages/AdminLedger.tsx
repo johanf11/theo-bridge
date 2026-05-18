@@ -235,7 +235,7 @@ export default function AdminLedger() {
               Double-Entry Shadow Ledger
             </h1>
             <p style={{ fontSize: 13, color: "hsl(var(--theo-mid))", marginTop: 6, maxWidth: 720 }}>
-              Phase 1 (observational). Every order processed through SPIH simulation and USDC release posts paired
+              [ Internal Ledger - WIP ] Every order processed through SPIH simulation and USDC release posts paired
               debit/credit entries. The trial balance must net to zero in each currency.
             </p>
           </div>
