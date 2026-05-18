@@ -356,7 +356,7 @@ export default function AdminTransactions() {
                     r.meta.direction === "out" ? "#B91C1C" :
                     "hsl(var(--theo-blue))";
                   return (
-                    <>
+                    <React.Fragment key={r.tx.id}>
                       <tr key={r.tx.id} onClick={() => setExpanded(isOpen ? null : r.tx.id)}
                         style={{ borderTop: "1px solid hsl(var(--theo-light))", cursor: "pointer" }}>
                         <td style={{ ...td, width: 26 }}>
