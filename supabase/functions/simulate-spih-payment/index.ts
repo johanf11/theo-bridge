@@ -147,21 +147,25 @@ Deno.serve(async (req) => {
         .eq("status", "QUOTED");
       if (cErr) throw cErr;
 
-      // Ledger: HTG-C mint records the SPIH cash-in only in Phase 1.
+      // Ledger: HTG cash received from customer backs the newly minted HTG-C supply.
+      // Mint completes atomically — credit HTGC_ISSUED (outstanding float), not CUSTOMER_HTG_PENDING.
+      // Dr SPIH_BANK_HTG (HTG in reserve increases) / Cr HTGC_ISSUED (outstanding float increases).
       try {
         const htg = Number(existing.htg_amount);
         await postLedger(admin, {
           orderId,
-          kind: "SPIH_CASH_IN",
-          description: `HTG-C mint cash-in for order ${existing.reference_number}`,
+          kind: "HTGC_MINT",
+          description: `HTG-C mint for order ${existing.reference_number}`,
           postedBy: u.user.id,
+          sourceKey: `spih_mint:${orderId}`,
+          stellarTxHash: hash,
           entries: [
-            { code: "SPIH_BANK_HTG",        currency: "HTG", debit: htg },
-            { code: "CUSTOMER_HTG_PENDING", currency: "HTG", credit: htg },
+            { code: "SPIH_BANK_HTG", currency: "HTG", debit:  htg },
+            { code: "HTGC_ISSUED",   currency: "HTG", credit: htg },
           ],
         });
       } catch (le) {
-        console.error("ledger SPIH_CASH_IN (mint) failed", le);
+        console.error("ledger HTGC_MINT failed", le);
       }
 
       return new Response(JSON.stringify({ ok: true, status: "COMPLETED", hash }), {
