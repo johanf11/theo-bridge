@@ -143,17 +143,40 @@ Deno.serve(async (req) => {
     }
 
     // Ledger: HTG-C burn discharges the FX clearing obligation; HTG leaves SPIH pool.
-    // SPIH_BANK_HTG decreases because the physical HTG is paid out to the customer's bank account.
-    await safePostLedger(admin, "execute-withdraw", {
-      orderId: order.id,
-      kind: "htgc_burn_withdraw",
-      description: `HTG-C burn for withdrawal ${reference}`,
-      sourceKey: `orders:${order.id}:htgc_burn_withdraw`,
-      entries: [
-        { code: "FX_CLEARING_HTG",  currency: "HTG", debit:  parsedAmount },
-        { code: "SPIH_BANK_HTG",    currency: "HTG", credit: parsedAmount },
-      ],
-    }, { stellarTxHash: burnHash });
+    // Blocking post — a withdrawal without a ledger entry is a compliance gap.
+    // On failure: record to ledger_posting_failures and return 500 so the caller knows.
+    const { data: ledgerTxId, error: ledgerErr } = await admin.rpc("post_ledger_entries", {
+      payload: {
+        kind:             "htgc_burn_withdraw",
+        description:      `HTG-C burn for withdrawal ${reference}`,
+        source_key:       `orders:${order.id}:htgc_burn_withdraw`,
+        stellar_tx_hash:  burnHash,
+        order_id:         order.id,
+        entries: [
+          { code: "FX_CLEARING_HTG", currency: "HTG", debit:  parsedAmount, credit: 0 },
+          { code: "SPIH_BANK_HTG",   currency: "HTG", debit:  0,            credit: parsedAmount },
+        ],
+      },
+    });
+    if (ledgerErr) {
+      console.error("[execute-withdraw] ledger post FAILED for", reference, ledgerErr);
+      await admin.from("ledger_posting_failures").insert({
+        source:          "execute-withdraw",
+        reason:          ledgerErr.message,
+        payload:         { orderId: order.id, amount: parsedAmount, reference },
+        order_id:        order.id,
+        stellar_tx_hash: burnHash,
+      });
+      // Burn is confirmed on-chain — tell caller to check ledger
+      return json({
+        ok:      true,
+        orderId: order.id,
+        hash:    burnHash,
+        reference,
+        warning: "Withdrawal completed on-chain but ledger posting failed — visible in Admin › Ledger › Posting Failures",
+      });
+    }
+    console.log(`[execute-withdraw] ledger posted ${reference} tx=${ledgerTxId}`);
 
     return json({ ok: true, orderId: order.id, hash: burnHash, reference });
   } catch (e) {
