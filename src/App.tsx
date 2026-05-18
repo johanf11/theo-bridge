@@ -19,6 +19,7 @@ import AdminKyb from "./pages/AdminKyb";
 import AdminConversions from "./pages/AdminConversions";
 import AdminTools from "./pages/AdminTools";
 import AdminLedger from "./pages/AdminLedger";
+import AdminTransactions from "./pages/AdminTransactions";
 import Compliance from "./pages/Compliance";
 import Billing from "./pages/Billing";
 import Invoices from "./pages/Invoices";
