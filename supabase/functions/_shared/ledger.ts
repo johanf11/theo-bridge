@@ -42,6 +42,7 @@ export async function postLedger(
       currency: e.currency,
       debit: e.debit ?? 0,
       credit: e.credit ?? 0,
+      customer_id: e.customerId,
     })),
   };
   const { data, error } = await admin.rpc("post_ledger_entries", { payload });
