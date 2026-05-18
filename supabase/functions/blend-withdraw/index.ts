@@ -136,12 +136,13 @@ Deno.serve(async (req) => {
       const theoYieldFee = netApyBps > 0 && yieldReturned > 0
         ? yieldReturned * (BLEND_PLATFORM_FEE_BPS / netApyBps)
         : 0;
-      const entries: Array<{ accountId?: string; code?: string; currency: "USDC"; debit?: number; credit?: number }> = [
-        { accountId: customerAcct,     currency: "USDC", debit:  payoutAmount },
-        { code: "BLEND_DEPOSITS_USDC", currency: "USDC", credit: principalReturned },
+      const cid = position.customer_id;
+      const entries: Array<{ accountId?: string; code?: string; currency: "USDC"; debit?: number; credit?: number; customerId?: string }> = [
+        { accountId: customerAcct,     currency: "USDC", debit:  payoutAmount,       customerId: cid },
+        { code: "BLEND_DEPOSITS_USDC", currency: "USDC", credit: principalReturned,  customerId: cid },
       ];
       if (yieldReturned > 0) {
-        entries.push({ code: "BLEND_YIELD_USDC",  currency: "USDC", credit: yieldReturned });
+        entries.push({ code: "BLEND_YIELD_USDC",  currency: "USDC", credit: yieldReturned, customerId: cid });
       }
       if (theoYieldFee > 0) {
         entries.push({ code: "TREASURY_USDC",     currency: "USDC", debit:  theoYieldFee });
