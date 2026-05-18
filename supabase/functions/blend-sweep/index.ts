@@ -147,8 +147,8 @@ Deno.serve(async (req) => {
         description: `Yield sweep ${parsedAmount} USDC`,
         sourceKey: `blend-sweep:${hash}`,
         entries: [
-          { code: "BLEND_DEPOSITS_USDC", currency: "USDC", debit:  parsedAmount },
-          { accountId: customerAcct,     currency: "USDC", credit: parsedAmount },
+          { code: "BLEND_DEPOSITS_USDC", currency: "USDC", debit:  parsedAmount, customerId: customer.id },
+          { accountId: customerAcct,     currency: "USDC", credit: parsedAmount, customerId: customer.id },
         ],
       }, { stellarTxHash: hash });
     } catch (e) { console.error("blend-sweep ledger post failed", e); }
