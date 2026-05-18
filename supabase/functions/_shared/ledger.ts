@@ -8,6 +8,7 @@ export type LedgerEntry = {
   currency: "HTG" | "USDC";
   debit?: number;
   credit?: number;
+  customerId?: string;    // optional per-entry customer tag
 };
 
 export type LedgerPost = {
