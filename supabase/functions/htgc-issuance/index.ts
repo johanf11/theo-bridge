@@ -121,8 +121,8 @@ Deno.serve(async (req) => {
         postedBy: user.id,
         sourceKey: `htgc_issuance:mint:${hash}`,
         entries: [
-          { code: "EXTERNAL_FLOW_HTG", currency: "HTG", debit:  parsedAmount },
-          { code: "HTGC_ISSUED",       currency: "HTG", credit: parsedAmount },
+          { code: "CUSTOMER_HTG_PENDING", currency: "HTG", debit:  parsedAmount },
+          { code: "HTGC_ISSUED",          currency: "HTG", credit: parsedAmount },
         ],
       }, { stellarTxHash: hash });
 
