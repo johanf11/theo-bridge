@@ -493,6 +493,60 @@ Dr FX_CLEARING_HTG      +htg      FX obligation discharged
 Cr SPIH_BANK_HTG        +htg      HTG leaves SPIH pool
 ```
 
+**External USDC payout from customer wallet (`send-payment`):**
+```
+Dr CUSTOMER_USDC        +amount   Customer's USDC subaccount debited
+Cr EXTERNAL_FLOW_USDC   +amount   USDC left the ecosystem (external counterparty)
+```
+Note: DISTRIBUTOR_USDC is NOT touched. The payment is signed by the customer's own Stellar keypair,
+not the distributor. Only record DISTRIBUTOR_USDC when the distributor wallet actually transacts.
+
+### Planned journals (not yet wired)
+
+These journal kinds are defined here for pre-mainnet implementation. They do not fire today because the underlying Stellar keypairs are not yet split.
+
+---
+
+**`TREASURY_TO_DISTRIBUTOR_SWEEP`** — *wire before mainnet*
+
+```
+Dr DISTRIBUTOR_USDC     +amount   Hot wallet refilled
+Cr TREASURY_USDC        +amount   Funds swept from treasury buffer
+```
+
+**Why this exists:**
+
+The distributor key lives in Supabase edge function secrets — an env variable that any compromised edge function could read. Keeping $500K+ in that wallet at all times is an unacceptable single point of failure.
+
+The solution is to keep only 1–2 days of operating float in the distributor and hold the rest in the treasury wallet, which has a separate keypair and requires multisig to move. Periodically (nightly or when the distributor balance drops below a threshold), you sweep USDC from treasury → distributor to top it up.
+
+Without this journal entry, that on-chain sweep transaction creates a ledger delta on both wallets:
+- Distributor: chain goes up, book stays the same → false positive drift
+- Treasury: chain goes down, book stays the same → false negative drift
+
+The reconciliation card shows both as broken until the journal fires.
+
+**Trigger:** Manual admin action or automated threshold sweep (distributor balance < X USDC). Fires once per sweep transaction. `source_key = "sweep:distributor:{stellar_tx_hash}"`.
+
+---
+
+**`FX_REPLENISHMENT_USDC`** — *wire when FX automation is built*
+
+```
+Dr TREASURY_USDC        +amount   USDC received from FX counterparty
+Cr FX_CLEARING_USDC     +amount   FX obligation closed
+```
+
+**Why this exists:**
+
+When the treasury USDC buffer drops below threshold, Theo executes an FX forward swap: HTG leaves the SPIH pool and the FX counterparty wires USDC back. The HTG side is already recorded (`Dr FX_CLEARING_HTG / Cr SPIH_BANK_HTG` from the originating conversion). When the USDC arrives, this journal closes the matching USDC obligation and credits the treasury.
+
+Without it, `FX_CLEARING_USDC` accumulates as a permanently open obligation and the treasury book balance never reflects FX inflows.
+
+**Trigger:** FX settlement confirmed (wire received or Stellar payment from counterparty). `source_key = "fx-replenishment:{settlement_ref}"`. Same journal kind is used for MoneyGram/OTC settlements on large orders.
+
+---
+
 ### Admin ledger page (`/admin/ledger`)
 
 - **Trial balance** — per-currency debit/credit totals; must net to zero in each currency
