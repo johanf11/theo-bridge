@@ -438,7 +438,7 @@ export default function AdminTransactions() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </React.Fragment>
                   );
                 })}
               </tbody>
