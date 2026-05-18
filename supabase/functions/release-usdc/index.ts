@@ -151,7 +151,7 @@ Deno.serve(async (req) => {
     
     if (currentBal < needed) {
       if (!issuerSecret) throw new Error("Distributor USDC insufficient and STELLAR_HTGC_ISSUER_SECRET not set");
-      const topUp = (needed - currentBal + 1000).toFixed(7); // shortfall + 1 000 USDC buffer
+      const topUp = (needed - currentBal).toFixed(7); // mint exact shortfall — no buffer
       const issuerKp = Keypair.fromSecret(issuerSecret);
       const issuerAcct = await server.loadAccount(issuerKp.publicKey());
       const mintTx = new TransactionBuilder(issuerAcct, { fee: BASE_FEE, networkPassphrase: Networks.TESTNET })
