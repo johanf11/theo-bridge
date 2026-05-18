@@ -320,6 +320,7 @@ export type Database = {
           created_at: string
           credit: number
           currency: string
+          customer_id: string | null
           debit: number
           id: string
           transaction_id: string
@@ -329,6 +330,7 @@ export type Database = {
           created_at?: string
           credit?: number
           currency: string
+          customer_id?: string | null
           debit?: number
           id?: string
           transaction_id: string
@@ -338,6 +340,7 @@ export type Database = {
           created_at?: string
           credit?: number
           currency?: string
+          customer_id?: string | null
           debit?: number
           id?: string
           transaction_id?: string
@@ -348,6 +351,13 @@ export type Database = {
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "ledger_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ledger_entries_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
             referencedColumns: ["id"]
           },
           {
@@ -905,10 +915,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      get_or_create_customer_usdc_account: {
-        Args: { p_customer_id: string }
-        Returns: string
-      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
