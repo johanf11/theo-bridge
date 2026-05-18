@@ -183,7 +183,58 @@ export default function AdminTransactions() {
         return { tx, entries: es, order, customer, htg, usdc, meta: metaFor(tx.kind) };
       });
 
-      setRows(prev => before ? [...prev, ...newRows] : newRows);
+      // ── Merge in raw blend_positions ───────────────────────────────
+      // Some blend deposits were posted on-chain before the ledger entry
+      // path tagged customer_id (or before ledger posting existed). Surface
+      // them as synthetic rows so admins still see the activity.
+      // Only added on the first page load (before === undefined) — avoids
+      // duplicating them across paginated fetches.
+      let blendRows: Row[] = [];
+      if (!before) {
+        const { data: positions } = await supabase
+          .from("blend_positions")
+          .select("id, customer_id, deposited_usdc, deposited_at, last_tx_hash")
+          .order("deposited_at", { ascending: false });
+        const posList = (positions ?? []) as Array<{
+          id: string; customer_id: string; deposited_usdc: number;
+          deposited_at: string; last_tx_hash: string | null;
+        }>;
+        const extraCustomerIds = posList
+          .map(p => p.customer_id)
+          .filter(cid => !customerMap.has(cid));
+        if (extraCustomerIds.length) {
+          const { data: extra } = await supabase
+            .from("customers").select("id, company_name, email").in("id", extraCustomerIds);
+          (extra ?? []).forEach((c: Customer) => {
+            customerList.push(c);
+            customerMap.set(c.id, c);
+          });
+        }
+        const txHashes = new Set(txList.filter(t => t.kind === "BLEND_DEPOSIT").map(t => t.stellar_tx_hash));
+        blendRows = posList
+          .filter(p => !p.last_tx_hash || !txHashes.has(p.last_tx_hash))
+          .map(p => ({
+            tx: {
+              id: `blend-pos:${p.id}`,
+              kind: "BLEND_DEPOSIT",
+              description: `Yield principal ${Number(p.deposited_usdc).toFixed(2)} USDC (from blend_positions)`,
+              order_id: null,
+              stellar_tx_hash: p.last_tx_hash,
+              created_at: p.deposited_at,
+            },
+            entries: [],
+            order: null,
+            customer: customerMap.get(p.customer_id) ?? null,
+            htg: 0,
+            usdc: Number(p.deposited_usdc),
+            meta: metaFor("BLEND_DEPOSIT"),
+          }));
+      }
+
+      const merged = [...newRows, ...blendRows].sort(
+        (a, b) => new Date(b.tx.created_at).getTime() - new Date(a.tx.created_at).getTime(),
+      );
+      setRows(prev => before ? [...prev, ...newRows] : merged);
 
       // Build the customer dropdown set
       const seen = new Map<string, Customer>(allCustomers.map(c => [c.id, c]));
