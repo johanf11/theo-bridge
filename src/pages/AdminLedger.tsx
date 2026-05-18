@@ -340,9 +340,7 @@ export default function AdminLedger() {
             />
           </div>
           <p style={{ fontSize: 12, color: "hsl(var(--theo-mid))", marginTop: 12 }}>
-            Deltas are <strong>expected during Phase 1</strong> because pre-existing orders, top-ups, swaps,
-            withdrawals, payments, blend movements, and admin rectifications are not yet wired into the ledger.
-            Phase 2 will backfill opening balances and hook the remaining flows so this delta converges to zero.
+            The distributor wallet reconciles in real time against Horizon. Any drift here indicates a ledger posting failure — check the Posting Failures panel below.
           </p>
         </div>
 
