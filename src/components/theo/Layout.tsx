@@ -477,6 +477,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </div>
               <NavItem to="/admin/kyb" label="KYB Review" icon={ShieldCheck} />
               <NavItem to="/admin/conversions" label="Orders" icon={ArrowLeftRight} />
+              <NavItem to="/admin/transactions" label="Activity" icon={Activity} />
               <NavItem to="/admin/tools" label="Tools" icon={Wrench} />
               <NavItem to="/admin/ledger" label="Ledger" icon={BookOpen} />
             </>
