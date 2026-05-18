@@ -175,6 +175,7 @@ Deno.serve(async (req) => {
   } catch (e: unknown) {
     const data = (e as { response?: { data?: unknown } })?.response?.data;
     const msg = data ? JSON.stringify(data) : (e as Error).message;
+    console.error("[htgc-issuance] error:", msg, "stack:", (e as Error)?.stack);
     return json({ error: msg }, 502);
   }
 });
