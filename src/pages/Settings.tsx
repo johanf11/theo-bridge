@@ -500,7 +500,7 @@ export default function Settings() {
             )}
 
             <div className="px-5 py-1">
-              {/* Always show the current user as owner */}
+              {/* Current user row */}
               <div className="flex items-center justify-between py-3 border-b border-border">
                 <div className="flex items-center gap-2.5">
                   <div className="flex items-center justify-center font-extrabold rounded-full flex-shrink-0" style={{ width: 28, height: 28, background: "hsl(var(--theo-gold))", color: "hsl(var(--theo-blue))", fontSize: 11 }}>
@@ -508,10 +508,10 @@ export default function Settings() {
                   </div>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--theo-blue))" }}>{savedName}</div>
-                    <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>Owner · {user?.email}</div>
+                    <div style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>{isOwner ? "Owner" : "Member"} · {user?.email}</div>
                   </div>
                 </div>
-                <span className="rounded-full font-bold" style={{ fontSize: 11, background: "hsl(var(--theo-blue-soft))", color: "hsl(var(--theo-blue))", padding: "3px 8px" }}>Owner</span>
+                <span className="rounded-full font-bold" style={{ fontSize: 11, background: "hsl(var(--theo-blue-soft))", color: "hsl(var(--theo-blue))", padding: "3px 8px" }}>{isOwner ? "Owner" : "Member"}</span>
               </div>
 
               {/* Invited members */}
@@ -582,31 +582,31 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* Full-width Roles & Permissions */}
-      <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden mb-4">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border" style={{ background: "hsl(var(--theo-blue-soft))" }}>
-          <div className="font-bold" style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>Roles & permissions</div>
-          {isOwner && (
+      {/* Full-width Roles & Permissions — owner only */}
+      {isOwner && (
+        <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden mb-4">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border" style={{ background: "hsl(var(--theo-blue-soft))" }}>
+            <div className="font-bold" style={{ fontSize: 13, color: "hsl(var(--theo-blue))" }}>Roles & permissions</div>
             <span style={{ fontSize: 11, color: "hsl(var(--theo-mid))" }}>Click toggles to edit · Owner role is always full access</span>
-          )}
+          </div>
+          <div className="p-5">
+            {rolesLoading ? (
+              <div style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>Loading roles…</div>
+            ) : (
+              <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+                {roles.map((role) => (
+                  <RoleCard
+                    key={role.id}
+                    role={role}
+                    isOwner={isOwner}
+                    onToggle={handleTogglePermission}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-        <div className="p-5">
-          {rolesLoading ? (
-            <div style={{ fontSize: 13, color: "hsl(var(--theo-mid))" }}>Loading roles…</div>
-          ) : (
-            <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
-              {roles.map((role) => (
-                <RoleCard
-                  key={role.id}
-                  role={role}
-                  isOwner={isOwner}
-                  onToggle={handleTogglePermission}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      )}
 
       <AdvancedSection />
     </AppLayout>
