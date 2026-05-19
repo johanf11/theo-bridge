@@ -793,7 +793,6 @@ export default function Balance() {
                   balance={balances[w.id] ?? 0}
                   htgcBalance={htgcBalances[w.id] ?? 0}
                   blendPosition={blendPositions[w.id] ?? null}
-                  canViewKeys={can("balance_view_keys")}
                 />
               ))}
             </tbody>
@@ -1379,20 +1378,17 @@ export default function Balance() {
 }
 
 function LedgerRow({
-  w, idx, balance, htgcBalance, blendPosition, canViewKeys,
+  w, idx, balance, htgcBalance, blendPosition,
 }: {
   w: Wallet; idx: number; balance: number; htgcBalance: number;
   blendPosition: BlendPosition | null;
-  canViewKeys: boolean;
 }) {
   const [show, setShow] = useState(false);
   return (
     <tr className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
       <td className="px-5 py-3" style={{ fontSize: 13, fontWeight: 600 }}>{w.label ?? `Account ${idx + 1}`}</td>
       <td className="px-5 py-3" style={{ fontFamily: "monospace", fontSize: 12 }}>
-        {!canViewKeys ? (
-          <span style={{ color: "hsl(var(--theo-mid))", fontSize: 12 }}>Hidden</span>
-        ) : show ? (
+        {show ? (
           <span style={{ color: "hsl(var(--theo-ink))", wordBreak: "break-all" }}>{w.stellar_address}</span>
         ) : (
           <button

@@ -609,7 +609,8 @@ export default function Settings() {
         </div>
       )}
 
-      <AdvancedSection />
+      {/* Account credentials — owner only (contains secret keys) */}
+      {isOwner && <AdvancedSection />}
     </AppLayout>
   );
 }
