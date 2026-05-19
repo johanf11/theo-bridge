@@ -156,16 +156,15 @@ export default function Balance() {
     setLoading(true);
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) { setLoading(false); return; }
-    // Resolve effective customer (owner or org member)
+    // Resolve effective customer — org member takes priority over own row
     let c: { id: string; stellar_wallet_address: string | null } | null = null;
-    const { data: own } = await supabase.from("customers").select("id, stellar_wallet_address").eq("user_id", auth.user.id).maybeSingle();
-    if (own) { c = own; }
-    else {
-      const { data: mem } = await supabase.from("org_members").select("customer_id").eq("user_id", auth.user.id).not("accepted_at", "is", null).maybeSingle();
-      if (mem?.customer_id) {
-        const { data: orgC } = await supabase.from("customers").select("id, stellar_wallet_address").eq("id", mem.customer_id).maybeSingle();
-        c = orgC ?? null;
-      }
+    const { data: mem } = await supabase.from("org_members").select("customer_id").eq("user_id", auth.user.id).not("accepted_at", "is", null).maybeSingle();
+    if (mem?.customer_id) {
+      const { data: orgC } = await supabase.from("customers").select("id, stellar_wallet_address").eq("id", mem.customer_id).maybeSingle();
+      c = orgC ?? null;
+    } else {
+      const { data: own } = await supabase.from("customers").select("id, stellar_wallet_address").eq("user_id", auth.user.id).maybeSingle();
+      c = own ?? null;
     }
     if (!c) { setLoading(false); return; }
 

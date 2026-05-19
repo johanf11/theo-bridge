@@ -16,14 +16,16 @@ export function useCustomerBalance() {
     setLoading(true);
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) { setTotal(0); setHtgcTotal(0); setLoading(false); return; }
-    // Resolve effective customer (owner OR org member)
+    // Resolve effective customer — org member takes priority over own row
+    // (every new user gets an auto-created customers row from the trigger,
+    //  so we must check org_members first to avoid reading the blank own row)
     let cid: string | null = null;
-    const { data: own } = await supabase.from("customers").select("id").eq("user_id", auth.user.id).maybeSingle();
-    if (own) {
-      cid = own.id;
+    const { data: mem } = await supabase.from("org_members").select("customer_id").eq("user_id", auth.user.id).not("accepted_at", "is", null).maybeSingle();
+    if (mem?.customer_id) {
+      cid = mem.customer_id;
     } else {
-      const { data: mem } = await supabase.from("org_members").select("customer_id").eq("user_id", auth.user.id).not("accepted_at", "is", null).maybeSingle();
-      cid = mem?.customer_id ?? null;
+      const { data: own } = await supabase.from("customers").select("id").eq("user_id", auth.user.id).maybeSingle();
+      cid = own?.id ?? null;
     }
     const c = cid ? { id: cid } : null;
     if (!c) {

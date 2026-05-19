@@ -204,13 +204,13 @@ export default function Payout() {
   const loadAll = async () => {
     const { data: au } = await supabase.auth.getUser();
     if (!au.user) return;
-    // Resolve effective customer (owner or org member)
+    // Resolve effective customer — org member takes priority over own row
     let cid: string | null = null;
-    const { data: own } = await supabase.from("customers").select("id").eq("user_id", au.user.id).maybeSingle();
-    if (own) { cid = own.id; }
+    const { data: mem } = await supabase.from("org_members").select("customer_id").eq("user_id", au.user.id).not("accepted_at", "is", null).maybeSingle();
+    if (mem?.customer_id) { cid = mem.customer_id; }
     else {
-      const { data: mem } = await supabase.from("org_members").select("customer_id").eq("user_id", au.user.id).not("accepted_at", "is", null).maybeSingle();
-      cid = mem?.customer_id ?? null;
+      const { data: own } = await supabase.from("customers").select("id").eq("user_id", au.user.id).maybeSingle();
+      cid = own?.id ?? null;
     }
     const customer = cid ? { id: cid } : null;
     if (!customer) return;

@@ -207,20 +207,21 @@ export default function Settings() {
 
   useEffect(() => {
     if (!user) return;
-    supabase
-      .from("customers")
-      .select("id, company_name, kyb_status, legal_name, registration_number, country")
-      .eq("user_id", user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        const c = data as Customer | null;
-        setCustomer(c);
-        if (c) {
-          setCompanyName(c.legal_name ?? c.company_name ?? "");
-          setRegistrationNo(c.registration_number ?? "");
-          setCountry(c.country ?? "Haiti");
-        }
-      });
+    // Resolve effective customer — org member takes priority over own row
+    (async () => {
+      const { data: mem } = await supabase.from("org_members").select("customer_id").eq("user_id", user.id).not("accepted_at", "is", null).maybeSingle();
+      const customerId = mem?.customer_id ?? null;
+      const { data } = customerId
+        ? await supabase.from("customers").select("id, company_name, kyb_status, legal_name, registration_number, country").eq("id", customerId).maybeSingle()
+        : await supabase.from("customers").select("id, company_name, kyb_status, legal_name, registration_number, country").eq("user_id", user.id).maybeSingle();
+      const c = data as Customer | null;
+      setCustomer(c);
+      if (c) {
+        setCompanyName(c.legal_name ?? c.company_name ?? "");
+        setRegistrationNo(c.registration_number ?? "");
+        setCountry(c.country ?? "Haiti");
+      }
+    })();
   }, [user?.id]);
 
   useEffect(() => {
