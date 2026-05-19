@@ -598,7 +598,7 @@ export default function Payout() {
                             </button>
                           ))}
                           <div style={{ padding: "7px 12px", fontSize: 10, color: "hsl(var(--theo-mid))", borderTop: "1px solid hsl(var(--theo-light))", lineHeight: 1.5 }}>
-                            Cross-chain via <a href="https://www.circle.com/cross-chain-transfer-protocol" target="_blank" rel="noopener noreferrer" style={{ fontWeight: 700, color: "hsl(var(--theo-blue))", textDecoration: "none" }}>CCTP</a> — coming soon
+                            Cross-chain USDC via Circle <a href="https://www.circle.com/cross-chain-transfer-protocol" target="_blank" rel="noopener noreferrer" style={{ fontWeight: 700, color: "hsl(var(--theo-blue))", textDecoration: "none" }}>CCTP</a> — coming soon
                           </div>
                         </div>
                       )}
