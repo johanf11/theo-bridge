@@ -298,7 +298,7 @@ export default function Payout() {
     e.preventDefault();
     if (!sourceWalletId) { toast.error("Select a source account"); return; }
     if (selectedChain.status === "soon") {
-      toast.error(`${selectedChain.name} payouts are coming soon via Allbridge. Use Stellar for now.`);
+      toast.error(`${selectedChain.name} payouts are coming soon via CCTP. Use Stellar for now.`);
       return;
     }
     if (addrState !== "valid") {
@@ -598,7 +598,7 @@ export default function Payout() {
                             </button>
                           ))}
                           <div style={{ padding: "7px 12px", fontSize: 10, color: "hsl(var(--theo-mid))", borderTop: "1px solid hsl(var(--theo-light))", lineHeight: 1.5 }}>
-                            Cross-chain via <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>Allbridge</span> — coming soon
+                            Cross-chain via <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>CCTP</span> — coming soon
                           </div>
                         </div>
                       )}
@@ -630,7 +630,7 @@ export default function Payout() {
                     <div style={{ marginTop: 6, padding: "8px 10px", borderRadius: 7, background: "hsl(var(--theo-blue-soft))", border: "1px solid hsl(var(--theo-light))", display: "flex", alignItems: "flex-start", gap: 7 }}>
                       <Info size={12} style={{ color: "hsl(var(--theo-blue))", flexShrink: 0, marginTop: 1 }} />
                       <div style={{ fontSize: 11, color: "hsl(var(--theo-blue))", lineHeight: 1.5 }}>
-                        <span style={{ fontWeight: 700 }}>{selectedChain.name} payouts coming soon</span> via Allbridge.{" "}
+                        <span style={{ fontWeight: 700 }}>{selectedChain.name} payouts coming soon</span> via CCTP.{" "}
                         You can enter the address now — it will be saved with the recipient.
                       </div>
                     </div>
