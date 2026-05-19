@@ -43,15 +43,15 @@ const FEATURES = [
   { icon: icons.clock,   title: "Settle in Minutes",           body: "Once your SPIH transfer arrives, USDC lands in your wallet within minutes — not days. Real-time confirmation on every transaction." },
   { icon: icons.shield,  title: "KYB-First Compliance",        body: "Built for businesses. Full KYB verification, audit trails, and per-transaction limits up to $50,000. Every transfer documented, every dollar traceable." },
   { icon: icons.globe,   title: "Global Reach",                body: "Once on Stellar, your USDC connects to suppliers, marketplaces, and exchanges worldwide — without extra conversion steps or surprise fees." },
-  { icon: icons.dollar,  title: "Locked-In Rates",             body: "Quote locks for 15 minutes — enough time to authorize your SPIH transfer. What you see is what you get. No spread surprises at settlement." },
+  { icon: icons.dollar,  title: "Locked-In Rates",             body: "Quote locks for 15 minutes at the official BRH reference rate — enough time to authorize your bank transfer. What you see is what you get. No spread surprises at settlement." },
   { icon: icons.monitor, title: "Bank-Grade Reconciliation",   body: "Download full audit trails as CSV or PDF. Categorized by date, counterparty, and amount. Built for your accountant and your regulator." },
-  { icon: icons.lock,    title: "1:1 Verified Reserves",       body: "Every USDC in your Theo wallet is backed by a real dollar — segregated, independently verified, and redeemable on-demand. Transparency by default." },
+  { icon: icons.lock,    title: "1:1 Backed Reserves",         body: "Every USDC in your Theo wallet is backed by a real dollar — segregated from Theo's operational funds and redeemable on-demand. Transparency by default." },
 ];
 
 const STATS = [
-  { v: "$650M+", l: "Annual DR–Haiti Corridor" },
-  { v: "< 2 min", l: "Settlement Time" },
-  { v: "7–14%",   l: "Avg Fees We Eliminate" },
+  { v: "$2B+",    l: "Haiti Remittance Corridor" },
+  { v: "< 5 min", l: "Settlement Time" },
+  { v: "3–5%",    l: "Avg Fees We Eliminate" },
   { v: "$50K",    l: "Per-Transaction Limit" },
 ];
 
@@ -170,7 +170,7 @@ export default function Landing() {
           </div>
           <div className="lp-hero-proof">
             <div className="lp-hero-proof-dot" />
-            <span className="lp-hero-proof-text">Regulated · Stellar network · 1:1 verified reserves</span>
+            <span className="lp-hero-proof-text">BRH reference rate · Stellar network · 1:1 backed reserves</span>
           </div>
         </div>
 
@@ -259,9 +259,9 @@ export default function Landing() {
         <div className="lp-section-underline lp-section-underline--white" />
         <div className="lp-steps-grid">
           {[
-            { n: "01", title: "Get a Locked Quote",       body: "Enter the USDC amount you need. Theo instantly shows your HTG cost at a locked rate — valid for 15 minutes. No account required for the quote." },
-            { n: "02", title: "Send Your SPIH Transfer",  body: "Authorize a SPIH transfer from your Haitian bank. We monitor your payment in real time and confirm the moment it clears — no manual follow-up needed." },
-            { n: "03", title: "USDC Lands Instantly",     body: "Within minutes of confirmation, USDC arrives in your Stellar wallet — ready to pay suppliers, convert to USD, or hold as a stable store of value." },
+            { n: "01", title: "Get a Locked Quote",       body: "Enter the USDC amount you need. Theo instantly shows your HTG cost at the official BRH rate — locked for 15 minutes. No surprises at settlement." },
+            { n: "02", title: "Transfer from Your Bank",  body: "Send HTG from your Haitian bank account. We confirm receipt and release your USDC the moment funds clear — no manual follow-up needed." },
+            { n: "03", title: "USDC Lands in Minutes",    body: "USDC arrives in your Stellar wallet within minutes of confirmation — ready to pay international suppliers, convert to USD, or hold as a stable reserve." },
           ].map((s) => (
             <div key={s.n} className="lp-step">
               <div className="lp-step-number">{s.n}</div>
@@ -285,8 +285,8 @@ export default function Landing() {
               <div className="lp-card-headline">Your money.<br />Fully yours.</div>
               <div className="lp-card-body">
                 Theo holds no fractional reserves. Every dollar in your wallet is matched 1:1 to real USD —
-                segregated from Theo's operational funds and independently audited.
-                We make money on the spread, not on your savings.
+                segregated from Theo's operational funds.
+                We make money on the conversion fee, not on your balance.
               </div>
             </div>
             <div className="lp-card-badges">
@@ -296,14 +296,14 @@ export default function Landing() {
             </div>
           </div>
           <div className="lp-trust-card-small">
-            <div className="lp-card-eyebrow">Regulation</div>
-            <div className="lp-card-title">DR-Compliant Operations</div>
-            <div className="lp-card-body">Licensed and compliant with Dominican Republic financial regulations. Every transfer reported to BANCENTRAL in real time.</div>
+            <div className="lp-card-eyebrow">Rate Source</div>
+            <div className="lp-card-title">Official BRH Reference Rate</div>
+            <div className="lp-card-body">Every conversion uses the official Banque de la République d'Haïti (BRH) reference rate — the same rate your central bank publishes daily. No hidden spread.</div>
           </div>
           <div className="lp-trust-card-small">
             <div className="lp-card-eyebrow">Infrastructure</div>
-            <div className="lp-card-title">Powered by Stellar + MoneyGram</div>
-            <div className="lp-card-body">Settlement runs on Stellar — the same network trusted by MoneyGram, Flutterwave, and global central banks for cross-border payments.</div>
+            <div className="lp-card-title">Powered by Stellar</div>
+            <div className="lp-card-body">Settlement runs on Stellar — the same network trusted by Circle, Flutterwave, and global institutions for cross-border USDC payments. Native USDC, no wrapping.</div>
           </div>
         </div>
       </section>
@@ -328,7 +328,7 @@ export default function Landing() {
           <span className="lp-footer-logo-name">Theo</span>
         </div>
         <div className="lp-footer-copy">
-          © {new Date().getFullYear()} Theo. Banking the Unbanked of the Global South.
+          © {new Date().getFullYear()} Theo AI Finance S.A. Cross-border financial infrastructure for the Global South.
         </div>
         <div className="lp-footer-links">
           <a href="#" className="lp-footer-link">Privacy</a>
