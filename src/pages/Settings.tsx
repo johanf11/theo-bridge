@@ -281,11 +281,16 @@ export default function Settings() {
 
   const handleInvite = async () => {
     if (!inviteEmail.trim() || !inviteRoleId || !customer) return;
-    await supabase.from("org_members").insert({
-      customer_id: customer.id,
-      role_id: inviteRoleId,
-      email: inviteEmail.trim().toLowerCase(),
+    const { error, data } = await supabase.functions.invoke("invite-member", {
+      body: { email: inviteEmail.trim().toLowerCase(), roleId: inviteRoleId },
     });
+    if (error) { toast.error(error.message); return; }
+    const result = data as { ok?: boolean; alreadyRegistered?: boolean } | null;
+    if (result?.alreadyRegistered) {
+      toast.success(`${inviteEmail.trim()} already has an account — they'll see your org on next login.`);
+    } else {
+      toast.success(`Invite sent to ${inviteEmail.trim()}`);
+    }
     setInviteEmail("");
     setShowInvite(false);
     loadTeam(customer.id);
