@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchHorizonBalances } from "@/lib/balance";
-import { AlertTriangle, ChevronDown, ChevronRight, Download, ExternalLink, RefreshCw, RotateCcw } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, Download, ExternalLink, RefreshCw, RotateCcw } from "lucide-react";
 
 const DISTRIBUTOR_PUBLIC = "GCP6VMZS3SJ4CSOT3ZVMMJIOXOHTMJK47YQ4RTUJN7P2KYKDVRCUBS2X";
 
@@ -40,6 +40,13 @@ type EntryRow = {
   currency: "HTG" | "USDC";
   debit: number;
   credit: number;
+  customer_id: string | null;
+};
+
+type CustomerRow = {
+  id: string;
+  company_name: string;
+  email: string;
 };
 
 type AccountAgg = {
@@ -76,24 +83,30 @@ export default function AdminLedger() {
   const [filterOrder, setFilterOrder] = useState("");
   const [filterFrom, setFilterFrom] = useState("");
   const [filterTo, setFilterTo] = useState("");
+  const [filterCustomer, setFilterCustomer] = useState("");
   const [failures, setFailures] = useState<FailureRow[]>([]);
+  const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [retryError, setRetryError] = useState<Record<string, string>>({});
   const [distChain, setDistChain] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<20 | 50>(20);
 
   const load = async () => {
     setLoading(true);
-    const [{ data: a }, { data: e }, { data: t }, { data: f }] = await Promise.all([
+    const [{ data: a }, { data: e }, { data: t }, { data: f }, { data: c }] = await Promise.all([
       supabase.from("ledger_accounts").select("*").order("code"),
       supabase.from("ledger_entries").select("*"),
       supabase.from("ledger_transactions").select("*").order("created_at", { ascending: false }).limit(200),
       supabase.from("ledger_posting_failures").select("*").is("resolved_at", null).order("created_at", { ascending: false }),
+      supabase.from("customers").select("id, company_name, email").order("company_name"),
     ]);
     setAccounts((a ?? []) as Account[]);
     setEntries(((e ?? []) as unknown) as EntryRow[]);
     setTxs((t ?? []) as TxRow[]);
     setFailures((f ?? []) as FailureRow[]);
+    setCustomers((c ?? []) as CustomerRow[]);
     setLoading(false);
     const bal = await fetchHorizonBalances(DISTRIBUTOR_PUBLIC);
     setDistChain(bal.usdc);
@@ -156,6 +169,7 @@ export default function AdminLedger() {
   const htgTotals = totals("HTG");
   const usdcTotals = totals("USDC");
 
+
   // Outstanding HTG in SPIH pool from SPIH_BANK_HTG asset balance
   const spihAgg = trial.find((r) => r.account.code === "SPIH_BANK_HTG");
   const spihPoolHtg = spihAgg ? spihAgg.debit - spihAgg.credit : 0;
@@ -164,6 +178,10 @@ export default function AdminLedger() {
   const filteredTxs = txs.filter((t) => {
     if (filterKind && !t.kind.toLowerCase().includes(filterKind.toLowerCase())) return false;
     if (filterOrder && !(t.order_id ?? "").includes(filterOrder)) return false;
+    if (filterCustomer) {
+      const txEntries = entries.filter((e) => e.transaction_id === t.id);
+      if (!txEntries.some((e) => e.customer_id === filterCustomer)) return false;
+    }
     if (filterFrom) {
       const from = new Date(filterFrom);
       from.setHours(0, 0, 0, 0);
@@ -177,18 +195,26 @@ export default function AdminLedger() {
     return true;
   });
 
+  // Reset to page 1 whenever any filter changes
+  useEffect(() => { setCurrentPage(1); }, [filterKind, filterOrder, filterFrom, filterTo, filterCustomer]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredTxs.length / pageSize));
+  const pageStart = (currentPage - 1) * pageSize;
+  const paginatedTxs = filteredTxs.slice(pageStart, pageStart + pageSize);
+
   // ── CSV export (one row per entry line, QB-importable) ─
   const handleExportCSV = () => {
     const headers = [
       "Date", "Transaction ID", "Kind", "Order ID", "Description",
       "Account Code", "Account Name", "Account Type", "Currency",
-      "Debit", "Credit", "Stellar TX Hash",
+      "Debit", "Credit", "Customer ID", "Customer", "Stellar TX Hash",
     ];
     const rows: string[][] = [];
     for (const t of filteredTxs) {
       const txEntries = entries.filter((e) => e.transaction_id === t.id);
       for (const e of txEntries) {
         const acc = accounts.find((a) => a.id === e.account_id);
+        const cust = e.customer_id ? customers.find((c) => c.id === e.customer_id) : null;
         rows.push([
           new Date(t.created_at).toISOString(),
           t.id,
@@ -201,6 +227,8 @@ export default function AdminLedger() {
           e.currency,
           Number(e.debit) > 0 ? Number(e.debit).toFixed(7) : "",
           Number(e.credit) > 0 ? Number(e.credit).toFixed(7) : "",
+          e.customer_id ?? "",
+          cust?.company_name ?? "",
           t.stellar_tx_hash ?? "",
         ]);
       }
@@ -372,8 +400,35 @@ export default function AdminLedger() {
         {/* Transactions */}
         <div style={card}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
-            <div style={eyebrow}>Transactions ({filteredTxs.length})</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={eyebrow}>
+                Transactions ({filteredTxs.length === 0 ? "0" : `${pageStart + 1}–${Math.min(pageStart + pageSize, filteredTxs.length)} of ${filteredTxs.length}`})
+              </div>
+              {filterCustomer && (
+                <span style={{
+                  fontSize: 11, fontWeight: 600, color: "hsl(var(--theo-blue))",
+                  background: "hsl(var(--theo-blue-soft))", padding: "2px 10px", borderRadius: 10,
+                  border: "1px solid hsl(var(--theo-blue) / 0.2)",
+                  cursor: "pointer",
+                }}
+                  onClick={() => setFilterCustomer("")}
+                  title="Clear customer filter"
+                >
+                  {customers.find((c) => c.id === filterCustomer)?.company_name ?? filterCustomer.slice(0, 8)} ✕
+                </span>
+              )}
+            </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <select
+                value={filterCustomer}
+                onChange={(e) => setFilterCustomer(e.target.value)}
+                style={{ ...inputStyle, color: filterCustomer ? "hsl(var(--theo-ink))" : "hsl(var(--theo-mid))" }}
+              >
+                <option value="">All customers…</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>{c.company_name}</option>
+                ))}
+              </select>
               <input
                 placeholder="Filter by kind…"
                 value={filterKind}
@@ -426,7 +481,7 @@ export default function AdminLedger() {
               </tr>
             </thead>
             <tbody>
-              {filteredTxs.map((t) => {
+              {paginatedTxs.map((t) => {
                 const isOpen = expanded.has(t.id);
                 const txEntries = entries.filter((e) => e.transaction_id === t.id);
                 return (
@@ -491,9 +546,23 @@ export default function AdminLedger() {
                             <tbody>
                               {txEntries.map((e) => {
                                 const acc = accounts.find((a) => a.id === e.account_id);
+                                const cust = e.customer_id ? customers.find((c) => c.id === e.customer_id) : null;
                                 return (
                                   <tr key={e.id}>
-                                    <td style={{ padding: 4 }}>{acc?.name ?? e.account_id}</td>
+                                    <td style={{ padding: 4 }}>
+                                      <span>{acc?.name ?? e.account_id}</span>
+                                      {cust && (
+                                        <span style={{
+                                          marginLeft: 6, fontSize: 10, fontWeight: 600,
+                                          color: "hsl(var(--theo-blue))",
+                                          background: "hsl(var(--theo-blue-soft))",
+                                          padding: "1px 6px", borderRadius: 8,
+                                          border: "1px solid hsl(var(--theo-blue) / 0.2)",
+                                        }}>
+                                          {cust.company_name}
+                                        </span>
+                                      )}
+                                    </td>
                                     <td style={{ padding: 4 }}>{e.currency}</td>
                                     <td style={{ padding: 4, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                                       {Number(e.debit) > 0 ? fmt(Number(e.debit), e.currency) : ""}
@@ -519,6 +588,90 @@ export default function AdminLedger() {
               )}
             </tbody>
           </table>
+
+          {/* Pagination controls */}
+          {filteredTxs.length > 0 && (
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              marginTop: 14, paddingTop: 12, borderTop: "1px solid hsl(var(--theo-light))",
+            }}>
+              <span style={{ fontSize: 12, color: "hsl(var(--theo-mid))" }}>
+                Page {currentPage} of {totalPages}
+              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 4,
+                    padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+                    border: "1px solid hsl(var(--theo-light))", background: "#fff",
+                    color: currentPage === 1 ? "hsl(var(--theo-light))" : "hsl(var(--theo-ink))",
+                    cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  <ChevronLeft style={{ width: 13, height: 13 }} /> Prev
+                </button>
+
+                {/* Page number pills */}
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
+                  .reduce<(number | "…")[]>((acc, p, idx, arr) => {
+                    if (idx > 0 && (arr[idx - 1] as number) < p - 1) acc.push("…");
+                    acc.push(p);
+                    return acc;
+                  }, [])
+                  .map((p, idx) =>
+                    p === "…" ? (
+                      <span key={`ellipsis-${idx}`} style={{ padding: "5px 6px", fontSize: 12, color: "hsl(var(--theo-mid))" }}>…</span>
+                    ) : (
+                      <button
+                        key={p}
+                        onClick={() => setCurrentPage(p as number)}
+                        style={{
+                          padding: "5px 10px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+                          border: "1px solid",
+                          borderColor: currentPage === p ? "hsl(var(--theo-blue))" : "hsl(var(--theo-light))",
+                          background: currentPage === p ? "hsl(var(--theo-blue))" : "#fff",
+                          color: currentPage === p ? "#fff" : "hsl(var(--theo-ink))",
+                          cursor: "pointer", fontFamily: "inherit",
+                        }}
+                      >
+                        {p}
+                      </button>
+                    )
+                  )}
+
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 4,
+                    padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+                    border: "1px solid hsl(var(--theo-light))", background: "#fff",
+                    color: currentPage === totalPages ? "hsl(var(--theo-light))" : "hsl(var(--theo-ink))",
+                    cursor: currentPage === totalPages ? "not-allowed" : "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  Next <ChevronRight style={{ width: 13, height: 13 }} />
+                </button>
+
+                <div style={{ width: 1, height: 20, background: "hsl(var(--theo-light))", margin: "0 4px" }} />
+
+                <select
+                  value={pageSize}
+                  onChange={(e) => { setPageSize(Number(e.target.value) as 20 | 50); setCurrentPage(1); }}
+                  style={{ ...inputStyle, color: "hsl(var(--theo-ink))", minWidth: 84 }}
+                  title="Rows per page"
+                >
+                  <option value={20}>20 / page</option>
+                  <option value={50}>50 / page</option>
+                </select>
+              </div>
+            </div>
+          )}
         </div>
         {/* Posting Failures */}
         <div style={{ ...card, borderColor: failures.length > 0 ? "rgba(220,38,38,0.3)" : "hsl(var(--theo-light))" }}>

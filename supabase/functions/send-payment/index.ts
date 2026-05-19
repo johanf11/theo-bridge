@@ -6,7 +6,7 @@ import {
 import { signWithSecret } from "../_shared/stellar-signer.ts";
 import { assertWithinLimits } from "../_shared/tx-limits.ts";
 import { ensureWalletReady } from "../_shared/ensure-wallet-ready.ts";
-import { getOrCreateCustomerUsdcAccount, safePostLedger } from "../_shared/ledger.ts";
+import { safePostLedger } from "../_shared/ledger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -264,14 +264,13 @@ Deno.serve(async (req) => {
     // The distributor is NOT involved — do not touch DISTRIBUTOR_USDC.
     // Dr CUSTOMER_USDC_PAYABLE (Theo owes customer less) / Cr EXTERNAL_COUNTERPARTY_FLOW_USDC (USDC left ecosystem).
     try {
-      const customerAcct = await getOrCreateCustomerUsdcAccount(admin, customer.id);
       await safePostLedger(admin, "send-payment", {
         kind: "PAYOUT_USDC",
         description: `External USDC payout to ${recipientName.trim()}`,
         sourceKey: `payouts:${payout.id}:PAYOUT_USDC`,
         entries: [
-          { accountId: customerAcct,                    currency: "USDC", debit:  parsedAmount },
-          { code: "EXTERNAL_COUNTERPARTY_FLOW_USDC",    currency: "USDC", credit: parsedAmount },
+          { code: "CUSTOMER_USDC_PAYABLE",           currency: "USDC", debit:  parsedAmount, customerId: customer.id },
+          { code: "EXTERNAL_COUNTERPARTY_FLOW_USDC", currency: "USDC", credit: parsedAmount },
         ],
       }, { stellarTxHash: hash });
     } catch (e) {

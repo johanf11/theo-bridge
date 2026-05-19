@@ -142,7 +142,8 @@ Deno.serve(async (req) => {
       return json({ error: `Burn succeeded but failed to persist order: ${orderErr.message}`, burnHash }, 500);
     }
 
-    // Ledger: HTG-C burn discharges the FX clearing obligation; HTG leaves SPIH pool.
+    // Ledger: HTG-C burn retires on-chain supply; HTG leaves SPIH pool (bank pays out HTG).
+    // Dr HTGC_ISSUED (liability decreases — supply destroyed) / Cr SPIH_BANK_HTG (asset decreases — HTG leaves pool).
     // Blocking post — a withdrawal without a ledger entry is a compliance gap.
     // On failure: record to ledger_posting_failures and return 500 so the caller knows.
     const { data: ledgerTxId, error: ledgerErr } = await admin.rpc("post_ledger_entries", {
@@ -153,8 +154,8 @@ Deno.serve(async (req) => {
         stellar_tx_hash:  burnHash,
         order_id:         order.id,
         entries: [
-          { code: "FX_CLEARING_HTG", currency: "HTG", debit:  parsedAmount, credit: 0 },
-          { code: "SPIH_BANK_HTG",   currency: "HTG", debit:  0,            credit: parsedAmount },
+          { code: "HTGC_ISSUED",   currency: "HTG", debit:  parsedAmount, credit: 0 },
+          { code: "SPIH_BANK_HTG", currency: "HTG", debit:  0,            credit: parsedAmount },
         ],
       },
     });

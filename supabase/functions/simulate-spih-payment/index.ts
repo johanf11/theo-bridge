@@ -197,8 +197,8 @@ Deno.serve(async (req) => {
         description: `SPIH cash-in for order ${existing.reference_number}`,
         postedBy: u.user.id,
         entries: [
-          { code: "SPIH_BANK_HTG",        currency: "HTG", debit: htg },
-          { code: "CUSTOMER_HTG_PENDING", currency: "HTG", credit: htg },
+          { code: "SPIH_BANK_HTG",        currency: "HTG", debit:  htg },
+          { code: "CUSTOMER_HTG_PENDING", currency: "HTG", credit: htg, customerId: existing.customer_id ?? undefined },
         ],
       });
     } catch (le) {

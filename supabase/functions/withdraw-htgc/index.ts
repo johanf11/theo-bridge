@@ -5,6 +5,7 @@ import {
   Asset, Horizon, Keypair, Memo, Networks, Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
+import { safePostLedger } from "../_shared/ledger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -143,6 +144,25 @@ Deno.serve(async (req) => {
         error: `Clawback succeeded but failed to persist order: ${orderErr.message}`,
         txHash,
       }, 500);
+    }
+
+    // Ledger: customer redeems HTG-C for physical HTG.
+    // HTG-C is burned (outstanding float reduces) and the HTG leaves SPIH custody.
+    // Dr HTGC_ISSUED (liability ↓: fewer tokens outstanding)
+    // Cr SPIH_BANK_HTG (asset ↓: HTG paid out to customer)
+    try {
+      await safePostLedger(admin, "withdraw-htgc", {
+        orderId: order.id,
+        kind: "HTGC_WITHDRAWAL",
+        description: `HTG-C redemption ${amount} HTG-C → HTG for ${reference}`,
+        sourceKey: `withdraw-htgc:${txHash}`,
+        entries: [
+          { code: "HTGC_ISSUED",   currency: "HTG", debit:  amount },
+          { code: "SPIH_BANK_HTG", currency: "HTG", credit: amount },
+        ],
+      }, { stellarTxHash: txHash });
+    } catch (le) {
+      console.error("withdraw-htgc ledger post failed", le);
     }
 
     return json({

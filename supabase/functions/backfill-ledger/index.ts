@@ -16,7 +16,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { Horizon } from "npm:@stellar/stellar-sdk@12.3.0";
 import { distributorPublicKey } from "../_shared/stellar-signer.ts";
 import { HTGC_ISSUER, TREASURY_PUBLIC } from "../_shared/stellar-assets.ts";
-import { postLedger, getOrCreateCustomerUsdcAccount } from "../_shared/ledger.ts";
+import { postLedger } from "../_shared/ledger.ts";
 import type { LedgerPost } from "../_shared/ledger.ts";
 
 const HORIZON_URL = "https://horizon-testnet.stellar.org";
@@ -109,14 +109,8 @@ Deno.serve(async (req) => {
         const usdcNet     = usdcGross - Number(o.fee_usdc ?? 0);
         const htgAmount   = Math.round(Number(o.htg_amount ?? 0));
 
-        let custAcctId: string | null = null;
-        if (o.customer_id) {
-          custAcctId = await getOrCreateCustomerUsdcAccount(admin, o.customer_id).catch(() => null);
-        }
         const custEntry = (amount: number, credit: boolean) =>
-          custAcctId
-            ? { accountId: custAcctId,          currency: "USDC" as const, ...(credit ? { credit: amount } : { debit: amount }) }
-            : { code: "CUSTOMER_USDC_PAYABLE",  currency: "USDC" as const, ...(credit ? { credit: amount } : { debit: amount }) };
+          ({ code: "CUSTOMER_USDC_PAYABLE", currency: "USDC" as const, ...(credit ? { credit: amount } : { debit: amount }), ...(o.customer_id ? { customerId: o.customer_id } : {}) });
 
         if (o.order_kind === "htgc_usdc_swap" && o.swap_direction === "htgc_to_usdc") {
           await safePost(admin, {
@@ -171,17 +165,12 @@ Deno.serve(async (req) => {
       const sourceKey = `backfill:payout:${p.id}`;
       try {
         const amount = Number(p.amount_usdc);
-        const custAcctId = p.customer_id
-          ? await getOrCreateCustomerUsdcAccount(admin, p.customer_id).catch(() => null)
-          : null;
         await safePost(admin, {
           kind: "payout", sourceKey,
           description: `[backfill] Payout ${p.id}`,
           entries: [
-            custAcctId
-              ? { accountId: custAcctId,         currency: "USDC", debit:  amount }
-              : { code: "CUSTOMER_USDC_PAYABLE", currency: "USDC", debit:  amount },
-            { code: "DISTRIBUTOR_USDC",           currency: "USDC", credit: amount },
+            { code: "CUSTOMER_USDC_PAYABLE", currency: "USDC", debit:  amount, ...(p.customer_id ? { customerId: p.customer_id } : {}) },
+            { code: "DISTRIBUTOR_USDC",      currency: "USDC", credit: amount },
           ],
         }, report.errors);
         report.payouts++;

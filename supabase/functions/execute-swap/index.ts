@@ -17,7 +17,7 @@ import { distributorPublicKey, signWithDistributor, signWithSecret } from "../_s
 import { assertWithinLimits } from "../_shared/tx-limits.ts";
 import { HTGC_ISSUER, TREASURY_PUBLIC } from "../_shared/stellar-assets.ts";
 import { ensureWalletReady } from "../_shared/ensure-wallet-ready.ts";
-import { safePostLedger, getOrCreateCustomerUsdcAccount } from "../_shared/ledger.ts";
+import { safePostLedger } from "../_shared/ledger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -497,7 +497,6 @@ Deno.serve(async (req) => {
     // ── LEDGER POSTING ──────────────────────────────────────────────────────
     // Only post on success; failed/refunded swaps produce no journal entry.
     if (completed) {
-      const custAcctId = await getOrCreateCustomerUsdcAccount(admin, customer.id).catch(() => null);
       if (direction === "htgc_to_usdc") {
         await safePostLedger(admin, "execute-swap", {
           orderId:     order.id,
@@ -507,15 +506,12 @@ Deno.serve(async (req) => {
           sourceKey:   `swap:${order.id}`,
           entries: [
             // HTG side: deposit lands in SPIH pool; FX clearing tracks the obligation
-            { code: "SPIH_BANK_HTG",    currency: "HTG",  debit:  htgAmount  },
-            { code: "FX_CLEARING_HTG",  currency: "HTG",  credit: htgAmount  },
-            // USDC side: DISTRIBUTOR_USDC credited (USDC leaves — asset decreases to match chain).
-            // Customer account debited by gross; Dr gross = Cr net + Cr fee.
-            { code: "DISTRIBUTOR_USDC", currency: "USDC", credit: usdcNet   },
-            ...(custAcctId
-              ? [{ accountId: custAcctId,         currency: "USDC" as const, debit: usdcGross }]
-              : [{ code: "CUSTOMER_USDC_PAYABLE", currency: "USDC" as const, debit: usdcGross }]),
-            { code: "FEE_REVENUE_USDC", currency: "USDC", credit: feeUsdc   },
+            { code: "SPIH_BANK_HTG",           currency: "HTG",  debit:  htgAmount },
+            { code: "FX_CLEARING_HTG",          currency: "HTG",  credit: htgAmount },
+            // USDC side: Dr gross = Cr net + Cr fee
+            { code: "DISTRIBUTOR_USDC",         currency: "USDC", credit: usdcNet                          },
+            { code: "CUSTOMER_USDC_PAYABLE",    currency: "USDC", debit:  usdcGross, customerId: customer.id },
+            { code: "FEE_REVENUE_USDC",         currency: "USDC", credit: feeUsdc                           },
           ],
         }, { stellarTxHash: leg2Hash });
       } else {
@@ -528,14 +524,12 @@ Deno.serve(async (req) => {
           sourceKey:   `swap:${order.id}`,
           entries: [
             // USDC side (balanced: usdcNet + feeUsdc = usdcGross)
-            { code: "TREASURY_USDC",    currency: "USDC", debit:  usdcGross  },
-            ...(custAcctId
-              ? [{ accountId: custAcctId,         currency: "USDC" as const, credit: usdcNet }]
-              : [{ code: "CUSTOMER_USDC_PAYABLE", currency: "USDC" as const, credit: usdcNet }]),
-            { code: "FEE_REVENUE_USDC", currency: "USDC", credit: feeUsdc    },
+            { code: "TREASURY_USDC",            currency: "USDC", debit:  usdcGross                          },
+            { code: "CUSTOMER_USDC_PAYABLE",    currency: "USDC", credit: usdcNet,   customerId: customer.id },
+            { code: "FEE_REVENUE_USDC",         currency: "USDC", credit: feeUsdc                            },
             // HTG side: FX clearing discharged; HTG leaves SPIH pool
-            { code: "FX_CLEARING_HTG",  currency: "HTG",  debit:  htgNet     },
-            { code: "SPIH_BANK_HTG",    currency: "HTG",  credit: htgNet     },
+            { code: "FX_CLEARING_HTG",          currency: "HTG",  debit:  htgNet   },
+            { code: "SPIH_BANK_HTG",            currency: "HTG",  credit: htgNet   },
           ],
         }, { stellarTxHash: leg2Hash });
       }

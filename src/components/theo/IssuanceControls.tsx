@@ -80,8 +80,14 @@ export function IssuanceControls() {
         : { action: "burn", sourceAddress: wallet, amount: parsed, memo };
 
       const res = await supabase.functions.invoke("htgc-issuance", { body });
+      console.log("[htgc-issuance] response:", JSON.stringify({ data: res.data, error: res.error }));
+      // supabase-js v2.105+ puts the JSON body in res.data even on error
+      const errMsg =
+        (res.data as { error?: string } | null)?.error ??
+        (res.error as { message?: string } | null)?.message ??
+        "Unknown error";
       if (res.error || (res.data as { error?: string } | null)?.error) {
-        throw new Error((res.data as { error?: string } | null)?.error ?? res.error?.message);
+        throw new Error(errMsg);
       }
 
       const hash = (res.data as { hash?: string })?.hash;
@@ -197,8 +203,8 @@ export function IssuanceControls() {
                   <input
                     type="number"
                     min={0.0000001}
-                    step={0.01}
-                    placeholder="0.00"
+                    step={0.0000001}
+                    placeholder="0.0000000"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     required

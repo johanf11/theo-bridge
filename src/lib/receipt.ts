@@ -47,6 +47,9 @@ export type ReceiptData = {
   accruedAmount?: number;
   principalBalance?: number; // account balance that earned the yield
   customerName?: string;
+  destinationAddress?: string | null;
+  /** Human-readable wallet label (e.g. "Payroll") — shown alongside the truncated address. */
+  destinationWalletLabel?: string | null;
   /** When kind is swap (or DB htgc_usdc_swap): which leg the customer initiated. */
   swapDirection?: "htgc_to_usdc" | "usdc_to_htgc";
   /** USDC → HTG-C: gross HTG-C notionally from USDC at rate (optional; inferred from usdcGross × rate if omitted). */
@@ -337,6 +340,14 @@ function _buildPdf(data: ReceiptData): void {
     secGap();
     drawSection("Settlement");
     drawRow("Network", "Stellar Network");
+    if (data.destinationAddress) {
+      const addr = data.destinationAddress;
+      const truncated = addr.slice(0, 6) + "…" + addr.slice(-6);
+      const walletDisplay = data.destinationWalletLabel
+        ? `${data.destinationWalletLabel} · ${truncated}`
+        : truncated;
+      drawRow("Destination Wallet", walletDisplay);
+    }
     if (data.stellarTxHash) {
       drawRow("On-chain", "CONFIRMED", { status: "completed" });
       drawTxHash(data.stellarTxHash);
@@ -423,6 +434,14 @@ function _buildPdf(data: ReceiptData): void {
     secGap();
     drawSection("Settlement");
     drawRow("Network", "Stellar Network");
+    if (data.destinationAddress) {
+      const addr = data.destinationAddress;
+      const truncated = addr.slice(0, 6) + "…" + addr.slice(-6);
+      const walletDisplay = data.destinationWalletLabel
+        ? `${data.destinationWalletLabel} · ${truncated}`
+        : truncated;
+      drawRow("Destination Wallet", walletDisplay);
+    }
     if (data.stellarTxHash) {
       drawRow("On-chain", "CONFIRMED", { status: "completed" });
       drawTxHash(data.stellarTxHash);

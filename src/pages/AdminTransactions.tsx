@@ -99,7 +99,7 @@ export default function AdminTransactions() {
   const [customerId, setCustomerId] = useState<string>("");
   const [kindLabel, setKindLabel] = useState<string>("");
   const [query, setQuery] = useState("");
-  const [showTreasury, setShowTreasury] = useState(false);
+  const [showTreasury, setShowTreasury] = useState(true);
 
   const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
 
@@ -319,40 +319,44 @@ export default function AdminTransactions() {
     <AppLayout>
       <div style={{ maxWidth: 1280, margin: "0 auto" }}>
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 18 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 6 }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "hsl(var(--theo-cyan))" }}>
               Admin · Activity
             </div>
-            <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em", color: "hsl(var(--theo-ink))", margin: "6px 0 4px" }}>
+            <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em", color: "hsl(var(--theo-ink))", margin: "6px 0 2px" }}>
               Transactions log
             </h1>
-            <p style={{ fontSize: 13, color: "hsl(var(--theo-mid))", maxWidth: 720 }}>
-              Unified stream of every customer-impacting movement — on/off-ramp, payouts, and yield. Tagged by customer where available.
+            <p style={{ fontSize: 13, color: "hsl(var(--theo-mid))", maxWidth: 680, margin: 0 }}>
+              Unified stream of every customer-impacting movement — on/off-ramp, payouts, and yield.
             </p>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
             <button onClick={() => { setReachedEnd(false); load(); }} disabled={loading}
-              style={btnSecondary}>
+              style={btnOutlined}>
               <RefreshCw style={{ width: 13, height: 13 }} /> Refresh
             </button>
-            <button onClick={exportCsv} disabled={!filtered.length} style={btnPrimary}>
+            <button onClick={exportCsv} disabled={!filtered.length} style={btnOutlined}>
               <Download style={{ width: 13, height: 13 }} /> Export CSV
             </button>
           </div>
         </div>
+        {/* Gold divider */}
+        <div style={{ width: 28, height: 3, background: "hsl(var(--theo-gold))", borderRadius: 2, marginBottom: 20 }} />
 
         {/* Filters */}
-        <div style={card}>
+        <div style={{ ...card, padding: "14px 20px" }}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
-            <div style={{ display: "flex", gap: 4, background: "hsl(var(--theo-cream))", padding: 3, borderRadius: 8 }}>
+            {/* Segmented time range */}
+            <div style={{ display: "flex", gap: 2, background: "hsl(var(--theo-cream))", padding: 3, borderRadius: 8 }}>
               {(["24h", "7d", "30d", "all"] as const).map(r => (
                 <button key={r} onClick={() => setRange(r)} style={{
-                  padding: "5px 10px", fontSize: 12, fontWeight: 600, borderRadius: 6,
+                  padding: "5px 11px", fontSize: 12, fontWeight: 600, borderRadius: 6,
                   border: "none", cursor: "pointer", fontFamily: "inherit",
                   background: range === r ? "#fff" : "transparent",
                   color: range === r ? "hsl(var(--theo-blue))" : "hsl(var(--theo-mid))",
-                  boxShadow: range === r ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
+                  boxShadow: range === r ? "0 1px 2px rgba(0,0,0,0.07)" : "none",
+                  transition: "all 0.1s",
                 }}>{r === "all" ? "All time" : r.toUpperCase()}</button>
               ))}
             </div>
@@ -373,10 +377,20 @@ export default function AdminTransactions() {
               style={{ ...selectStyle, flex: 1, minWidth: 220 }}
             />
 
-            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "hsl(var(--theo-mid))", cursor: "pointer" }}>
-              <input type="checkbox" checked={showTreasury} onChange={e => setShowTreasury(e.target.checked)} />
-              Show treasury ops
-            </label>
+            {/* Treasury ops toggle — shown by default, click to hide */}
+            <button
+              onClick={() => setShowTreasury(v => !v)}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+                fontFamily: "inherit", cursor: "pointer", transition: "all 0.1s",
+                border: showTreasury ? "1.5px solid hsl(var(--theo-blue))" : "1px solid hsl(var(--theo-light))",
+                background: showTreasury ? "hsl(var(--theo-blue-soft))" : "#fff",
+                color: showTreasury ? "hsl(var(--theo-blue))" : "hsl(var(--theo-mid))",
+              }}
+            >
+              {showTreasury ? "Treasury ops ✓" : "Treasury ops hidden"}
+            </button>
           </div>
         </div>
 
@@ -385,7 +399,7 @@ export default function AdminTransactions() {
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
-                <tr style={{ background: "hsl(var(--theo-cream))" }}>
+                <tr style={{ background: "hsl(var(--theo-cream))", borderBottom: "1px solid hsl(var(--theo-light))" }}>
                   {["", "Time", "Customer", "Type", "Amount HTG", "Amount USDC", "Reference", "Stellar", "Status"].map((h, i) => (
                     <th key={i} style={th}>{h}</th>
                   ))}
@@ -445,7 +459,7 @@ export default function AdminTransactions() {
                             </a>
                           ) : <span style={{ color: "hsl(var(--theo-mid))" }}>—</span>}
                         </td>
-                        <td style={td}>{r.order?.status ?? "Posted"}</td>
+                        <td style={td}><StatusBadge status={r.order?.status ?? "POSTED"} /></td>
                       </tr>
                       {isOpen && (
                         <tr key={`${r.tx.id}-x`} style={{ background: "hsl(var(--theo-blue-soft))" }}>
@@ -479,7 +493,9 @@ export default function AdminTransactions() {
                                       <td style={{ ...tdSmall, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{e.debit ? Number(e.debit).toLocaleString() : ""}</td>
                                       <td style={{ ...tdSmall, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{e.credit ? Number(e.credit).toLocaleString() : ""}</td>
                                       <td style={{ ...tdSmall, fontSize: 11, color: "hsl(var(--theo-mid))" }}>
-                                        {e.customer_id ? e.customer_id.slice(0, 8) : "—"}
+                                        {e.customer_id
+                                          ? (r.customer?.company_name ?? e.customer_id.slice(0, 8))
+                                          : "—"}
                                       </td>
                                     </tr>
                                   );
@@ -511,7 +527,7 @@ export default function AdminTransactions() {
 
         <div style={{ marginTop: 14, fontSize: 11, color: "hsl(var(--theo-mid))", display: "flex", alignItems: "center", gap: 6 }}>
           <Activity style={{ width: 12, height: 12 }} />
-          Showing {filtered.length} of {rows.length} loaded transactions. Treasury and internal mint/burn operations are hidden by default.
+          Showing {filtered.length} of {rows.length} loaded transactions{!showTreasury ? " — treasury ops hidden" : ""}.
         </div>
       </div>
     </AppLayout>
@@ -525,33 +541,48 @@ let _acctCache = new Map<string, Acct>();
 // ── Styles ──────────────────────────────────────────────────────
 const card: React.CSSProperties = {
   background: "#fff", border: "1px solid hsl(var(--theo-light))",
-  borderRadius: 16, padding: 16, marginBottom: 16,
+  borderRadius: 16, padding: 20, marginBottom: 16,
 };
 const th: React.CSSProperties = {
-  padding: "10px 14px", textAlign: "left", fontSize: 11, fontWeight: 700,
-  textTransform: "uppercase", letterSpacing: "0.08em", color: "hsl(var(--theo-mid))",
+  padding: "10px 14px", textAlign: "left", fontSize: 10, fontWeight: 700,
+  textTransform: "uppercase", letterSpacing: "0.10em", color: "hsl(var(--theo-mid))",
 };
 const td: React.CSSProperties = {
   padding: "12px 14px", color: "hsl(var(--theo-ink))", verticalAlign: "top",
 };
 const tdSmall: React.CSSProperties = { padding: "6px 10px", verticalAlign: "top" };
 const emptyCell: React.CSSProperties = {
-  padding: 36, textAlign: "center", color: "hsl(var(--theo-mid))", fontSize: 13,
+  padding: 48, textAlign: "center", color: "hsl(var(--theo-mid))", fontSize: 13,
 };
 const selectStyle: React.CSSProperties = {
   padding: "7px 10px", border: "1px solid hsl(var(--theo-light))",
   borderRadius: 8, fontSize: 12, fontFamily: "inherit",
   color: "hsl(var(--theo-ink))", background: "#fff",
 };
-const btnPrimary: React.CSSProperties = {
+const btnOutlined: React.CSSProperties = {
   display: "inline-flex", alignItems: "center", gap: 6,
-  padding: "8px 14px", background: "hsl(var(--theo-blue))", color: "#fff",
-  border: "none", borderRadius: 10, fontWeight: 600, fontSize: 12,
-  fontFamily: "inherit", cursor: "pointer",
-};
-const btnSecondary: React.CSSProperties = {
-  display: "inline-flex", alignItems: "center", gap: 6,
-  padding: "8px 14px", background: "#fff", color: "hsl(var(--theo-blue))",
-  border: "1px solid hsl(var(--theo-light))", borderRadius: 10,
+  padding: "7px 13px", background: "transparent", color: "hsl(var(--theo-blue))",
+  border: "1.5px solid hsl(var(--theo-blue))", borderRadius: 8,
   fontWeight: 600, fontSize: 12, fontFamily: "inherit", cursor: "pointer",
 };
+
+// ── StatusBadge ─────────────────────────────────────────────────
+function StatusBadge({ status }: { status: string }) {
+  const s = status.toUpperCase();
+  const config: Record<string, { label: string; bg: string; color: string }> = {
+    COMPLETED: { label: "Completed", bg: "#DCFCE7", color: "#15803D" },
+    FUNDED:    { label: "Processing", bg: "#FEF9C3", color: "#854D0E" },
+    RELEASING: { label: "Processing", bg: "#FEF9C3", color: "#854D0E" },
+    QUOTED:    { label: "Quoted",     bg: "hsl(var(--theo-blue-soft))", color: "hsl(var(--theo-blue))" },
+    FAILED:    { label: "Failed",     bg: "#FEE2E2", color: "#B91C1C" },
+    POSTED:    { label: "Posted",     bg: "hsl(var(--theo-blue-soft))", color: "hsl(var(--theo-blue))" },
+  };
+  const c = config[s] ?? { label: status, bg: "hsl(var(--theo-cream))", color: "hsl(var(--theo-mid))" };
+  return (
+    <span style={{
+      display: "inline-block", padding: "2px 9px", borderRadius: 20,
+      fontSize: 11, fontWeight: 700, background: c.bg, color: c.color,
+      letterSpacing: "0.02em",
+    }}>{c.label}</span>
+  );
+}

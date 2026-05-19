@@ -3,12 +3,14 @@
 import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
 
 export type LedgerEntry = {
-  code?: string;          // ledger account code (e.g. SPIH_BANK_HTG)
-  accountId?: string;     // direct account id (used for dynamic customer subaccounts)
+  code: string;           // ledger account code (e.g. SPIH_BANK_HTG, CUSTOMER_USDC_PAYABLE)
   currency: "HTG" | "USDC";
   debit?: number;
   credit?: number;
-  customerId?: string;    // optional per-entry customer tag
+  /** Optional: tag entries on CUSTOMER_USDC_PAYABLE / CUSTOMER_BLEND_PAYABLE with the
+   *  customer they belong to. Trial balance stays pooled; per-customer view is derived
+   *  by filtering ledger_entries.customer_id. */
+  customerId?: string | null;
 };
 
 export type LedgerPost = {
@@ -38,29 +40,14 @@ export async function postLedger(
     stellar_tx_hash: post.stellarTxHash ?? null,
     entries: post.entries.map((e) => ({
       code: e.code,
-      account_id: e.accountId,
       currency: e.currency,
       debit: e.debit ?? 0,
       credit: e.credit ?? 0,
-      customer_id: e.customerId,
+      ...(e.customerId ? { customer_id: e.customerId } : {}),
     })),
   };
   const { data, error } = await admin.rpc("post_ledger_entries", { payload });
   if (error) throw new Error(`postLedger(${post.kind}): ${error.message}`);
-  return data as string;
-}
-
-/**
- * Resolve (or create) a per-customer USDC subaccount id.
- */
-export async function getOrCreateCustomerUsdcAccount(
-  admin: SupabaseClient,
-  customerId: string,
-): Promise<string> {
-  const { data, error } = await admin.rpc("get_or_create_customer_usdc_account", {
-    p_customer_id: customerId,
-  });
-  if (error) throw new Error(`getOrCreateCustomerUsdcAccount: ${error.message}`);
   return data as string;
 }
 

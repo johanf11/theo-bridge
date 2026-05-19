@@ -157,6 +157,12 @@ Deno.serve(async (req) => {
       completed_at: new Date().toISOString(),
     }).eq("id", payout.id);
 
+    // No double-entry ledger posting needed here.
+    // Both wallets belong to the same customer, so this is a pure wallet
+    // reclassification: Theo's total obligation to the customer (CUSTOMER_USDC_PAYABLE)
+    // does not change. The payouts row (tagged memo='internal-transfer') is the
+    // authoritative activity record for this movement.
+
     return json({ ok: true, payoutId: payout.id, hash });
   } catch (e) {
     console.error("move-funds error", e);

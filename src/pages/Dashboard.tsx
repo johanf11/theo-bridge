@@ -342,8 +342,8 @@ export default function Dashboard() {
         usdc_amount: Number(p.amount_usdc),
         htg_amount: null,
         rate: null,
-        reference: p.id.slice(0, 8).toUpperCase(),
-        description: p.recipient_name + (p.memo ? ` · ${p.memo}` : ""),
+        reference: (p.memo && p.memo !== "internal-transfer" && p.memo !== "blend-withdraw") ? p.memo : p.id.slice(0, 8).toUpperCase(),
+        description: p.recipient_name,
         created_at: p.created_at,
       }));
 

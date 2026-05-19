@@ -36,6 +36,10 @@ type UnifiedTx = {
   deposited_at?: string;
   net_apy?: number;
   accruedAmount?: number;
+  // htgc_mint
+  destination_stellar_address?: string | null;
+  destination_wallet_address?: string | null;
+  destination_wallet_label?: string | null;
 };
 
 function swapDetailsLabel(swap_direction: string | null | undefined, order_kind: string | undefined): string {
@@ -166,7 +170,7 @@ export default function Transactions() {
         supabase
           .from("orders")
           .select(
-            "id, status, usdc_amount, htg_amount, reference_number, created_at, stellar_tx_hash, order_kind, rate, usdc_gross, fee_usdc, fee_bps, swap_direction",
+            "id, status, usdc_amount, htg_amount, reference_number, created_at, stellar_tx_hash, order_kind, rate, usdc_gross, fee_usdc, fee_bps, swap_direction, destination_stellar_address, destination_wallet_address",
           )
           .eq("customer_id", c.id)
           .gte("created_at", cutoff)
@@ -194,6 +198,23 @@ export default function Transactions() {
         ? await supabase.from("wallets").select("id, label").in("id", allWalletIds)
         : { data: [] as { id: string; label: string | null }[] };
       const walletLabel = new Map((wRows ?? []).map((w) => [w.id, w.label ?? "Wallet"]));
+
+      // Look up wallet labels by stellar_address for htgc_mint destination wallets.
+      const mintAddresses = Array.from(new Set(
+        (orders ?? [])
+          .filter((o) => (o as { order_kind?: string }).order_kind === "htgc_mint")
+          .flatMap((o) => [
+            (o as { destination_stellar_address?: string | null }).destination_stellar_address,
+            (o as { destination_wallet_address?: string | null }).destination_wallet_address,
+          ])
+          .filter(Boolean) as string[]
+      ));
+      const { data: mintWalletRows } = mintAddresses.length
+        ? await supabase.from("wallets").select("stellar_address, label").in("stellar_address", mintAddresses)
+        : { data: [] as { stellar_address: string; label: string | null }[] };
+      const walletLabelByAddress = new Map(
+        (mintWalletRows ?? []).map((w) => [w.stellar_address, w.label ?? null])
+      );
 
       const merged: UnifiedTx[] = [
         ...(orders ?? []).map((o) => {
@@ -225,6 +246,13 @@ export default function Transactions() {
             fee_usdc: row.fee_usdc != null ? Number(row.fee_usdc) : undefined,
             fee_bps: row.fee_bps != null ? Number(row.fee_bps) : undefined,
             swap_direction: row.swap_direction ?? undefined,
+            destination_stellar_address: (o as { destination_stellar_address?: string | null }).destination_stellar_address ?? undefined,
+            destination_wallet_address: (o as { destination_wallet_address?: string | null }).destination_wallet_address ?? undefined,
+            destination_wallet_label: (() => {
+              const addr = (o as { destination_stellar_address?: string | null }).destination_stellar_address
+                        ?? (o as { destination_wallet_address?: string | null }).destination_wallet_address;
+              return addr ? (walletLabelByAddress.get(addr) ?? null) : null;
+            })(),
             order_kind: kind,
           };
         }),
@@ -620,6 +648,8 @@ export default function Transactions() {
                                     : undefined,
                                 stellarTxHash: tx.stellar_tx_hash,
                                 status: tx.status,
+                                destinationAddress: tx.destination_stellar_address ?? tx.destination_wallet_address,
+                                destinationWalletLabel: tx.destination_wallet_label ?? undefined,
                                 recipientName: tx.recipient_name,
                                 memo: tx.memo,
                                 walletLabel: tx.wallet_label,

@@ -6,7 +6,7 @@ import {
   Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { blendTreasuryKeypair, signWithBlendTreasury } from "../_shared/stellar-signer.ts";
-import { getOrCreateCustomerUsdcAccount, safePostLedger } from "../_shared/ledger.ts";
+import { safePostLedger } from "../_shared/ledger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -128,7 +128,6 @@ Deno.serve(async (req) => {
 
     // Ledger: principal back to customer + yield split between customer and Theo fee.
     try {
-      const customerAcct = await getOrCreateCustomerUsdcAccount(admin, position.customer_id);
       const principalReturned = Math.min(principal, payoutAmount);
       const yieldReturned = Math.max(0, payoutAmount - principalReturned);
       const BLEND_PLATFORM_FEE_BPS = 200;
@@ -136,10 +135,13 @@ Deno.serve(async (req) => {
       const theoYieldFee = netApyBps > 0 && yieldReturned > 0
         ? yieldReturned * (BLEND_PLATFORM_FEE_BPS / netApyBps)
         : 0;
+      // Ledger: Blend custody → customer wallet.
+      // Dr CUSTOMER_BLEND_PAYABLE (Blend liability discharged) / Cr BLEND_DEPOSITS_USDC (asset down).
+      // Yield credited as BLEND_YIELD_USDC revenue; Theo's platform fee stays in TREASURY_USDC.
       const cid = position.customer_id;
-      const entries: Array<{ accountId?: string; code?: string; currency: "USDC"; debit?: number; credit?: number; customerId?: string }> = [
-        { accountId: customerAcct,     currency: "USDC", debit:  payoutAmount,       customerId: cid },
-        { code: "BLEND_DEPOSITS_USDC", currency: "USDC", credit: principalReturned,  customerId: cid },
+      const entries: Array<{ code: string; currency: "USDC"; debit?: number; credit?: number; customerId?: string }> = [
+        { code: "CUSTOMER_BLEND_PAYABLE", currency: "USDC", debit:  payoutAmount,      customerId: cid },
+        { code: "BLEND_DEPOSITS_USDC",    currency: "USDC", credit: principalReturned },
       ];
       if (yieldReturned > 0) {
         entries.push({ code: "BLEND_YIELD_USDC",  currency: "USDC", credit: yieldReturned, customerId: cid });

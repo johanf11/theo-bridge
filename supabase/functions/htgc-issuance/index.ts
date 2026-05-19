@@ -114,24 +114,29 @@ Deno.serve(async (req) => {
         performed_by: user.id,
       }).then(() => {}).catch(() => {});
 
-      // Ledger: minting HTG-C creates outstanding float; backed by external HTG inflow.
+      // Ledger: HTG received into SPIH pool backs the newly minted HTG-C supply.
+      // Dr SPIH_BANK_HTG (HTG in reserve) / Cr HTGC_ISSUED (supply increases).
       await safePostLedger(admin, "htgc-issuance:mint", {
         kind: "HTGC_MINT",
         description: `Mint ${parsedAmount} HTG-C → ${destinationAddress}`,
         postedBy: user.id,
         sourceKey: `htgc_issuance:mint:${hash}`,
         entries: [
-          { code: "CUSTOMER_HTG_PENDING", currency: "HTG", debit:  parsedAmount },
-          { code: "HTGC_ISSUED",          currency: "HTG", credit: parsedAmount },
+          { code: "SPIH_BANK_HTG", currency: "HTG", debit:  parsedAmount },
+          { code: "HTGC_ISSUED",   currency: "HTG", credit: parsedAmount },
         ],
       }, { stellarTxHash: hash });
 
       return json({ ok: true, action: "mint", amount: parsedAmount, hash });
 
     } else {
+      // ── BURN: issuer claws back HTG-C from source wallet ────────────────────
+      // Using Operation.clawback — the issuer signs (no need for wallet secret).
+      // Asset must have clawback enabled on the trustline (auth_clawback_enabled).
       const { sourceAddress } = body;
       if (!sourceAddress?.startsWith("G")) return json({ error: "Valid sourceAddress required" }, 400);
 
+      // Issuer account signs the clawback tx
       const issuerAccount = await server.loadAccount(htgcIssuer);
 
       const tx = new TransactionBuilder(issuerAccount, { fee: BASE_FEE, networkPassphrase: Networks.TESTNET })
@@ -158,6 +163,8 @@ Deno.serve(async (req) => {
         performed_by: user.id,
       }).then(() => {}).catch(() => {});
 
+      // Ledger: burn reduces outstanding HTG-C supply; HTG leaves SPIH pool (bank pays out).
+      // Dr HTGC_ISSUED (liability decreases) / Cr SPIH_BANK_HTG (asset decreases).
       await safePostLedger(admin, "htgc-issuance:burn", {
         kind: "HTGC_BURN",
         description: `Burn ${parsedAmount} HTG-C from ${sourceAddress}`,

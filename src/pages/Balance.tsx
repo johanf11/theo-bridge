@@ -703,7 +703,7 @@ export default function Balance() {
                   <div className="flex items-center gap-1.5 mt-3">
                     <div className="rounded-full" style={{ width: 6, height: 6, background: "hsl(var(--theo-cyan))" }} />
                     <a
-                      href={`https://stellar.expert/explorer/public/account/${w.stellar_address}`}
+                      href={`https://stellar.expert/explorer/testnet/account/${w.stellar_address}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       onPointerDown={(e) => e.stopPropagation()}

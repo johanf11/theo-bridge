@@ -6,7 +6,7 @@ import {
   Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { blendTreasuryPublicKey, signWithSecret } from "../_shared/stellar-signer.ts";
-import { getOrCreateCustomerUsdcAccount, safePostLedger } from "../_shared/ledger.ts";
+import { safePostLedger } from "../_shared/ledger.ts";
 // Internal Blend sweeps are not subject to external single-payment caps; only wallet balance constrains them.
 
 const corsHeaders = {
@@ -139,16 +139,18 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Ledger: customer wallet → blend treasury (principal increases, customer's USDC decreases).
+    // Ledger: customer wallet → Blend treasury.
+    // USDC moves into Theo's Blend custody → asset up (BLEND_DEPOSITS_USDC).
+    // Theo now owes it back specifically as a Blend deposit → new liability (CUSTOMER_BLEND_PAYABLE).
+    // Journal: Dr BLEND_DEPOSITS_USDC / Cr CUSTOMER_BLEND_PAYABLE
     try {
-      const customerAcct = await getOrCreateCustomerUsdcAccount(admin, customer.id);
       await safePostLedger(admin, "blend-sweep", {
         kind: "BLEND_DEPOSIT",
         description: `Yield sweep ${parsedAmount} USDC`,
         sourceKey: `blend-sweep:${hash}`,
         entries: [
-          { code: "BLEND_DEPOSITS_USDC", currency: "USDC", debit:  parsedAmount, customerId: customer.id },
-          { accountId: customerAcct,     currency: "USDC", credit: parsedAmount, customerId: customer.id },
+          { code: "BLEND_DEPOSITS_USDC",    currency: "USDC", debit:  parsedAmount },
+          { code: "CUSTOMER_BLEND_PAYABLE", currency: "USDC", credit: parsedAmount, customerId: customer.id },
         ],
       }, { stellarTxHash: hash });
     } catch (e) { console.error("blend-sweep ledger post failed", e); }
