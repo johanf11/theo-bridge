@@ -1,5 +1,6 @@
 // List the current customer's yield positions with live-accrued interest.
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { resolveCustomerId } from "../_shared/resolve-customer.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,10 +30,11 @@ Deno.serve(async (req) => {
     if (!user) return json({ error: "Unauthorized" }, 401);
 
     const admin = createClient(url, service);
-    const { data: customer } = await admin.from("customers").select("id").eq("user_id", user.id).maybeSingle();
-    if (!customer) return json({
+    const customerId = await resolveCustomerId(admin, user.id);
+    if (!customerId) return json({
       positions: [], grossApy: DEFAULT_GROSS_APY, netApy: DEFAULT_NET_APY, feeBps: DEFAULT_FEE_BPS,
     });
+    const customer = { id: customerId };
 
     const { data: positions, error: posErr } = await admin
       .from("blend_positions")

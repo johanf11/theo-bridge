@@ -6,6 +6,7 @@ import {
   Operation, TransactionBuilder, BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { blendTreasuryKeypair, signWithBlendTreasury } from "../_shared/stellar-signer.ts";
+import { resolveCustomerId } from "../_shared/resolve-customer.ts";
 import { safePostLedger } from "../_shared/ledger.ts";
 
 const corsHeaders = {
@@ -37,8 +38,9 @@ Deno.serve(async (req) => {
     if (!user) return json({ error: "Unauthorized" }, 401);
 
     const admin = createClient(url, service);
-    const { data: customer } = await admin.from("customers").select("id").eq("user_id", user.id).maybeSingle();
-    if (!customer) return json({ error: "Customer not found" }, 404);
+    const customerId = await resolveCustomerId(admin, user.id);
+    if (!customerId) return json({ error: "Customer not found" }, 404);
+    const customer = { id: customerId };
 
     const body = await req.json().catch(() => ({}));
     const { walletId, amount } = body;

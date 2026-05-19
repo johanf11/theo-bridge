@@ -14,6 +14,7 @@ import {
   BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { distributorPublicKey, signWithDistributor, signWithSecret } from "../_shared/stellar-signer.ts";
+import { resolveCustomerId } from "../_shared/resolve-customer.ts";
 import { assertWithinLimits } from "../_shared/tx-limits.ts";
 import { HTGC_ISSUER, TREASURY_PUBLIC } from "../_shared/stellar-assets.ts";
 import { ensureWalletReady } from "../_shared/ensure-wallet-ready.ts";
@@ -88,10 +89,12 @@ Deno.serve(async (req) => {
     const admin = createClient(url, service);
 
     // Customer
+    const customerId = await resolveCustomerId(admin, user.id);
+    if (!customerId) return json({ error: "Customer not found" }, 404);
     const { data: customer } = await admin
       .from("customers")
       .select("id, fee_bps, corridor_bps")
-      .eq("user_id", user.id)
+      .eq("id", customerId)
       .maybeSingle();
     if (!customer) return json({ error: "Customer not found" }, 404);
     const theoBps = (customer as { fee_bps?: number | null }).fee_bps ?? 130;
