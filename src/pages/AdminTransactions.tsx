@@ -565,6 +565,11 @@ const btnOutlined: React.CSSProperties = {
   border: "1.5px solid hsl(var(--theo-blue))", borderRadius: 8,
   fontWeight: 600, fontSize: 12, fontFamily: "inherit", cursor: "pointer",
 };
+const btnSecondary: React.CSSProperties = {
+  padding: "8px 16px", background: "hsl(var(--theo-light))", color: "hsl(var(--theo-ink))",
+  border: "none", borderRadius: 8, fontWeight: 600, fontSize: 13,
+  fontFamily: "inherit", cursor: "pointer",
+};
 
 // ── StatusBadge ─────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
