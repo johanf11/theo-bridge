@@ -410,7 +410,6 @@ export default function Landing() {
   const [rate, setRate] = useState(135.0);
   const [lockSecs, setLockSecs] = useState(15 * 60);
   const [activeScreen, setActiveScreen] = useState(0);
-  const spotlightRef = useRef<HTMLElement>(null);
 
   // Live rate ticker
   useEffect(() => {
@@ -443,19 +442,25 @@ export default function Landing() {
     setUsdcDisplay(num ? num.toLocaleString("en-US") : "");
   };
 
-  // Spotlight scroll driver
+  // Spotlight scroll driver — IntersectionObserver on each panel
+  // rootMargin "-40% 0px -40% 0px" means "only count as intersecting when
+  // the panel occupies the middle 20% of the viewport", which reliably
+  // identifies the panel the user is currently reading.
   useEffect(() => {
-    const handleScroll = () => {
-      if (!spotlightRef.current) return;
-      const rect = spotlightRef.current.getBoundingClientRect();
-      const sectionScroll = rect.height - window.innerHeight;
-      if (sectionScroll <= 0) return;
-      const progress = Math.max(0, Math.min(1, -rect.top / sectionScroll));
-      setActiveScreen(Math.min(3, Math.floor(progress * 4)));
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    handleScroll();
-    return () => window.removeEventListener("scroll", handleScroll);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const idx = Number((entry.target as HTMLElement).dataset.panelIdx ?? 0);
+            setActiveScreen(idx);
+          }
+        });
+      },
+      { rootMargin: "-40% 0px -40% 0px", threshold: 0 }
+    );
+    const panels = document.querySelectorAll<HTMLElement>(".lp-narrative-panel[data-panel-idx]");
+    panels.forEach((p) => observer.observe(p));
+    return () => observer.disconnect();
   }, []);
 
   // Scroll reveal hooks
@@ -567,7 +572,7 @@ export default function Landing() {
       </div>
 
       {/* ── Dashboard Spotlight ── */}
-      <section className="lp-spotlight" ref={spotlightRef} id="dashboard">
+      <section className="lp-spotlight" id="dashboard">
         <div className="lp-spotlight-header">
           <div className="lp-section-eyebrow">Theo for Business</div>
           <div className="lp-section-headline">A complete workspace.<br />Right after onboarding.</div>
@@ -579,7 +584,7 @@ export default function Landing() {
           {/* LEFT: scrollable narrative */}
           <div className="lp-spotlight-narrative">
             {SPOTLIGHT_PANELS.map((panel, i) => (
-              <div key={panel.num} className={`lp-narrative-panel${activeScreen === i ? " is-active" : ""}`}>
+              <div key={panel.num} data-panel-idx={i} className={`lp-narrative-panel${activeScreen === i ? " is-active" : ""}`}>
                 <div className="lp-narrative-step">
                   <span className="lp-narrative-step-num">{panel.num}</span>
                   {panel.label}
