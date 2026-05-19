@@ -72,11 +72,16 @@ export default function Billing() {
     setLoading(true);
 
     (async () => {
-      const { data: c } = await supabase
-        .from("customers")
-        .select("id, company_name, contact_name")
-        .eq("user_id", user.id)
-        .maybeSingle();
+      // Resolve effective customer — org member takes priority over own row
+      let c: { id: string; company_name?: string; contact_name?: string } | null = null;
+      const { data: mem } = await supabase.from("org_members").select("customer_id").eq("user_id", user.id).not("accepted_at", "is", null).maybeSingle();
+      if (mem?.customer_id) {
+        const { data: orgC } = await supabase.from("customers").select("id, company_name, contact_name").eq("id", mem.customer_id).maybeSingle();
+        c = orgC ?? null;
+      } else {
+        const { data: own } = await supabase.from("customers").select("id, company_name, contact_name").eq("user_id", user.id).maybeSingle();
+        c = own ?? null;
+      }
 
       if (!c?.id) {
         if (!cancelled) { setOrders([]); setLoading(false); }
