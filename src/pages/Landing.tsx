@@ -49,7 +49,7 @@ const FEATURES = [
 ];
 
 const STATS = [
-  { v: "$2B+",    l: "Haiti Remittance Corridor" },
+  { v: "$4B+",    l: "Haiti Remittance Corridor" },
   { v: "< 5 min", l: "Settlement Time" },
   { v: "3–5%",    l: "Avg Fees We Eliminate" },
   { v: "$50K",    l: "Per-Transaction Limit" },
