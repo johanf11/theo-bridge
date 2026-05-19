@@ -15,7 +15,7 @@ export interface CustomerRecord {
   id: string;
   user_id: string | null;
   email: string | null;
-  business_name: string | null;
+  business_name?: string | null;
   kyb_status: string | null;
   stellar_wallet_address: string | null;
   fee_bps: number | null;
