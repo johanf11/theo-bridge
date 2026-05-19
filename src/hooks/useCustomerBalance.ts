@@ -16,8 +16,16 @@ export function useCustomerBalance() {
     setLoading(true);
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) { setTotal(0); setHtgcTotal(0); setLoading(false); return; }
-    const { data: customers } = await supabase.from("customers").select("id").eq("user_id", auth.user.id).order("created_at", { ascending: true }).limit(1);
-    const c = customers?.[0] ?? null;
+    // Resolve effective customer (owner OR org member)
+    let cid: string | null = null;
+    const { data: own } = await supabase.from("customers").select("id").eq("user_id", auth.user.id).maybeSingle();
+    if (own) {
+      cid = own.id;
+    } else {
+      const { data: mem } = await supabase.from("org_members").select("customer_id").eq("user_id", auth.user.id).not("accepted_at", "is", null).maybeSingle();
+      cid = mem?.customer_id ?? null;
+    }
+    const c = cid ? { id: cid } : null;
     if (!c) {
       setTotal(0);
       setHtgcTotal(0);

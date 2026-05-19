@@ -161,7 +161,16 @@ export default function Transactions() {
     (async () => {
       setLoading(true);
       const { data: au } = await supabase.auth.getUser();
-      const { data: c } = await supabase.from("customers").select("id").eq("user_id", au.user?.id ?? "").maybeSingle();
+      if (!au.user) { setLoading(false); return; }
+      // Resolve effective customer (owner or org member)
+      let cid: string | null = null;
+      const { data: own } = await supabase.from("customers").select("id").eq("user_id", au.user.id).maybeSingle();
+      if (own) { cid = own.id; }
+      else {
+        const { data: mem } = await supabase.from("org_members").select("customer_id").eq("user_id", au.user.id).not("accepted_at", "is", null).maybeSingle();
+        cid = mem?.customer_id ?? null;
+      }
+      const c = cid ? { id: cid } : null;
       if (!c) { setLoading(false); return; }
 
       const cutoff = dateCutoff(dateFilter);

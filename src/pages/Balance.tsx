@@ -156,7 +156,17 @@ export default function Balance() {
     setLoading(true);
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) { setLoading(false); return; }
-    const { data: c } = await supabase.from("customers").select("id, stellar_wallet_address").eq("user_id", auth.user.id).maybeSingle();
+    // Resolve effective customer (owner or org member)
+    let c: { id: string; stellar_wallet_address: string | null } | null = null;
+    const { data: own } = await supabase.from("customers").select("id, stellar_wallet_address").eq("user_id", auth.user.id).maybeSingle();
+    if (own) { c = own; }
+    else {
+      const { data: mem } = await supabase.from("org_members").select("customer_id").eq("user_id", auth.user.id).not("accepted_at", "is", null).maybeSingle();
+      if (mem?.customer_id) {
+        const { data: orgC } = await supabase.from("customers").select("id, stellar_wallet_address").eq("id", mem.customer_id).maybeSingle();
+        c = orgC ?? null;
+      }
+    }
     if (!c) { setLoading(false); return; }
 
     let { data: w } = await supabase

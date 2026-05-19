@@ -235,13 +235,23 @@ export default function Dashboard() {
     (async () => {
       const { data: authData } = await supabase.auth.getUser();
       if (!authData.user) return;
-      const { data: customers } = await supabase
+      // Resolve effective customer (owner or org member)
+      let c: Customer | null = null;
+      const { data: own } = await supabase
         .from("customers")
         .select("id, company_name, contact_name, kyb_status, fee_bps, corridor_bps")
         .eq("user_id", authData.user.id)
-        .order("created_at", { ascending: true })
-        .limit(1);
-      const c = customers?.[0] ?? null;
+        .maybeSingle();
+      if (own) { c = own as Customer; }
+      else {
+        const { data: mem } = await supabase.from("org_members").select("customer_id").eq("user_id", authData.user.id).not("accepted_at", "is", null).maybeSingle();
+        if (mem?.customer_id) {
+          const { data: orgC } = await supabase.from("customers").select("id, company_name, contact_name, kyb_status, fee_bps, corridor_bps").eq("id", mem.customer_id).maybeSingle();
+          c = orgC as Customer ?? null;
+        }
+      }
+      const customers = c ? [c] : [];
+      void customers; // used below via c
       setCustomer(c as Customer | null);
       if (!c) return;
 

@@ -33,28 +33,27 @@ export function usePermissions(): PermissionsState {
     if (!user) { setLoading(false); return; }
 
     (async () => {
-      const { data: customer } = await supabase
+      // 1. Check if the user is an org owner (has their own customers row)
+      const { data: ownCustomer } = await supabase
         .from("customers")
         .select("id, user_id")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (!customer) { setLoading(false); return; }
-
-      // Org owner gets all permissions unconditionally
-      if (customer.user_id === user.id) {
+      if (ownCustomer) {
+        // Org owner — all permissions granted unconditionally
         setIsOwner(true);
         setPerms(new Set(ALL_PERMISSIONS));
         setLoading(false);
         return;
       }
 
-      // Invited member — look up their role permissions
+      // 2. Check if the user is an invited org member
       const { data: member } = await supabase
         .from("org_members")
-        .select("role_id")
-        .eq("customer_id", customer.id)
+        .select("customer_id, role_id")
         .eq("user_id", user.id)
+        .not("accepted_at", "is", null)
         .maybeSingle();
 
       if (!member) { setLoading(false); return; }

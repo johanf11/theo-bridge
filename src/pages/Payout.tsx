@@ -203,7 +203,16 @@ export default function Payout() {
 
   const loadAll = async () => {
     const { data: au } = await supabase.auth.getUser();
-    const { data: customer } = await supabase.from("customers").select("id").eq("user_id", au.user?.id ?? "").maybeSingle();
+    if (!au.user) return;
+    // Resolve effective customer (owner or org member)
+    let cid: string | null = null;
+    const { data: own } = await supabase.from("customers").select("id").eq("user_id", au.user.id).maybeSingle();
+    if (own) { cid = own.id; }
+    else {
+      const { data: mem } = await supabase.from("org_members").select("customer_id").eq("user_id", au.user.id).not("accepted_at", "is", null).maybeSingle();
+      cid = mem?.customer_id ?? null;
+    }
+    const customer = cid ? { id: cid } : null;
     if (!customer) return;
     setCustomerId(customer.id);
     await Promise.all([
