@@ -1384,19 +1384,24 @@ function LedgerRow({
   blendPosition: BlendPosition | null;
 }) {
   const [show, setShow] = useState(false);
+  const { can } = usePermissions();
   return (
     <tr className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
       <td className="px-5 py-3" style={{ fontSize: 13, fontWeight: 600 }}>{w.label ?? `Account ${idx + 1}`}</td>
       <td className="px-5 py-3" style={{ fontFamily: "monospace", fontSize: 12 }}>
-        {show ? (
-          <span style={{ color: "hsl(var(--theo-ink))", wordBreak: "break-all" }}>{w.stellar_address}</span>
+        {can("balance_view_keys") ? (
+          show ? (
+            <span style={{ color: "hsl(var(--theo-ink))", wordBreak: "break-all" }}>{w.stellar_address}</span>
+          ) : (
+            <button
+              onClick={() => setShow(true)}
+              style={{ background: "transparent", border: "none", color: "hsl(var(--theo-cyan))", fontWeight: 600, fontSize: 12, cursor: "pointer", padding: 0, fontFamily: "inherit" }}
+            >
+              View ID
+            </button>
+          )
         ) : (
-          <button
-            onClick={() => setShow(true)}
-            style={{ background: "transparent", border: "none", color: "hsl(var(--theo-cyan))", fontWeight: 600, fontSize: 12, cursor: "pointer", padding: 0, fontFamily: "inherit" }}
-          >
-            View ID
-          </button>
+          <span style={{ color: "hsl(var(--theo-mid))", fontSize: 12 }}>—</span>
         )}
       </td>
       <td className="px-5 py-3">
