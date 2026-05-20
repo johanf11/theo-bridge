@@ -366,6 +366,38 @@ Deno.serve(async (req) => {
           .build();
         tx2.sign(issuerKp);
       } else {
+        // Ensure distributor holds enough USDC to settle leg 2; mint shortfall from USDC issuer (testnet).
+        const distAccountPre = await server.loadAccount(distPubkey);
+        const distUsdcBal = (distAccountPre.balances as HorizonBalance[]).find(
+          (b) => b.asset_type !== "native" && b.asset_code === "USDC" && b.asset_issuer === usdcIssuer,
+        );
+        const distHave = distUsdcBal ? Number(distUsdcBal.balance) : 0;
+        const distShortfall = leg2Amount - distHave;
+        if (distShortfall > 0) {
+          const usdcIssuerSecret = Deno.env.get("STELLAR_USDC_ISSUER_SECRET");
+          if (!usdcIssuerSecret) {
+            throw new Error(
+              `Distributor has ${distHave} USDC, needs ${leg2Amount}. STELLAR_USDC_ISSUER_SECRET not configured to auto-top-up.`,
+            );
+          }
+          const issuerKp = Keypair.fromSecret(usdcIssuerSecret);
+          const issuerAccount = await server.loadAccount(issuerKp.publicKey());
+          const topupTx = new TransactionBuilder(issuerAccount, {
+            fee: BASE_FEE,
+            networkPassphrase: Networks.TESTNET,
+          })
+            .addOperation(
+              Operation.payment({
+                destination: distPubkey,
+                asset: usdc,
+                amount: (distShortfall + 1000).toFixed(7),
+              }),
+            )
+            .setTimeout(60)
+            .build();
+          topupTx.sign(issuerKp);
+          await server.submitTransaction(topupTx);
+        }
         const distAccount = await server.loadAccount(distPubkey);
         tx2 = new TransactionBuilder(distAccount, {
           fee: BASE_FEE,
