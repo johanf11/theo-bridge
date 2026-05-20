@@ -390,6 +390,14 @@ function _buildPdf(data: ReceiptData): void {
     secGap();
     drawSection("Settlement");
     drawRow("Network", "Stellar Network");
+    if (data.destinationAddress) {
+      const addr = data.destinationAddress;
+      const truncated = addr.length > 16 ? addr.slice(0, 8) + "…" + addr.slice(-8) : addr;
+      const walletDisplay = data.destinationWalletLabel
+        ? `${data.destinationWalletLabel} · ${truncated}`
+        : truncated;
+      drawRow("Destination Wallet", walletDisplay);
+    }
     if (data.stellarTxHash) {
       drawRow("On-chain", "CONFIRMED", { status: "completed" });
       drawTxHash(data.stellarTxHash);
