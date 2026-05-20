@@ -8,6 +8,14 @@ import { fetchHorizonBalances } from "@/lib/balance";
 import { X, Plus, Building2, CheckCircle2, ArrowUpDown, Loader2, Info, Globe2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
+// Resolve effective customer — org member takes priority over own row
+async function resolveCustomerId(userId: string): Promise<string | null> {
+  const { data: mem } = await supabase.from("org_members").select("customer_id").eq("user_id", userId).not("accepted_at", "is", null).maybeSingle();
+  if (mem?.customer_id) return mem.customer_id;
+  const { data: own } = await supabase.from("customers").select("id").eq("user_id", userId).maybeSingle();
+  return own?.id ?? null;
+}
+
 type Tab = "htg" | "swap" | "off" | "wire";
 type KybStatus = "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
 type Profile = { kyb_status: KybStatus; stellar_wallet_address: string | null; fee_bps: number; corridor_bps: number };
@@ -139,7 +147,9 @@ export default function Convert() {
     if (!user) return;
     let cancelled = false;
     setProfileLoading(true);
-    supabase.from("customers").select("id, kyb_status, stellar_wallet_address, fee_bps, corridor_bps").eq("user_id", user.id).maybeSingle().then(async ({ data }) => {
+    resolveCustomerId(user.id).then(async (cid) => {
+      if (cancelled || !cid) { setProfileLoading(false); return; }
+      const { data } = await supabase.from("customers").select("id, kyb_status, stellar_wallet_address, fee_bps, corridor_bps").eq("id", cid).maybeSingle();
       if (cancelled) return;
       setProfile(data as Profile | null);
       setProfileLoading(false);
@@ -376,8 +386,9 @@ export default function Convert() {
   const loadBankAccounts = async () => {
     const { data: au } = await supabase.auth.getUser();
     if (!au.user) return;
-    const { data: c } = await supabase.from("customers").select("id").eq("user_id", au.user.id).maybeSingle();
-    if (!c) return;
+    const cid = await resolveCustomerId(au.user.id);
+    if (!cid) return;
+    const c = { id: cid };
     const { data: banks } = await supabase
       .from("bank_accounts")
       .select("id, bank_name, account_name, account_number, routing_code, is_default")
@@ -396,8 +407,9 @@ export default function Convert() {
     }
     setAddBankBusy(true);
     const { data: au } = await supabase.auth.getUser();
-    const { data: c } = await supabase.from("customers").select("id").eq("user_id", au.user?.id ?? "").maybeSingle();
-    if (!c) { toast.error("Customer not found"); setAddBankBusy(false); return; }
+    const cid = await resolveCustomerId(au.user?.id ?? "");
+    if (!cid) { toast.error("Customer not found"); setAddBankBusy(false); return; }
+    const c = { id: cid };
 
     const isFirst = bankAccounts.length === 0;
     const { data, error } = await supabase
@@ -432,8 +444,9 @@ export default function Convert() {
     setOffBusy(true);
     try {
       const { data: au } = await supabase.auth.getUser();
-      const { data: c } = await supabase.from("customers").select("id").eq("user_id", au.user?.id ?? "").maybeSingle();
-      if (!c?.id) { toast.error("Customer not found"); return; }
+      const cid = await resolveCustomerId(au.user?.id ?? "");
+      if (!cid) { toast.error("Customer not found"); return; }
+      const c = { id: cid };
       const { data, error } = await supabase.functions.invoke("withdraw-htgc", {
         body: {
           customerId: c.id,
