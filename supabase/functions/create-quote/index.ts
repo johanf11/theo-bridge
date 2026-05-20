@@ -3,6 +3,7 @@
 // Creates a new order in QUOTED state with 15-min expiry.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { resolveCustomerId } from "../_shared/resolve-customer.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
