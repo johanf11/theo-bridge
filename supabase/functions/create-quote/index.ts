@@ -3,6 +3,7 @@
 // Creates a new order in QUOTED state with 15-min expiry.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { resolveCustomerId } from "../_shared/resolve-customer.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -105,11 +106,17 @@ Deno.serve(async (req) => {
     // Service-role client for trusted writes
     const admin = createClient(supabaseUrl, serviceKey);
 
-    // Find customer
+    // Find customer (own row, or org membership)
+    const effectiveCustomerId = await resolveCustomerId(admin, userId);
+    if (!effectiveCustomerId) {
+      return new Response(JSON.stringify({ error: "Customer profile not found" }), {
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const { data: customer, error: custErr } = await admin
       .from("customers")
       .select("id, kyb_status, fee_bps, corridor_bps")
-      .eq("user_id", userId)
+      .eq("id", effectiveCustomerId)
       .maybeSingle();
     if (custErr) throw custErr;
     if (!customer) {
