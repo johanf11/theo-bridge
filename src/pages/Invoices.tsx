@@ -139,14 +139,18 @@ export default function Invoices() {
     if (!user) return;
     (async () => {
       const { data: au } = await supabase.auth.getUser();
-      const { data: customer } = await supabase
-        .from("customers")
-        .select("id")
-        .eq("user_id", au.user?.id ?? "")
-        .maybeSingle();
-      if (!customer) return;
-      setCustomerId(customer.id);
-      await Promise.all([loadInvoices(customer.id), loadWallets(customer.id)]);
+      if (!au.user) return;
+      // Resolve effective customer — org member takes priority over own row
+      let cid: string | null = null;
+      const { data: mem } = await supabase.from("org_members").select("customer_id").eq("user_id", au.user.id).not("accepted_at", "is", null).maybeSingle();
+      if (mem?.customer_id) { cid = mem.customer_id; }
+      else {
+        const { data: own } = await supabase.from("customers").select("id").eq("user_id", au.user.id).maybeSingle();
+        cid = own?.id ?? null;
+      }
+      if (!cid) { setListLoading(false); return; }
+      setCustomerId(cid);
+      await Promise.all([loadInvoices(cid), loadWallets(cid)]);
     })();
   }, [user]);
 
