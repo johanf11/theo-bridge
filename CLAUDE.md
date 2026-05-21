@@ -35,6 +35,9 @@ bun run lint
 
 # Run tests
 bun run test
+
+# Watch mode tests
+bun run test:watch
 ```
 
 ---
@@ -48,6 +51,9 @@ bun run test
 | `docs/design.md` | Design system — colors, typography, component patterns, anti-patterns |
 | `docs/adr/0001-stellar-native-no-rehive.md` | Why Stellar-native instead of Rehive |
 | `docs/stellar-queries.md` | Horizon curl commands, key addresses, debugging runbook |
+| `docs/sql-queries.md` | Useful SQL queries for debugging and data inspection |
+| `docs/loom-script.md` | Loom demo script |
+| `docs/scf-application.md` | Stellar Community Fund application notes |
 
 ---
 
@@ -71,11 +77,97 @@ bun run test
 | Brand tokens + fonts | `src/index.css` |
 | Tailwind config | `tailwind.config.ts` |
 | Balance helpers | `src/lib/balance.ts` |
+| Number / currency formatters | `src/lib/format.ts` |
 | PDF receipt generator | `src/lib/receipt.ts` |
 | Statement PDF generator | `src/lib/statement.ts` |
 | Stellar constants | `supabase/functions/_shared/stellar-assets.ts` |
 | Signing helpers | `supabase/functions/_shared/stellar-signer.ts` |
 | Transaction limits | `supabase/functions/_shared/tx-limits.ts` |
+
+### Key hooks (`src/hooks/`)
+
+| Hook | Purpose |
+|---|---|
+| `useCustomer.ts` | Fetch the current user's `customers` row |
+| `useCustomerBalance.ts` | Fetch live USDC + HTG balances for the customer |
+| `usePermissions.ts` | Org-level `can(permission)` / `isOwner` |
+| `useBlendPositions.ts` | Fetch Blend protocol lending positions |
+| `use-toast.ts` | Sonner toast helper |
+| `use-mobile.tsx` | Responsive breakpoint detection |
+
+### Key theo components (`src/components/theo/`)
+
+| Component | Purpose |
+|---|---|
+| `Layout.tsx` | App shell, sidebar nav, global search |
+| `AuthLayout.tsx` | Login / register shell |
+| `ProtectedRoute.tsx` | Route guard; accepts `adminOnly` prop |
+| `Logo.tsx` | Theo wordmark / logomark |
+| `StatusBadge.tsx` | Order/transaction status pill |
+| `WalletKeys.tsx` | Displays (and reveals) wallet public/secret keys |
+| `IssuanceControls.tsx` | Admin HTG-C issuance UI |
+
+---
+
+## Routes
+
+| Path | Page | Guard |
+|---|---|---|
+| `/` | Landing | — |
+| `/login` | Login | — |
+| `/register` | Register | — |
+| `/dashboard` | Dashboard | Protected |
+| `/transactions` | Transactions | Protected |
+| `/balance` | Balance | Protected |
+| `/payout` | Payout | Protected |
+| `/invoices` | Invoices | Protected |
+| `/inv/:id` | InvoiceView | Public |
+| `/convert` | Convert (On/Off Ramp) | Protected |
+| `/settings` | Settings | Protected |
+| `/kyb` | KYB (business verification) | Protected |
+| `/orders/:id` | OrderStatus | Protected |
+| `/compliance` | Compliance | Protected |
+| `/billing` | Billing | Protected |
+| `/admin/kyb` | AdminKyb | Protected + admin |
+| `/admin/conversions` | AdminConversions | Protected + admin |
+| `/admin/transactions` | AdminTransactions | Protected + admin |
+| `/admin/tools` | AdminTools | Protected + admin |
+| `/admin/ledger` | AdminLedger | Protected + admin |
+
+---
+
+## Edge functions
+
+| Function | Purpose |
+|---|---|
+| `create-quote` | Generate a conversion quote (rate + fees) |
+| `execute-swap` | Execute a USDC → HTG-C conversion |
+| `execute-withdraw` | Withdraw HTG-C to a recipient |
+| `release-usdc` | Release USDC from escrow to customer wallet |
+| `send-payment` | Send a payment (payout flow) |
+| `create-wallet` | Provision a new Stellar wallet for a customer |
+| `reveal-wallet-secret` | Return encrypted wallet secret to authorized caller |
+| `htgc-issuance` | Admin: issue HTG-C from the issuer account |
+| `topup-htgc` | Admin: top up HTG-C on the distributor |
+| `topup-distributor-usdc` | Admin: top up USDC on the distributor |
+| `withdraw-htgc` | Admin: withdraw HTG-C from distributor |
+| `move-funds` | Admin: move funds between accounts |
+| `fetch-brh-rate` | Fetch current BRH exchange rate |
+| `get-public-invoice` | Return a public invoice by ID (no auth) |
+| `invite-member` | Send an org member invite email |
+| `blend-positions` | Fetch Blend protocol positions |
+| `blend-sweep` | Sweep yield from Blend into the distributor |
+| `blend-withdraw` | Withdraw from Blend |
+| `admin-setup-wallet` | Admin: bootstrap a new wallet with trustlines |
+| `admin-rectify-htgc` | Admin: correct HTG-C balance discrepancies |
+| `admin-refund-distributor` | Admin: refund distributor from a failed order |
+| `admin-spih-settlement` | Admin: trigger SPIH settlement |
+| `simulate-spih-payment` | Dev/test: simulate an incoming SPIH payment |
+| `backfill-ledger` | One-off: backfill ledger entries from existing orders |
+| `backfill-trustlines` | One-off: add trustlines to existing wallets |
+| `backfill-wallet-trustlines` | One-off: variant of above |
+| `replay-ledger-failure` | Admin: replay a failed ledger entry |
+| `retry-swap-payout` | Admin: retry a failed swap payout |
 
 ---
 
@@ -169,6 +261,7 @@ STELLAR_HTGC_ISSUER_SECRET    S… keypair for the HTG-C issuer
 - **Fee rates** are stored in basis points (bps). 1 bps = 0.01%. `fee_bps = 130` means 1.30%. Display as `(bps / 100).toFixed(2) + "%"`.
 - Default customer fee split: `fee_bps = 130` (Theo) + `corridor_bps = 70` = 200 bps total (2%).
 - Transaction limits enforced in `_shared/tx-limits.ts`: min 1 USDC, max 1,000,000 USDC per single payment.
+- Use helpers in `src/lib/format.ts` for all display formatting — do not inline `.toLocaleString` calls across pages.
 
 ---
 
@@ -231,3 +324,4 @@ STELLAR_HTGC_ISSUER_SECRET    S… keypair for the HTG-C issuer
 | Horizon network | Testnet only until mainnet migration |
 | Fee calculation | `fee_usdc = gross * (total_bps / 10_000)`; `net = gross - fee_usdc` |
 | Trusted writes from edge functions | Use `SUPABASE_SERVICE_ROLE_KEY` admin client |
+| Number formatting | Use `src/lib/format.ts` helpers — no inline toLocaleString |
