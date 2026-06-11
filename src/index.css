@@ -1,0 +1,209 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,800;1,700;1,800&family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+/* Plain font family — full weight range */
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-Hairline.otf') format('opentype'); font-weight:100; font-style:normal; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-HairlineItalic.otf') format('opentype'); font-weight:100; font-style:italic; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-Thin.otf') format('opentype'); font-weight:200; font-style:normal; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-ThinItalic.otf') format('opentype'); font-weight:200; font-style:italic; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-Light.otf') format('opentype'); font-weight:300; font-style:normal; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-LightItalic.otf') format('opentype'); font-weight:300; font-style:italic; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-Regular.otf') format('opentype'); font-weight:400; font-style:normal; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-RegularItalic.otf') format('opentype'); font-weight:400; font-style:italic; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-Medium.otf') format('opentype'); font-weight:500; font-style:normal; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-MediumItalic.otf') format('opentype'); font-weight:500; font-style:italic; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-Bold.otf') format('opentype'); font-weight:700; font-style:normal; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-BoldItalic.otf') format('opentype'); font-weight:700; font-style:italic; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-Extrabold.otf') format('opentype'); font-weight:800; font-style:normal; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-ExtraboldItalic.otf') format('opentype'); font-weight:800; font-style:italic; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-Black.otf') format('opentype'); font-weight:900; font-style:normal; font-display:swap; }
+@font-face { font-family:'Plain'; src:url('/fonts/Plain-BlackItalic.otf') format('opentype'); font-weight:900; font-style:italic; font-display:swap; }
+@font-face { font-family:'Plain Super'; src:url('/fonts/Plain-Super.otf') format('opentype'); font-style:normal; font-display:swap; }
+@font-face { font-family:'Plain Super'; src:url('/fonts/Plain-SuperItalic.otf') format('opentype'); font-style:italic; font-display:swap; }
+@font-face { font-family:'Plain Skeleton'; src:url('/fonts/Plain-Skeleton.otf') format('opentype'); font-style:normal; font-display:swap; }
+@font-face { font-family:'Plain Skeleton'; src:url('/fonts/Plain-SkeletonItalic.otf') format('opentype'); font-style:italic; font-display:swap; }
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Theo brand design system. All colors HSL. Flat color only — no gradients. */
+@layer base {
+  :root {
+    /* ===== Brand primitives ===== */
+    --theo-gold: 49 100% 50%;          /* #FDCF00 */
+    --theo-gold-soft: 48 100% 90%;     /* #FFF3CD */
+    --theo-blue: 239 51% 40%;          /* #33359A */
+    --theo-blue-soft: 234 73% 96%;     /* #EEF0FB */
+    --theo-blue-chip: 237 73% 91%;     /* #D6D8F7 */
+    --theo-cyan: 192 92% 47%;          /* #08B5E5 */
+    --theo-cyan-soft: 194 86% 90%;     /* #D0F0FB */
+
+    /* ===== Neutrals ===== */
+    --theo-cream: 48 20% 97%;          /* #F9F8F5 page bg */
+    --theo-white: 0 0% 100%;
+    --theo-ink: 240 27% 14%;           /* #1A1A2E body */
+    --theo-mid: 240 13% 48%;           /* #6B6B8A secondary */
+    --theo-light: 240 19% 93%;         /* #EAEAF2 hairlines */
+
+    /* ===== Semantic ===== */
+    --background: 48 20% 97%;          /* cream */
+    --foreground: 240 27% 14%;         /* ink */
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 27% 14%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 27% 14%;
+
+    /* Primary = Blue */
+    --primary: 239 51% 40%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary = Gold (CTA) */
+    --secondary: 49 100% 50%;
+    --secondary-foreground: 239 51% 40%;
+
+    /* Accent = Cyan (links / interactive) */
+    --accent: 192 92% 47%;
+    --accent-foreground: 0 0% 100%;
+
+    --muted: 234 73% 96%;              /* soft blue panel */
+    --muted-foreground: 240 13% 48%;
+
+    --destructive: 0 75% 52%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 138 65% 30%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 95% 50%;
+    --warning-foreground: 240 27% 14%;
+
+    --border: 240 19% 93%;             /* hairline */
+    --input: 240 19% 93%;
+    --ring: 192 92% 47%;               /* cyan focus ring */
+
+    --radius: 1rem;                    /* 16px cards */
+
+    /* ===== Shadows (flat-ish) ===== */
+    --shadow-xs: 0 1px 2px hsl(240 27% 14% / 0.04);
+    --shadow-sm: 0 2px 12px hsl(240 27% 14% / 0.06);
+    --shadow-md: 0 2px 16px hsl(240 27% 14% / 0.08);
+    --shadow-lg: 0 8px 32px hsl(240 27% 14% / 0.10);
+
+    /* ===== Motion ===== */
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+    /* Sidebar — blue surface */
+    --sidebar-background: 239 51% 40%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 49 100% 50%;
+    --sidebar-primary-foreground: 239 51% 40%;
+    --sidebar-accent: 239 50% 35%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 239 50% 35%;
+    --sidebar-ring: 49 100% 50%;
+  }
+
+  .dark {
+    --background: 239 45% 8%;
+    --foreground: 0 0% 98%;
+    --card: 239 45% 11%;
+    --card-foreground: 0 0% 98%;
+    --popover: 239 45% 11%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 49 100% 55%;
+    --primary-foreground: 239 51% 18%;
+    --secondary: 192 92% 47%;
+    --secondary-foreground: 0 0% 100%;
+    --accent: 192 92% 47%;
+    --accent-foreground: 0 0% 100%;
+    --muted: 239 30% 16%;
+    --muted-foreground: 240 13% 70%;
+    --destructive: 0 75% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 239 30% 20%;
+    --input: 239 30% 20%;
+    --ring: 192 92% 47%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  ::selection { background: hsl(var(--theo-gold)); color: hsl(var(--theo-blue)); }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Plain', 'Inter', system-ui, -apple-system, sans-serif;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Plain', 'Inter', system-ui, sans-serif;
+    font-weight: 700;
+    color: hsl(var(--theo-blue));
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+
+  .font-display {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+}
+
+@layer components {
+  /* Eyebrow — small, uppercase, tracked, cyan by default */
+  .eyebrow {
+    font-family: 'Plain', 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: hsl(var(--theo-cyan));
+  }
+  .eyebrow-on-dark { color: hsl(var(--theo-gold)); }
+  .eyebrow-muted { color: hsl(var(--theo-mid)); }
+
+  /* Tagline — Playfair italic cyan, signature element */
+  .tagline {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-style: italic;
+    font-weight: 700;
+    color: hsl(var(--theo-cyan));
+    line-height: 1.2;
+  }
+
+  /* Gold rule under tagline */
+  .gold-rule {
+    width: 40px;
+    height: 3px;
+    background: hsl(var(--theo-gold));
+    border: 0;
+  }
+
+  /* Wordmark */
+  .wordmark {
+    font-family: 'Plain', 'Inter', sans-serif;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: hsl(var(--theo-blue));
+  }
+}
+
+@layer utilities {
+  .shadow-xs { box-shadow: var(--shadow-xs); }
+  .shadow-sm-soft { box-shadow: var(--shadow-sm); }
+  .shadow-md-soft { box-shadow: var(--shadow-md); }
+  .shadow-lg-soft { box-shadow: var(--shadow-lg); }
+  .text-balance { text-wrap: balance; }
+
+  .animate-in-fade {
+    animation: fadeSlideIn 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+}
+
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

@@ -1,0 +1,2 @@
+ALTER TABLE public.payouts
+  ADD COLUMN IF NOT EXISTS asset_code text NOT NULL DEFAULT 'USDC';

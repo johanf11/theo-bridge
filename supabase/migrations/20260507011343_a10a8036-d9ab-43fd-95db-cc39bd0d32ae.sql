@@ -1,0 +1,1 @@
+ALTER TYPE public.order_kind ADD VALUE IF NOT EXISTS 'htgc_withdrawal';

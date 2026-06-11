@@ -1,0 +1,42 @@
+VERSION = "2.2.0"
+NETWORK_PASSPHRASE = "Test SDF Network ; September 2015"
+HORIZON_URL = "https://horizon-testnet.stellar.org"
+FEDERATION_SERVER = "https://nlbnmsiqfywskuxhqjon.supabase.co/functions/v1/federation"
+ACCOUNTS = [
+  "GDSRYZWTLQLBECKCL4TV7ZRGBZGBMSPD4V47B7Y7JSQVDJRSEXQTFCQT",
+  "GCP6VMZS3SJ4CSOT3ZVMMJIOXOHTMJK47YQ4RTUJN7P2KYKDVRCUBS2X",
+]
+[DOCUMENTATION]
+ORG_NAME = "Theo for Business"
+ORG_DBA = "Theo"
+ORG_URL = "https://theokingdom.com"
+ORG_LOGO = "https://theokingdom.com/theo-logo.png"
+ORG_DESCRIPTION = "Theo digitizes the Haitian Gourde on the Stellar network, enabling fast, low-cost HTG to USDC conversions for businesses in the Haiti corridor."
+ORG_PHYSICAL_ADDRESS = "Haiti"
+ORG_TWITTER = "TheoForBusiness"
+ORG_GITHUB = "theo-bridge"
+ORG_SUPPORT_EMAIL = "support@theokingdom.com"
+[[CURRENCIES]]
+code = "HTGC"
+issuer = "GDSRYZWTLQLBECKCL4TV7ZRGBZGBMSPD4V47B7Y7JSQVDJRSEXQTFCQT"
+display_decimals = 0
+name = "Haitian Gourde Coin"
+desc = "HTGC is a 1:1 reserve-backed digital Haitian Gourde issued by Theo on the Stellar network."
+conditions = "HTGC is currently available on Stellar testnet only. Redeemable through the Theo for Business platform at https://theokingdom.com."
+image = "https://nlbnmsiqfywskuxhqjon.supabase.co/storage/v1/object/public/assets/htg-token.png"
+status = "test"
+is_asset_anchored = true
+anchor_asset_type = "fiat"
+anchor_asset = "HTG"
+redemption_instructions = "Log in at https://theokingdom.com and use the Convert flow to redeem HTGC for HTG."
+regulated = false
+[[CURRENCIES]]
+code = "USDC"
+issuer = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+display_decimals = 2
+name = "USD Coin (Testnet)"
+desc = "Testnet USDC used within the Theo platform for HTG-C conversions and payouts."
+status = "test"
+is_asset_anchored = true
+anchor_asset_type = "fiat"
+anchor_asset = "USD"

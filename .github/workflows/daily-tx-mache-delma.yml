@@ -1,0 +1,35 @@
+name: Daily Transactions — Mache Delma
+
+on:
+  # Schedule removed — Supabase pg_cron handles the daily run.
+  # This workflow remains as a manual backfill tool (workflow_dispatch only).
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Override date (YYYY-MM-DD) for manual backfill'
+        required: false
+        default: ''
+
+jobs:
+  run-mache-delma:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger scheduled-tx (Mache Delma)
+        run: |
+          BODY='{"customer":"Mache Delma","slug":"md"}'
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            BODY='{"customer":"Mache Delma","slug":"md","date":"${{ github.event.inputs.date }}"}'
+          fi
+
+          curl -s -X POST \
+            https://nlbnmsiqfywskuxhqjon.supabase.co/functions/v1/scheduled-tx \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d "$BODY" \
+            | tee /tmp/response-md.json
+
+          if grep -q '"error"' /tmp/response-md.json; then
+            echo "scheduled-tx (Mache Delma) returned an error"
+            cat /tmp/response-md.json
+            exit 1
+          fi

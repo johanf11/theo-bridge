@@ -1,0 +1,35 @@
+name: Daily Transactions — Caribbean Import Group
+
+on:
+  # Schedule removed — Supabase pg_cron handles the daily run.
+  # This workflow remains as a manual backfill tool (workflow_dispatch only).
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Override date (YYYY-MM-DD) for manual backfill'
+        required: false
+        default: ''
+
+jobs:
+  run-caribbean-import-group:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger scheduled-tx (Caribbean Import Group S.A.)
+        run: |
+          BODY='{"customer":"Caribbean Import Group S.A.","slug":"cig"}'
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            BODY='{"customer":"Caribbean Import Group S.A.","slug":"cig","date":"${{ github.event.inputs.date }}"}'
+          fi
+
+          curl -s -X POST \
+            https://nlbnmsiqfywskuxhqjon.supabase.co/functions/v1/scheduled-tx \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d "$BODY" \
+            | tee /tmp/response-cig.json
+
+          if grep -q '"error"' /tmp/response-cig.json; then
+            echo "scheduled-tx (CIG) returned an error"
+            cat /tmp/response-cig.json
+            exit 1
+          fi

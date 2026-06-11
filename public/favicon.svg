@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Navy background -->
+  <rect width="32" height="32" rx="6" fill="#33359a"/>
+  <!-- Gold T -->
+  <text x="16" y="23" font-family="Georgia, serif" font-size="22" font-weight="bold" fill="#fdcf00" text-anchor="middle">T</text>
+</svg>

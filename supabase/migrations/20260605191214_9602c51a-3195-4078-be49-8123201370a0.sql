@@ -1,0 +1,1 @@
+ALTER TABLE public.payouts ADD COLUMN IF NOT EXISTS memo_type text CHECK (memo_type IN ('text','id'));

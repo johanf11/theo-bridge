@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Gold circle (ring) -->
+  <circle cx="100" cy="100" r="100" fill="#FDCF00"/>
+  <!-- Navy fill with inset to create gold ring -->
+  <circle cx="100" cy="100" r="88" fill="#33359A"/>
+  <!-- HTG text -->
+  <text
+    x="100"
+    y="115"
+    text-anchor="middle"
+    font-family="Helvetica Neue, Helvetica, Arial, sans-serif"
+    font-weight="700"
+    font-size="52"
+    fill="#FFFFFF"
+    letter-spacing="-1"
+  >HTG</text>
+</svg>
