@@ -12,7 +12,16 @@ verify_jwt = false
 [functions.process-email-queue]
 verify_jwt = true
 
+# Cron callers send x-cron-secret only (no Authorization). verify_jwt must be
+# false so pg_cron can reach the handler; CRON_SECRET must be strong and rotated.
+[functions.scheduled-tx]
+verify_jwt = false
 
+[functions.daily-seed]
+verify_jwt = false
+
+[functions.backfill-wallet-trustlines]
+verify_jwt = false
 
 
 
