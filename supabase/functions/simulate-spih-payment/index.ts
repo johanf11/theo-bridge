@@ -277,7 +277,6 @@ Deno.serve(async (req) => {
         headers: {
           "Content-Type": "application/json",
           "Authorization": authHeader,
-          "apikey": anon,
         },
         body: JSON.stringify({ orderId }),
       });
