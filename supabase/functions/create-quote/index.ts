@@ -4,12 +4,7 @@
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { resolveCustomerId, checkOrgPermission } from "../_shared/resolve-customer.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+import { corsHeaders } from "../_shared/cors.ts";
 
 // Margin is now captured via customer fee_bps, not rate inflation.
 const FORWARD_PREMIUM = 0;
@@ -43,13 +38,14 @@ function generateReference(orderKind: string): string {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const headers = corsHeaders(req);
+  if (req.method === "OPTIONS") return new Response(null, { headers });
 
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401, headers: { ...headers, "Content-Type": "application/json" },
       });
     }
 
@@ -64,7 +60,7 @@ Deno.serve(async (req) => {
     const { data: userData, error: userErr } = await userClient.auth.getUser();
     if (userErr || !userData.user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401, headers: { ...headers, "Content-Type": "application/json" },
       });
     }
     const userId = userData.user.id;
@@ -80,7 +76,7 @@ Deno.serve(async (req) => {
       if (!Number.isFinite(usdc) || usdc <= 0 || usdc > MAX_USDC) {
         return new Response(
           JSON.stringify({ error: `Enter an amount between 1,000 and ${MAX_USDC_NET.toLocaleString()} USDC` }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          { status: 400, headers: { ...headers, "Content-Type": "application/json" } },
         );
       }
     } else {
@@ -88,7 +84,7 @@ Deno.serve(async (req) => {
       if (!Number.isFinite(htgMint) || htgMint < 1) {
         return new Response(
           JSON.stringify({ error: "htg_amount must be a positive number" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          { status: 400, headers: { ...headers, "Content-Type": "application/json" } },
         );
       }
     }
@@ -99,7 +95,7 @@ Deno.serve(async (req) => {
     if (destinationWallet && (!destinationWallet.startsWith("G") || destinationWallet.length < 50)) {
       return new Response(
         JSON.stringify({ error: "Invalid destination_wallet_address" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { status: 400, headers: { ...headers, "Content-Type": "application/json" } },
       );
     }
 
@@ -110,7 +106,7 @@ Deno.serve(async (req) => {
     const effectiveCustomerId = await resolveCustomerId(admin, userId);
     if (!effectiveCustomerId) {
       return new Response(JSON.stringify({ error: "Customer profile not found" }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 404, headers: { ...headers, "Content-Type": "application/json" },
       });
     }
 
@@ -118,7 +114,7 @@ Deno.serve(async (req) => {
     const permErr = await checkOrgPermission(admin, userId, "convert");
     if (permErr) {
       return new Response(JSON.stringify({ error: permErr }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 403, headers: { ...headers, "Content-Type": "application/json" },
       });
     }
     const { data: customer, error: custErr } = await admin
@@ -129,12 +125,12 @@ Deno.serve(async (req) => {
     if (custErr) throw custErr;
     if (!customer) {
       return new Response(JSON.stringify({ error: "Customer profile not found" }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 404, headers: { ...headers, "Content-Type": "application/json" },
       });
     }
     if (customer.kyb_status !== "APPROVED" && orderKind === "usdc_conversion") {
       return new Response(JSON.stringify({ error: "KYB approval required before requesting quotes" }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 403, headers: { ...headers, "Content-Type": "application/json" },
       });
     }
 
@@ -171,7 +167,7 @@ Deno.serve(async (req) => {
       if (usdcNet > MAX_USDC_NET) {
         return new Response(
           JSON.stringify({ error: `Enter an amount between 1,000 and ${MAX_USDC_NET.toLocaleString()} USDC` }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          { status: 400, headers: { ...headers, "Content-Type": "application/json" } },
         );
       }
       htgRequired  = Math.round(usdcNet * customerRate * 100) / 100;
@@ -225,12 +221,12 @@ Deno.serve(async (req) => {
         reference_number: referenceNumber,
         expires_at: expiresAt,
       }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      { status: 200, headers: { ...headers, "Content-Type": "application/json" } },
     );
   } catch (e) {
     console.error("create-quote error", e);
     return new Response(JSON.stringify({ error: (e as Error).message }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...headers, "Content-Type": "application/json" },
     });
   }
 });

@@ -11,12 +11,7 @@
 // Returns: { rate, banking_sell, informal_sell, source, captured_at, fresh }
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-};
+import { corsHeaders } from "../_shared/cors.ts";
 
 const BRH_URL = "https://www.brh.ht/taux-du-jour/";
 const RATE_MIN = 100;
@@ -77,8 +72,9 @@ function parseRates(html: string): BrhRates {
 }
 
 Deno.serve(async (req) => {
+  const headers = corsHeaders(req);
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers });
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -90,7 +86,7 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get("Authorization") ?? "";
   if (!authHeader.startsWith("Bearer ")) {
     return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
-      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 401, headers: { ...headers, "Content-Type": "application/json" },
     });
   }
   const userClient = createClient(supabaseUrl, anonKey, {
@@ -99,7 +95,7 @@ Deno.serve(async (req) => {
   const { data: userRes, error: userErr } = await userClient.auth.getUser();
   if (userErr || !userRes?.user) {
     return new Response(JSON.stringify({ error: "Invalid or expired token" }), {
-      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 401, headers: { ...headers, "Content-Type": "application/json" },
     });
   }
 
@@ -120,7 +116,7 @@ Deno.serve(async (req) => {
     if (cached) {
       return new Response(
         JSON.stringify({ rate: Number(cached.spot_rate), source: "brh", captured_at: cached.captured_at, fresh: false }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { status: 200, headers: { ...headers, "Content-Type": "application/json" } },
       );
     }
 
@@ -161,7 +157,7 @@ Deno.serve(async (req) => {
           fresh: false,
           warning: "BRH parse failed — using cached rate",
         }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { status: 200, headers: { ...headers, "Content-Type": "application/json" } },
       );
     }
 
@@ -183,7 +179,7 @@ Deno.serve(async (req) => {
         captured_at: snap?.captured_at ?? new Date().toISOString(),
         fresh: true,
       }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      { status: 200, headers: { ...headers, "Content-Type": "application/json" } },
     );
   } catch (err) {
     console.error("fetch-brh-rate error:", err);
@@ -202,7 +198,7 @@ Deno.serve(async (req) => {
         fresh: false,
         error: (err as Error).message,
       }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      { status: 200, headers: { ...headers, "Content-Type": "application/json" } },
     );
   }
 });

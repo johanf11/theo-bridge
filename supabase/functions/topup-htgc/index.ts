@@ -1,5 +1,4 @@
 // Admin-only: issue HTGC from issuer to distributor to top up reserve.
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   Asset,
@@ -14,11 +13,15 @@ import {
 import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
 import { distributorPublicKey } from "../_shared/stellar-signer.ts";
 import { safePostLedger } from "../_shared/ledger.ts";
+import { corsHeaders } from "../_shared/cors.ts";
 
 const HORIZON = "https://horizon-testnet.stellar.org";
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  const headers = corsHeaders(req);
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status, headers: { ...headers, "Content-Type": "application/json" } });
+  if (req.method === "OPTIONS") return new Response("ok", { headers });
   try {
     const authHeader = req.headers.get("Authorization") ?? "";
     const userClient = createClient(
@@ -88,10 +91,3 @@ Deno.serve(async (req) => {
     return json({ error: "topup failed", detail }, 500);
   }
 });
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}

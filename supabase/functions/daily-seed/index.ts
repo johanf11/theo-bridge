@@ -13,12 +13,7 @@
  * requiring live on-chain activity every day.
  */
 import { createClient } from "jsr:@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+import { corsHeaders } from "../_shared/cors.ts";
 
 // Lightweight seeded PRNG (mulberry32) — deterministic per date so
 // re-running on the same day produces identical records (idempotent via reference_number).
@@ -49,10 +44,11 @@ function pick<T>(arr: T[], rng: () => number): T {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const headers = corsHeaders(req);
+  if (req.method === "OPTIONS") return new Response(null, { headers });
 
   const json = (b: unknown, s = 200) =>
-    new Response(JSON.stringify(b), { status: s, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    new Response(JSON.stringify(b), { status: s, headers: { ...headers, "Content-Type": "application/json" } });
 
   // Auth: cron secret OR admin JWT
   const cronHeader = req.headers.get("x-cron-secret");

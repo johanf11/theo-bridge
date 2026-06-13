@@ -7,14 +7,9 @@ import {
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
 import { postLedger } from "../_shared/ledger.ts";
+import { corsHeaders } from "../_shared/cors.ts";
 
 const HORIZON = "https://horizon-testnet.stellar.org";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
 
 // Best-effort Telegram sender. No-ops if the bot token isn't configured, and
 // never throws — a notification failure must not affect order processing.
@@ -65,12 +60,13 @@ async function notifyManualAdminConfirm(
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const headers = corsHeaders(req);
+  if (req.method === "OPTIONS") return new Response(null, { headers });
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401, headers: { ...headers, "Content-Type": "application/json" },
       });
     }
 
@@ -87,7 +83,7 @@ Deno.serve(async (req) => {
       const { data: u, error: ue } = await userClient.auth.getUser();
       if (ue || !u.user) {
         return new Response(JSON.stringify({ error: "Unauthorized" }), {
-          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 401, headers: { ...headers, "Content-Type": "application/json" },
         });
       }
       userId = u.user.id;
@@ -97,7 +93,7 @@ Deno.serve(async (req) => {
         .from("user_roles").select("role").eq("user_id", userId).eq("role", "admin").maybeSingle();
       if (!roleRow) {
         return new Response(JSON.stringify({ error: "Forbidden" }), {
-          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 403, headers: { ...headers, "Content-Type": "application/json" },
         });
       }
     }
@@ -108,7 +104,7 @@ Deno.serve(async (req) => {
     const orderId = reqBody.orderId ?? reqBody.order_id;
     if (!orderId) {
       return new Response(JSON.stringify({ error: "orderId required" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...headers, "Content-Type": "application/json" },
       });
     }
 
@@ -121,7 +117,7 @@ Deno.serve(async (req) => {
     if (exErr) throw exErr;
     if (!existing || existing.status !== "QUOTED") {
       return new Response(JSON.stringify({ error: "Order not in QUOTED state" }), {
-        status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 409, headers: { ...headers, "Content-Type": "application/json" },
       });
     }
 
@@ -237,7 +233,7 @@ Deno.serve(async (req) => {
       }
 
       return new Response(JSON.stringify({ ok: true, status: "COMPLETED", hash }), {
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200, headers: { ...headers, "Content-Type": "application/json" },
       });
     }
 
@@ -252,7 +248,7 @@ Deno.serve(async (req) => {
     if (upErr) throw upErr;
     if (!updated) {
       return new Response(JSON.stringify({ error: "Order not in QUOTED state" }), {
-        status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 409, headers: { ...headers, "Content-Type": "application/json" },
       });
     }
 
@@ -290,7 +286,7 @@ Deno.serve(async (req) => {
         console.error("release-usdc failed", releaseRes.status, text);
         // release-usdc itself marks the order FAILED on error; surface the message.
         return new Response(JSON.stringify({ error: `release-usdc failed: ${text}` }), {
-          status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 502, headers: { ...headers, "Content-Type": "application/json" },
         });
       }
       const releaseJson = await releaseRes.json().catch(() => ({}));
@@ -306,7 +302,7 @@ Deno.serve(async (req) => {
       }
 
       return new Response(JSON.stringify({ ok: true, status: "COMPLETED", ...releaseJson }), {
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200, headers: { ...headers, "Content-Type": "application/json" },
       });
     } catch (e) {
       console.error("release-usdc invoke error", e);
@@ -314,17 +310,17 @@ Deno.serve(async (req) => {
         .update({ status: "FAILED", failure_reason: `release-usdc invoke error: ${(e as Error).message}`.slice(0, 1000) })
         .eq("id", orderId);
       return new Response(JSON.stringify({ error: (e as Error).message }), {
-        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 502, headers: { ...headers, "Content-Type": "application/json" },
       });
     }
 
     return new Response(JSON.stringify({ ok: true, status: "FUNDED" }), {
-      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200, headers: { ...headers, "Content-Type": "application/json" },
     });
   } catch (e) {
     console.error("simulate-spih-payment error", e);
     return new Response(JSON.stringify({ error: (e as Error).message }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...headers, "Content-Type": "application/json" },
     });
   }
 });

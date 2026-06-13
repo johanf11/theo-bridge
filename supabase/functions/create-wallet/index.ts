@@ -1,5 +1,4 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
-import { corsHeaders } from "https://esm.sh/@supabase/supabase-js@2.95.0/cors";
 import {
   Keypair,
   Horizon,
@@ -10,18 +9,20 @@ import {
   BASE_FEE,
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
+import { corsHeaders } from "../_shared/cors.ts";
 
 const HORIZON_URL = "https://horizon-testnet.stellar.org";
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  const headers = corsHeaders(req);
+  if (req.method === "OPTIONS") return new Response("ok", { headers });
 
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...headers, "Content-Type": "application/json" },
       });
     }
 
@@ -42,7 +43,7 @@ Deno.serve(async (req) => {
     if (authErr || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...headers, "Content-Type": "application/json" },
       });
     }
 
@@ -76,7 +77,7 @@ Deno.serve(async (req) => {
       if (createCustErr || !createdCustomer) {
         return new Response(JSON.stringify({ error: createCustErr?.message ?? "Customer profile could not be created" }), {
           status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...headers, "Content-Type": "application/json" },
         });
       }
 
@@ -86,7 +87,7 @@ Deno.serve(async (req) => {
     if (!customer) {
       return new Response(JSON.stringify({ error: "Customer profile unavailable" }), {
         status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...headers, "Content-Type": "application/json" },
       });
     }
 
@@ -94,7 +95,7 @@ Deno.serve(async (req) => {
     if (!issuer) {
       return new Response(JSON.stringify({ error: "Stellar config missing" }), {
         status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...headers, "Content-Type": "application/json" },
       });
     }
 
@@ -109,7 +110,7 @@ Deno.serve(async (req) => {
       const txt = await fb.text();
       return new Response(JSON.stringify({ error: "Friendbot funding failed", detail: txt }), {
         status: 502,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...headers, "Content-Type": "application/json" },
       });
     }
 
@@ -228,18 +229,18 @@ Deno.serve(async (req) => {
     if (insErr) {
       return new Response(JSON.stringify({ error: insErr.message }), {
         status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...headers, "Content-Type": "application/json" },
       });
     }
 
     return new Response(
       JSON.stringify({ wallet: inserted, public_key: publicKey, trustlines: trustResults }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      { headers: { ...headers, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (e) {
     return new Response(
       JSON.stringify({ error: e instanceof Error ? e.message : String(e) }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
     );
   }
 });
