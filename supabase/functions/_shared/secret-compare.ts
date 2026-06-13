@@ -1,4 +1,4 @@
-/** Constant-time string equality for secret comparisons (Bearer tokens, API keys). */
+/** Constant-time string equality for secret comparisons (Bearer tokens, API keys, HMAC signatures). */
 export function secretsEqual(a: string, b: string): boolean {
   const enc = new TextEncoder();
   const aBytes = enc.encode(a);
@@ -6,5 +6,9 @@ export function secretsEqual(a: string, b: string): boolean {
   if (aBytes.byteLength !== bBytes.byteLength) {
     return false;
   }
-  return crypto.timingSafeEqual(aBytes, bBytes);
+  let diff = 0;
+  for (let i = 0; i < aBytes.byteLength; i++) {
+    diff |= aBytes[i] ^ bBytes[i];
+  }
+  return diff === 0;
 }
