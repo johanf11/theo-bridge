@@ -8,6 +8,7 @@ import {
 import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
 import { postLedger } from "../_shared/ledger.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import { hmacVerifyHex } from "../_shared/hmac.ts";
 
 const HORIZON = "https://horizon-testnet.stellar.org";
 
@@ -77,8 +78,34 @@ Deno.serve(async (req) => {
     const token = authHeader.replace("Bearer ", "");
     const isServiceRole = token === service;
 
+    // Parse the body once — both auth paths need orderId.
+    const reqBody = await req.json().catch(() => ({}));
+    const orderId = reqBody.orderId ?? reqBody.order_id;
+    if (!orderId) {
+      return new Response(JSON.stringify({ error: "orderId required" }), {
+        status: 400, headers: { ...headers, "Content-Type": "application/json" },
+      });
+    }
+
     let userId: string | null = null;
-    if (!isServiceRole) {
+    if (isServiceRole) {
+      // Service-role callers must bind the call to a specific orderId via HMAC.
+      // Prevents a leaked SUPABASE_SERVICE_ROLE_KEY (or Telegram webhook secret)
+      // from being combined with arbitrary order_ids to confirm orders.
+      const signature = req.headers.get("X-Order-Signature");
+      const hmacSecret = Deno.env.get("SPIH_CONFIRM_HMAC_SECRET");
+      if (!signature || !hmacSecret) {
+        return new Response(JSON.stringify({ error: "Missing signature" }), {
+          status: 401, headers: { ...headers, "Content-Type": "application/json" },
+        });
+      }
+      const ok = await hmacVerifyHex(hmacSecret, String(orderId), signature);
+      if (!ok) {
+        return new Response(JSON.stringify({ error: "Invalid signature" }), {
+          status: 403, headers: { ...headers, "Content-Type": "application/json" },
+        });
+      }
+    } else {
       const userClient = createClient(url, anon, { global: { headers: { Authorization: authHeader } } });
       const { data: u, error: ue } = await userClient.auth.getUser();
       if (ue || !u.user) {
@@ -99,14 +126,6 @@ Deno.serve(async (req) => {
     }
 
     const admin = createClient(url, service);
-
-    const reqBody = await req.json().catch(() => ({}));
-    const orderId = reqBody.orderId ?? reqBody.order_id;
-    if (!orderId) {
-      return new Response(JSON.stringify({ error: "orderId required" }), {
-        status: 400, headers: { ...headers, "Content-Type": "application/json" },
-      });
-    }
 
     // Look up the order to branch on kind
     const { data: existing, error: exErr } = await admin

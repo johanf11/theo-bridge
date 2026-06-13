@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { hmacSignHex } from "../_shared/hmac.ts";
 
 const TELEGRAM_BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
 const TELEGRAM_CHAT_ID = Deno.env.get("TELEGRAM_ADMIN_CHAT_ID")!;
@@ -34,11 +35,26 @@ Deno.serve(async (req) => {
     if (data.startsWith("confirm:")) {
       const orderId = data.replace("confirm:", "");
 
+      // Bind this service-role call to the specific orderId via HMAC so a leaked
+      // Telegram webhook secret alone can't drive simulate-spih-payment against
+      // arbitrary orders. Fail closed if the HMAC secret is not configured.
+      const hmacSecret = Deno.env.get("SPIH_CONFIRM_HMAC_SECRET");
+      if (!hmacSecret) {
+        await sendTelegram("answerCallbackQuery", {
+          callback_query_id: id,
+          text: "❌ Misconfigured: missing HMAC secret",
+          show_alert: true,
+        });
+        return new Response("ok");
+      }
+      const signature = await hmacSignHex(hmacSecret, orderId);
+
       const resp = await fetch(`${SUPABASE_URL}/functions/v1/simulate-spih-payment`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${SUPABASE_SERVICE_KEY}`,
+          "X-Order-Signature": signature,
         },
         body: JSON.stringify({ order_id: orderId }),
       });
