@@ -12,6 +12,7 @@
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { secretsEqual } from "../_shared/secret-compare.ts";
 
 const BRH_URL = "https://www.brh.ht/taux-du-jour/";
 const RATE_MIN = 100;
@@ -82,21 +83,48 @@ Deno.serve(async (req) => {
   const anonKey     = Deno.env.get("SUPABASE_ANON_KEY")!;
   const admin = createClient(supabaseUrl, serviceKey);
 
-  // ── AuthN: require an authenticated user to trigger a BRH refresh ───
-  const authHeader = req.headers.get("Authorization") ?? "";
-  if (!authHeader.startsWith("Bearer ")) {
-    return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
-      status: 401, headers: { ...headers, "Content-Type": "application/json" },
-    });
+  // ── Auth: cron secret OR admin JWT (customers read rate_snapshots via RLS) ──
+  const cronHeader = req.headers.get("x-cron-secret");
+  const cronSecret = Deno.env.get("CRON_SECRET");
+  let isCron = false;
+
+  if (cronHeader !== null) {
+    if (!cronSecret || !secretsEqual(cronHeader, cronSecret)) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403, headers: { ...headers, "Content-Type": "application/json" },
+      });
+    }
+    isCron = true;
   }
-  const userClient = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: authHeader } },
-  });
-  const { data: userRes, error: userErr } = await userClient.auth.getUser();
-  if (userErr || !userRes?.user) {
-    return new Response(JSON.stringify({ error: "Invalid or expired token" }), {
-      status: 401, headers: { ...headers, "Content-Type": "application/json" },
+
+  if (!isCron) {
+    const authHeader = req.headers.get("Authorization") ?? "";
+    if (!authHeader.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
+        status: 401, headers: { ...headers, "Content-Type": "application/json" },
+      });
+    }
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
     });
+    const { data: userRes, error: userErr } = await userClient.auth.getUser();
+    if (userErr || !userRes?.user) {
+      return new Response(JSON.stringify({ error: "Invalid or expired token" }), {
+        status: 401, headers: { ...headers, "Content-Type": "application/json" },
+      });
+    }
+
+    const { data: roleRow } = await admin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userRes.user.id)
+      .eq("role", "admin")
+      .maybeSingle();
+    if (!roleRow) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403, headers: { ...headers, "Content-Type": "application/json" },
+      });
+    }
   }
 
   try {
