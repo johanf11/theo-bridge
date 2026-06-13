@@ -10,22 +10,18 @@ import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
 import { resolveCustomerId } from "../_shared/resolve-customer.ts";
 import { ensureWalletReady } from "../_shared/ensure-wallet-ready.ts";
 import { signWithSecret } from "../_shared/stellar-signer.ts";
+import { corsHeaders } from "../_shared/cors.ts";
 
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
 
 const HORIZON_URL = "https://horizon-testnet.stellar.org";
 const INTERNAL_MEMO_TAG = "internal-transfer";
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const headers = corsHeaders(req);
+  if (req.method === "OPTIONS") return new Response(null, { headers });
 
   const json = (b: unknown, s = 200) =>
-    new Response(JSON.stringify(b), { status: s, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    new Response(JSON.stringify(b), { status: s, headers: { ...headers, "Content-Type": "application/json" } });
 
   try {
     const authHeader = req.headers.get("Authorization");

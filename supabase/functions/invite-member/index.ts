@@ -4,17 +4,13 @@
 // When the invitee clicks the link and signs up, the on_auth_user_created
 // trigger picks up the pending row and auto-accepts the invite.
 import { createClient } from "jsr:@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+import { corsHeaders } from "../_shared/cors.ts";
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const headers = corsHeaders(req);
+  if (req.method === "OPTIONS") return new Response(null, { headers });
   const json = (b: unknown, s = 200) =>
-    new Response(JSON.stringify(b), { status: s, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    new Response(JSON.stringify(b), { status: s, headers: { ...headers, "Content-Type": "application/json" } });
 
   try {
     const authHeader = req.headers.get("Authorization");

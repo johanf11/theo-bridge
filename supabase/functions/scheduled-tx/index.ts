@@ -28,15 +28,10 @@ import {
 } from "../_shared/stellar-signer.ts";
 import { ensureWalletReady } from "../_shared/ensure-wallet-ready.ts";
 import { safePostLedger } from "../_shared/ledger.ts";
+import { corsHeaders } from "../_shared/cors.ts";
 
 const HORIZON_URL  = "https://horizon-testnet.stellar.org";
 const NETWORK      = Networks.TESTNET;
-const corsHeaders  = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
 // ── Seeded RNG (mulberry32) — deterministic per calendar date ────────────────
 function seededRng(seed: number) {
   let s = seed >>> 0;
@@ -62,10 +57,11 @@ const DEMO_CUSTOMERS = [
 ];
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const headers = corsHeaders(req);
+  if (req.method === "OPTIONS") return new Response(null, { headers });
 
   const json = (b: unknown, s = 200) =>
-    new Response(JSON.stringify(b), { status: s, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    new Response(JSON.stringify(b), { status: s, headers: { ...headers, "Content-Type": "application/json" } });
 
   // ── Auth ─────────────────────────────────────────────────────────────────
   const cronHeader = req.headers.get("x-cron-secret");

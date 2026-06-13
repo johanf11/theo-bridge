@@ -17,21 +17,17 @@ import {
   TransactionBuilder,
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { signWithSecret } from "../_shared/stellar-signer.ts";
+import { corsHeaders } from "../_shared/cors.ts";
 
 const HOME_DOMAIN   = "theokingdom.com";
 const HORIZON_URL   = "https://horizon-testnet.stellar.org";
 const NETWORK_PASS  = Networks.TESTNET;
 
-const cors = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
-
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+  const headers = corsHeaders(req);
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status, headers: { ...headers, "Content-Type": "application/json" } });
+  if (req.method === "OPTIONS") return new Response(null, { headers });
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey     = Deno.env.get("SUPABASE_ANON_KEY")!;

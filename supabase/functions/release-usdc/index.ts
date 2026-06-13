@@ -9,17 +9,13 @@ import { distributorKeypair, signWithDistributor } from "../_shared/stellar-sign
 import { assertWithinLimits } from "../_shared/tx-limits.ts";
 import { safePostLedger } from "../_shared/ledger.ts";
 import { ensureWalletReady } from "../_shared/ensure-wallet-ready.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+import { corsHeaders } from "../_shared/cors.ts";
 
 const HORIZON = "https://horizon-testnet.stellar.org";
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const headers = corsHeaders(req);
+  if (req.method === "OPTIONS") return new Response(null, { headers });
 
   const url = Deno.env.get("SUPABASE_URL")!;
   const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -30,7 +26,7 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get("Authorization") ?? "";
   if (!authHeader.startsWith("Bearer ")) {
     return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
-      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 401, headers: { ...headers, "Content-Type": "application/json" },
     });
   }
   const token = authHeader.replace("Bearer ", "");
@@ -45,7 +41,7 @@ Deno.serve(async (req) => {
     const { data: userRes, error: userErr } = await userClient.auth.getUser();
     if (userErr || !userRes?.user) {
       return new Response(JSON.stringify({ error: "Invalid or expired token" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401, headers: { ...headers, "Content-Type": "application/json" },
       });
     }
     const { data: roleRow } = await admin
@@ -56,7 +52,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (!roleRow) {
       return new Response(JSON.stringify({ error: "Admin role required" }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 403, headers: { ...headers, "Content-Type": "application/json" },
       });
     }
   }
@@ -67,7 +63,7 @@ Deno.serve(async (req) => {
     orderId = body.orderId;
     if (!orderId) {
       return new Response(JSON.stringify({ error: "orderId required" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...headers, "Content-Type": "application/json" },
       });
     }
 
@@ -87,7 +83,7 @@ Deno.serve(async (req) => {
     if (lockErr) throw lockErr;
     if (!locked) {
       return new Response(JSON.stringify({ error: "Order not in FUNDED state" }), {
-        status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 409, headers: { ...headers, "Content-Type": "application/json" },
       });
     }
 
@@ -144,7 +140,7 @@ Deno.serve(async (req) => {
           });
           await admin.from("orders").update({ status: "FUNDED" }).eq("id", orderId);
           return new Response(JSON.stringify({ error: msg, code: "LEDGER_DRIFT" }), {
-            status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 409, headers: { ...headers, "Content-Type": "application/json" },
           });
         }
       }
@@ -289,7 +285,7 @@ Deno.serve(async (req) => {
         payout: payTxId,
         failures,
       },
-    }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }), { status: 200, headers: { ...headers, "Content-Type": "application/json" } });
   } catch (e) {
     console.error("release-usdc error", e);
     const msg = (e as { response?: { data?: { extras?: unknown } }; message?: string })?.response?.data
@@ -301,7 +297,7 @@ Deno.serve(async (req) => {
         .eq("id", orderId);
     }
     return new Response(JSON.stringify({ error: String(msg) }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...headers, "Content-Type": "application/json" },
     });
   }
 });

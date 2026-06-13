@@ -1,16 +1,13 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { Asset, Horizon, Keypair, Networks, Operation, TransactionBuilder, BASE_FEE } from "npm:@stellar/stellar-sdk@12.3.0";
 import { ensureWalletReady } from "../_shared/ensure-wallet-ready.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { corsHeaders } from "../_shared/cors.ts";
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const headers = corsHeaders(req);
+  if (req.method === "OPTIONS") return new Response(null, { headers });
   const json = (b: unknown, s = 200) =>
-    new Response(JSON.stringify(b), { status: s, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    new Response(JSON.stringify(b), { status: s, headers: { ...headers, "Content-Type": "application/json" } });
 
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) return json({ error: "Unauthorized" }, 401);

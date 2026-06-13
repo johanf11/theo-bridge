@@ -6,18 +6,15 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { Horizon } from "npm:@stellar/stellar-sdk@12.3.0";
 import { ensureWalletReady } from "../_shared/ensure-wallet-ready.ts";
+import { corsHeaders } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
 const HORIZON_URL = "https://horizon-testnet.stellar.org";
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const headers = corsHeaders(req);
+  if (req.method === "OPTIONS") return new Response(null, { headers });
   const json = (b: unknown, s = 200) =>
-    new Response(JSON.stringify(b), { status: s, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    new Response(JSON.stringify(b), { status: s, headers: { ...headers, "Content-Type": "application/json" } });
 
   try {
     const url = Deno.env.get("SUPABASE_URL")!;

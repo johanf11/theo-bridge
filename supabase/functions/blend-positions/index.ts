@@ -1,12 +1,7 @@
 // List the current customer's yield positions with live-accrued interest.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { resolveCustomerId } from "../_shared/resolve-customer.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-};
+import { corsHeaders } from "../_shared/cors.ts";
 
 // Fallback yield config if no positions yet.
 const DEFAULT_GROSS_APY = 0.09;
@@ -14,9 +9,10 @@ const DEFAULT_NET_APY = 0.07;
 const DEFAULT_FEE_BPS = 200;
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const headers = corsHeaders(req);
+  if (req.method === "OPTIONS") return new Response(null, { headers });
   const json = (b: unknown, s = 200) =>
-    new Response(JSON.stringify(b), { status: s, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    new Response(JSON.stringify(b), { status: s, headers: { ...headers, "Content-Type": "application/json" } });
 
   try {
     const authHeader = req.headers.get("Authorization");
