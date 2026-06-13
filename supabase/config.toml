@@ -23,5 +23,8 @@ verify_jwt = false
 [functions.backfill-wallet-trustlines]
 verify_jwt = false
 
+[functions.fetch-brh-rate]
+verify_jwt = false
+
 
 
