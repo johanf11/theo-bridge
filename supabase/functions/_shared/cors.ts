@@ -22,7 +22,20 @@ export function corsHeaders(req: Request, opts?: { wildcard?: boolean }): Record
 
   const origin = req.headers.get("Origin") ?? "";
   const allowed = allowlist();
-  const echo = allowed.includes(origin) ? origin : allowed[0];
+
+  let isAllowed = allowed.includes(origin);
+  if (!isAllowed && origin) {
+    try {
+      const host = new URL(origin).hostname;
+      // Allow any Lovable preview / published subdomain
+      if (host === "lovable.app" || host.endsWith(".lovable.app") ||
+          host === "lovable.dev" || host.endsWith(".lovable.dev")) {
+        isAllowed = true;
+      }
+    } catch { /* ignore malformed Origin */ }
+  }
+
+  const echo = isAllowed ? origin : allowed[0];
 
   return {
     "Access-Control-Allow-Origin": echo,
