@@ -1131,6 +1131,7 @@ export type Database = {
         Returns: undefined
       }
       setup_daily_tx_cron: { Args: never; Returns: Json }
+      setup_fetch_brh_rate_cron: { Args: never; Returns: Json }
       vault_upsert_secret: {
         Args: { p_name: string; p_secret: string }
         Returns: string
