@@ -305,6 +305,8 @@ export type Database = {
           note: string | null
           paid_at: string | null
           payment_wallet_id: string | null
+          share_token: string
+          share_token_expires_at: string | null
           status: string
           subtotal: number
           total: number
@@ -325,6 +327,8 @@ export type Database = {
           note?: string | null
           paid_at?: string | null
           payment_wallet_id?: string | null
+          share_token: string
+          share_token_expires_at?: string | null
           status?: string
           subtotal?: number
           total?: number
@@ -345,6 +349,8 @@ export type Database = {
           note?: string | null
           paid_at?: string | null
           payment_wallet_id?: string | null
+          share_token?: string
+          share_token_expires_at?: string | null
           status?: string
           subtotal?: number
           total?: number
