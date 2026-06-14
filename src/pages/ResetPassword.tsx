@@ -28,7 +28,7 @@ export default function ResetPassword() {
       toast.error(t("auth.toast.enterEmail"));
       return;
     }
-    if (normalizedCode.length < 6) {
+    if (normalizedCode.length !== 8) {
       toast.error(t("auth.toast.enterCode"));
       return;
     }
@@ -101,9 +101,9 @@ export default function ResetPassword() {
             id="code"
             inputMode="numeric"
             autoComplete="one-time-code"
-            placeholder="123456"
+            placeholder="12345678"
             value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 8))}
             required
             className="h-11 rounded-[10px] tracking-[0.3em] font-semibold"
           />
