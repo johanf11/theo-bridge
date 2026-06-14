@@ -4,40 +4,45 @@ import * as React from 'npm:react@18.3.1'
 
 import {
   Body,
-  Button,
   Container,
   Head,
   Heading,
   Html,
   Preview,
+  Section,
   Text,
 } from 'npm:@react-email/components@0.0.22'
 
 interface RecoveryEmailProps {
   siteName: string
-  confirmationUrl: string
+  token?: string
+  confirmationUrl?: string
 }
 
-export const RecoveryEmail = ({
-  siteName,
-  confirmationUrl,
-}: RecoveryEmailProps) => (
+export const RecoveryEmail = ({ siteName, token }: RecoveryEmailProps) => (
   <Html lang="en" dir="ltr">
     <Head />
-    <Preview>Reset your password for {siteName}</Preview>
+    <Preview>Your {siteName} password reset code</Preview>
     <Body style={main}>
       <Container style={container}>
+        <Text style={eyebrow}>ACCOUNT RECOVERY</Text>
         <Heading style={h1}>Reset your password</Heading>
         <Text style={text}>
-          We received a request to reset your password for {siteName}. Click
-          the button below to choose a new password.
+          Enter this 6-digit code on the password reset page to choose a new
+          password for your {siteName} account.
         </Text>
-        <Button style={button} href={confirmationUrl}>
-          Reset Password
-        </Button>
+
+        <Section style={codeBox}>
+          <Text style={codeText}>{token ?? '------'}</Text>
+        </Section>
+
+        <Text style={text}>
+          The code expires in 1 hour. If you didn't request a password reset,
+          you can safely ignore this email — your password won't change.
+        </Text>
+
         <Text style={footer}>
-          If you didn't request a password reset, you can safely ignore this
-          email. Your password will not be changed.
+          Theo · Trust is the Original Currency.
         </Text>
       </Container>
     </Body>
@@ -46,26 +51,48 @@ export const RecoveryEmail = ({
 
 export default RecoveryEmail
 
-const main = { backgroundColor: '#ffffff', fontFamily: 'Arial, sans-serif' }
-const container = { padding: '20px 25px' }
+const main = { backgroundColor: '#ffffff', fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }
+const container = { padding: '32px 28px', maxWidth: '520px' }
+const eyebrow = {
+  fontSize: '11px',
+  fontWeight: 700 as const,
+  letterSpacing: '0.18em',
+  color: '#08B5E5',
+  textTransform: 'uppercase' as const,
+  margin: '0 0 12px',
+}
 const h1 = {
-  fontSize: '22px',
-  fontWeight: 'bold' as const,
-  color: '#000000',
+  fontSize: '28px',
+  fontWeight: 800 as const,
+  letterSpacing: '-0.02em',
+  color: '#1A1A2E',
   margin: '0 0 20px',
 }
 const text = {
-  fontSize: '14px',
-  color: '#55575d',
-  lineHeight: '1.5',
-  margin: '0 0 25px',
+  fontSize: '15px',
+  color: '#6B6B8A',
+  lineHeight: '1.6',
+  margin: '0 0 24px',
 }
-const button = {
-  backgroundColor: '#000000',
-  color: '#ffffff',
-  fontSize: '14px',
-  borderRadius: '8px',
-  padding: '12px 20px',
-  textDecoration: 'none',
+const codeBox = {
+  backgroundColor: '#EEF0FB',
+  borderRadius: '12px',
+  padding: '24px',
+  textAlign: 'center' as const,
+  margin: '8px 0 28px',
 }
-const footer = { fontSize: '12px', color: '#999999', margin: '30px 0 0' }
+const codeText = {
+  fontSize: '36px',
+  fontWeight: 700 as const,
+  letterSpacing: '0.4em',
+  color: '#33359A',
+  margin: 0,
+  fontFamily: "'SF Mono', Menlo, Consolas, monospace",
+}
+const footer = {
+  fontSize: '12px',
+  color: '#6B6B8A',
+  margin: '32px 0 0',
+  borderTop: '1px solid #EAEAF2',
+  paddingTop: '20px',
+}
