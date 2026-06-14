@@ -28,7 +28,7 @@ export const RecoveryEmail = ({ siteName, token }: RecoveryEmailProps) => (
         <Text style={eyebrow}>ACCOUNT RECOVERY</Text>
         <Heading style={h1}>Reset your password</Heading>
         <Text style={text}>
-          Enter this 6-digit code on the password reset page to choose a new
+          Enter this 8-digit code on the password reset page to choose a new
           password for your {siteName} account.
         </Text>
 
