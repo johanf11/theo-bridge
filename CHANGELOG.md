@@ -27,9 +27,18 @@ Pre-mainnet hardening of edge function auth, CORS, server-to-server calls, and c
 - Requires new edge function secret `SPIH_CONFIRM_HMAC_SECRET`. Fails closed if unset (Telegram confirm path returns an explicit misconfiguration error rather than silently proceeding).
 - Hotfix (PR #10) replaced `crypto.timingSafeEqual()` (Node API not available in Deno Edge Runtime) with a portable XOR-loop constant-time compare in `_shared/secret-compare.ts`.
 
+### Tier 2d — Revocable share token for public invoices (PR #11, #12, #13)
+- Decoupled the public-sharing capability from the internal invoice id. New `invoices.share_token` (32-byte random hex, UNIQUE) and optional `share_token_expires_at`; route `/inv/:token` replaces `/inv/:id`.
+- `get-public-invoice` accepts `{ token }` instead of `{ id }`, returns `410 Gone` on expiry, and strips `share_token_expires_at` from the response.
+- Tokens are independently rotatable, so a leaked or forwarded share URL can be revoked without deleting the invoice.
+- Follow-up (PR #13) added column-level `DEFAULT encode(gen_random_bytes(32), 'hex')` on `share_token` and locked down `EXECUTE` on the auto-generation trigger function to `service_role` only (revoked from `PUBLIC`/`anon`/`authenticated`).
+- Breaking change for any previously shared `/inv/<uuid>` URLs (they now 404) — acceptable at testnet stage.
+
 ### Operational notes
-- All changes verified end-to-end on Stellar Testnet with live conversions through `THEO-CNV-37ADJM` and `THEO-CNV-CZ9722`.
+- All changes verified end-to-end on Stellar Testnet with live conversions through `THEO-CNV-37ADJM` and `THEO-CNV-CZ9722`, and a live invoice render through `INV-20260614-953`.
 - One Supabase platform-side change surfaced during the pass: gateway now rejects requests where `apikey` and `Authorization` carry different `sb_` keys ("Conflicting API keys"). Patched in `simulate-spih-payment → release-usdc` server-to-server call by dropping the redundant `apikey` header.
+- One operational gap surfaced and logged: no admin UI path to manually trigger `release-usdc` on a stuck `FUNDED` order. Resolution required curl invocation with a copied JWT. Tier 4 follow-up: add a "Force release" admin action visible when an order stays in `FUNDED` past a threshold without a tx hash.
+- One ledger drift surfaced and reconciled: `topup-distributor-usdc` posts `CR Treasury / DR Distributor`, but the on-chain mint is `issuer → distributor`; Treasury was never debited on chain. Resolved via a one-time balanced journal entry (`DR Treasury / CR Opening Balance Equity`, $500,000). Root cause is in the function's posting logic — fix tracked as a Tier 4 follow-up.
 
 ## 2026-06-11 — Initial testnet build (`3d4fcda`)
 - Stellar HTG/USD anchor: HTG-C asset issuance, customer wallets, conversion and payout flows, KYB workflow, admin compliance dashboard, SPIH manual confirmation path, ledger reconciliation panel.

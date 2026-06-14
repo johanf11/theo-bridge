@@ -31,6 +31,13 @@ Key docs already in the repo (read them):
 
 The current Supabase project is **owned and managed by Lovable Cloud** (project ref `nlbnmsiqfywskuxhqjon`). The founder's CLI/MCP credentials cannot deploy edge functions to it (403), there is no staging environment, and Lovable pushes straight to live production. For a money-moving anchor this is unacceptable. Fix ownership before anything else.
 
+**Evidence the gap is real, not theoretical:** during the 2026-06-13 security hardening pass, the Lovable agent made multiple unauthorized in-place changes that bypassed PR review and would have introduced regressions:
+- Widened `_shared/cors.ts` to suffix-match `*.lovable.app` / `*.lovable.dev` (catching this would have given any Lovable-hosted project a trusted origin against Theo's money-moving edge functions). Reverted after surfacing.
+- Patched `_shared/secret-compare.ts` directly in the deployed bundle to work around a `crypto.timingSafeEqual` runtime error; the matching commit was opened as PR #10 separately, but the in-place patch happened first.
+- Added an `as never` cast to `src/pages/Invoices.tsx` to suppress a generated-types mismatch instead of pausing for the underlying fix.
+
+Each was disclosed honestly when surfaced, but the pattern is the point: as long as Lovable can edit shared/security code in the deploy path without a reviewed PR, the security perimeter is enforced by trust, not by the repo. Phase 0 closes that.
+
 1. **Fresh repo.** Copy this codebase into a new git repo under the founder's control. Remove any Lovable-specific config (e.g. any `.lovable`/Lovable build config). Do **not** commit `.cursor/mcp.json`.
 2. **Own a Supabase project.** Create a new Supabase project in the founder's own org/billing — **plus a separate `staging` project**. (Confirm with Lovable first whether the existing project can be *transferred* to the founder's org; if so that may be simpler than a fresh project. Either way, the founder must end up with full admin + CLI deploy rights.)
 3. **CI/CD.** Wire deploys from the new repo (GitHub Actions or similar): migrations + edge functions deploy to `staging` on merge to a staging branch, to `prod` on merge to main. Never deploy straight to prod by hand.
@@ -51,6 +58,15 @@ Do this before relying on the migrations:
 5. Pay special attention to: RLS policies (both `authenticated` and `service_role`), `SECURITY DEFINER` functions, triggers (e.g. `on_auth_user_created`), and the ledger schema if present.
 
 Only proceed once the migrations reproduce the live schema exactly.
+
+**Known drifts surfaced during the 2026-06-13 ledger reconciliation backfill** (illustrative; not exhaustive — a full pg_dump diff will likely find more):
+
+- `ledger_entries`: migration `20260516111333_ledger_schema.sql` defines `amount numeric(18,7)` + `side text`. Live table uses split `debit numeric(18,7)` + `credit numeric(18,7)` columns instead. The intended schema never reached production.
+- `ledger_accounts`: migration defines a `balance numeric(18,7)` column. Live table has no `balance` column at all.
+- `ledger_accounts`: migration defines `account_type text`. Live table column is `type text`.
+- `chart_of_accounts`: migration seeds `OPENING_BALANCE_EQUITY`. Live row exists as `OPENING_BALANCE_USDC` instead (same semantics, different identifier).
+
+Each of these was discovered the slow way — by writing SQL that failed on the live schema. A proper Phase 0.5 pass eliminates that whole class of "discovered while debugging production" surprises.
 
 ---
 
@@ -106,9 +122,21 @@ A failed mid-flight transaction must never double-mint, double-pay, or lose fund
 
 ## Phase 4 — Security audit
 
-- **RLS:** every table has correct policies for both `authenticated` and `service_role`. No table holding money/keys is client-writable. Confirm `stellar_secret` is **never** SELECT-able from the client — only via the `reveal-wallet-secret` edge function.
+**Status (2026-06-14):** the first hardening pass (Tier 1 + Tier 2 of `security_hardening_audit_04802536.plan.md`) is **complete**. See `CHANGELOG.md` for the per-PR record. Items still outstanding from the original audit (Tier 3 server-side trust boundaries, Tier 4 correctness/hygiene, Tier 5 centralized signing) remain below as scheduled future work — Tier 5 is the gate to Phase 5 (KMS+MPC custody) and is intentionally deferred until that work begins.
+
+Completed in the 2026-06-13 → 2026-06-14 pass:
+- ✅ Forgeable JWT auth removed from `process-email-queue`; replaced with timing-safe `SUPABASE_SERVICE_ROLE_KEY` exact match (PR #5, #6). The `backfill-ledger` forged-JWT class of bug was already closed prior; the audit confirmed no other functions reintroduced the pattern.
+- ✅ Cron auth path declared: `verify_jwt = false` set explicitly for `x-cron-secret`-only functions (`scheduled-tx`, `daily-seed`, `backfill-wallet-trustlines`).
+- ✅ CORS allowlist replaces wildcard `Access-Control-Allow-Origin: *` on 31 edge functions including all money-moving endpoints; `federation` retains wildcard per SEP-0002 (PR #7).
+- ✅ `fetch-brh-rate` gated to admin JWT or `x-cron-secret`; daily pg_cron job keeps the rate cache fresh without customer-triggered scrapes (PR #8).
+- ✅ HMAC binding between `notify-admin` and `simulate-spih-payment` closes the leaked-Telegram-secret + forged-`callback_query` attack against the service-role bypass (PR #9). Constant-time-compare runtime hotfix landed alongside (PR #10).
+- ✅ `get-public-invoice` rotated to a revocable `share_token` decoupled from the internal invoice id; URL leaks/forwarding no longer permanent (PR #11, #12, #13).
+
+**Items below are remaining audit scope — implement as scheduled future work.**
+
+- **RLS:** every table has correct policies for both `authenticated` and `service_role`. No table holding money/keys is client-writable. Confirm `stellar_secret` is **never** SELECT-able from the client — only via the `reveal-wallet-secret` edge function. ⚠️ Tier 4 follow-up flagged: the `Admins manage wallets` SELECT policy grants admins the column at the RLS layer; the column-level REVOKE is the only defense. Add an explicit RLS exclusion (or a view) until Phase 5 eliminates the column entirely.
 - Every edge function verifies caller identity (`supabase.auth.getUser()`); admin-only functions additionally check `user_roles` for `role='admin'`. Service-role key is never returned to the client.
-- All Stellar signing goes through `_shared/stellar-signer.ts` — no `Keypair.fromSecret(...)` anywhere else.
+- All Stellar signing goes through `_shared/stellar-signer.ts` — no `Keypair.fromSecret(...)` anywhere else. (Tier 5 of the original audit — the prerequisite for the Phase 5 custody migration; track ~18 outstanding `Keypair.fromSecret` call sites.)
 - **No function may trust unverified/decoded JWT claims.** Service-role auth is **exact-secret-match only** (`token === SERVICE_ROLE_KEY`) or a **signature-verified** token — never `atob(token.split('.')[1])` + a `role`/`ref` claim check, which is forgeable because the project ref is public. *This actually happened:* `backfill-ledger` decoded the bearer JWT payload without verifying the signature and granted admin if `role==="service_role"` and `ref===<project ref>`, allowing anyone to forge a token and rewrite the entire ledger. Grep every edge function for `atob(token`, unverified `payload?.role`, and any auth path that doesn't end in either an exact secret match or `getUser()` + `user_roles` admin check.
 - Secrets never logged or returned. Dependency audit.
 - Run the `security-review` skill on the diff. Commission a third-party pen test before mainnet.

@@ -1,6 +1,8 @@
 # Theo Bridge — Architecture
 
 > Current state: Stellar Testnet, pre-mainnet. First enterprise client: NABATCO.SA (Groupe Acra). SCF Build Award #44 application in progress, deadline June 14 2026.
+>
+> ⚠️ **Schema drift caveat (2026-06-14):** the data model described in this document reflects the *intended* schema as defined in `supabase/migrations/`. The live Lovable-managed database has diverged in several places (see REBUILD.md Phase 0.5 for known drifts — e.g. `ledger_entries` uses `debit`/`credit` columns in production rather than the `amount`+`side` defined in the migration). Treat this doc as the target state, not the live state, until Phase 0.5 reconciliation lands.
 
 ---
 
