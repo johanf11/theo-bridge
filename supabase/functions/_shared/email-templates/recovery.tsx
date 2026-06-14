@@ -19,17 +19,17 @@ interface RecoveryEmailProps {
   confirmationUrl?: string
 }
 
-export const RecoveryEmail = ({ siteName, token }: RecoveryEmailProps) => (
+export const RecoveryEmail = ({ token }: RecoveryEmailProps) => (
   <Html lang="en" dir="ltr">
     <Head />
-    <Preview>Your {siteName} password reset code</Preview>
+    <Preview>Your Theo password reset code</Preview>
     <Body style={main}>
       <Container style={container}>
         <Text style={eyebrow}>ACCOUNT RECOVERY</Text>
         <Heading style={h1}>Reset your password</Heading>
         <Text style={text}>
           Enter this 8-digit code on the password reset page to choose a new
-          password for your {siteName} account.
+          password for your Theo account.
         </Text>
 
         <Section style={codeBox}>
