@@ -252,7 +252,7 @@ export default function Invoices() {
           due_date: dueDate || null,
           note: note.trim() || null,
           status: "DRAFT",
-        });
+        } as never);
 
         if (error) throw error;
         toast.success(t("invoices.created"));
