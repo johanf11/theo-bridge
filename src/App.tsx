@@ -51,7 +51,7 @@ const App = () => (
           <Route path="/balance" element={<ProtectedRoute><Balance /></ProtectedRoute>} />
           <Route path="/payout" element={<ProtectedRoute><Payout /></ProtectedRoute>} />
           <Route path="/invoices" element={<ProtectedRoute><Invoices /></ProtectedRoute>} />
-          <Route path="/inv/:id" element={<InvoiceView />} />
+          <Route path="/inv/:token" element={<InvoiceView />} />
           <Route path="/convert" element={<ProtectedRoute><Convert /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
           <Route path="/kyb" element={<ProtectedRoute><Kyb /></ProtectedRoute>} />

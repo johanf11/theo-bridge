@@ -7,9 +7,9 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers });
 
   try {
-    const { id } = await req.json();
-    if (!id || typeof id !== "string") {
-      return new Response(JSON.stringify({ error: "Missing invoice id" }), {
+    const { token } = await req.json();
+    if (!token || typeof token !== "string") {
+      return new Response(JSON.stringify({ error: "Missing share token" }), {
         status: 400,
         headers: { ...headers, "Content-Type": "application/json" },
       });
@@ -23,9 +23,9 @@ Deno.serve(async (req) => {
     const { data, error } = await admin
       .from("invoices")
       .select(
-        "id, invoice_number, client_name, currency, line_items, discount_type, discount_value, subtotal, total, due_date, note, status, paid_at, created_at, payment_wallet_id, wallets(label, stellar_address)"
+        "id, invoice_number, client_name, currency, line_items, discount_type, discount_value, subtotal, total, due_date, note, status, paid_at, created_at, payment_wallet_id, share_token_expires_at, wallets(label, stellar_address)"
       )
-      .eq("id", id)
+      .eq("share_token", token)
       .maybeSingle();
 
     if (error || !data) {
@@ -35,7 +35,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ invoice: data }), {
+    // Enforce expiry server-side.
+    if (data.share_token_expires_at && new Date(data.share_token_expires_at) < new Date()) {
+      return new Response(JSON.stringify({ error: "Share link expired" }), {
+        status: 410,
+        headers: { ...headers, "Content-Type": "application/json" },
+      });
+    }
+
+    // Strip the expiry signal — server-side only, never exposed to the client.
+    const { share_token_expires_at: _expiry, ...invoice } = data;
+    return new Response(JSON.stringify({ invoice }), {
       headers: { ...headers, "Content-Type": "application/json" },
     });
   } catch (e) {

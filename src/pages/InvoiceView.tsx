@@ -57,7 +57,7 @@ const STATUS_CONFIG: Record<InvoiceStatus, { label: string; bg: string; color: s
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function InvoiceView() {
-  const { id } = useParams<{ id: string }>();
+  const { token } = useParams<{ token: string }>();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -65,13 +65,13 @@ export default function InvoiceView() {
   const [showQr, setShowQr] = useState(false);
   const [federationAddress, setFederationAddress] = useState<string | null>(null);
 
-  const paymentLink = typeof window !== "undefined" ? window.location.href : `https://pay.theo.ht/inv/${id}`;
+  const paymentLink = typeof window !== "undefined" ? window.location.href : `https://pay.theo.ht/inv/${token}`;
 
   useEffect(() => {
-    if (!id) return;
+    if (!token) return;
     (async () => {
       const { data, error } = await supabase.functions.invoke("get-public-invoice", {
-        body: { id },
+        body: { token },
       });
 
       if (error || !data?.invoice) { setNotFound(true); setLoading(false); return; }
@@ -95,7 +95,7 @@ export default function InvoiceView() {
           .catch(() => {});
       }
     })();
-  }, [id]);
+  }, [token]);
 
   const copyLink = async () => {
     await navigator.clipboard.writeText(paymentLink);

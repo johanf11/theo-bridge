@@ -29,6 +29,7 @@ type Wallet = { id: string; label: string; stellar_address: string };
 
 type Invoice = {
   id: string;
+  share_token: string;
   invoice_number: string;
   client_name: string;
   client_email: string | null;
@@ -296,8 +297,8 @@ export default function Invoices() {
     toast.success(t("invoices.deleted"));
   };
 
-  const copyPaymentLink = async (id: string) => {
-    const link = `${window.location.origin}/inv/${id}`;
+  const copyPaymentLink = async (inv: Invoice) => {
+    const link = `${window.location.origin}/inv/${inv.share_token}`;
     try {
       await navigator.clipboard.writeText(link);
     } catch {
@@ -311,7 +312,7 @@ export default function Invoices() {
       document.execCommand("copy");
       document.body.removeChild(el);
     }
-    setCopiedId(id);
+    setCopiedId(inv.id);
     toast.success(t("invoices.linkCopied"));
     setTimeout(() => setCopiedId(null), 2000);
   };
@@ -828,7 +829,7 @@ export default function Invoices() {
                           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                             <button
                               type="button"
-                              onClick={() => copyPaymentLink(inv.id)}
+                              onClick={() => copyPaymentLink(inv)}
                               style={{
                                 display: "inline-flex", alignItems: "center", gap: 5,
                                 fontSize: 12, fontWeight: 600, padding: "6px 12px",
