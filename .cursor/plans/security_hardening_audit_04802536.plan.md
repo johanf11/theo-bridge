@@ -13,10 +13,10 @@ todos:
     status: pending
   - id: t2-brh-rate
     content: Restrict fetch-brh-rate writes to admin/cron only; customers read rate_snapshots via RLS
-    status: pending
+    status: completed
   - id: t2-notify-admin
     content: Bind notify-admin -> simulate-spih-payment call with HMAC on order_id or a scoped admin JWT instead of raw service key
-    status: pending
+    status: completed
   - id: t2-cors
     content: Add shared CORS helper echoing allowlisted app origin; replace * on all money/secret endpoints (keep * only for federation)
     status: pending
