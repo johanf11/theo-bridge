@@ -166,7 +166,7 @@ export default function Kyb() {
         </p>
       </div>
 
-      <StatusCard status={status} reason={profile?.kyb_rejection_reason ?? null} submittedAt={profile?.kyb_submitted_at ?? null} />
+      <StatusCard status={status} reason={profile?.kyb_rejection_reason ?? null} submittedAt={profile?.kyb_submitted_at ?? null} reviewNotes={profile?.kyb_review_notes ?? null} requestedChanges={profile?.kyb_requested_changes ?? null} />
 
       <div className="grid lg:grid-cols-[1fr,260px] gap-6 mt-6 items-start">
         <form onSubmit={submit}>
