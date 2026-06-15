@@ -13,7 +13,7 @@ import { ShieldCheck, FileUp, Clock, CheckCircle2, XCircle } from "lucide-react"
 import { useAuth } from "@/lib/auth";
 import { useT } from "@/lib/i18n";
 
-type KybStatus = "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
+type KybStatus = "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED" | "CHANGES_REQUESTED";
 
 type CustomerProfile = {
   id: string;
@@ -26,6 +26,8 @@ type CustomerProfile = {
   kyb_status: KybStatus;
   kyb_rejection_reason: string | null;
   kyb_submitted_at: string | null;
+  kyb_review_notes: string | null;
+  kyb_requested_changes: string[] | null;
 };
 
 const schema = z.object({
