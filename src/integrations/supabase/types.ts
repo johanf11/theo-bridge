@@ -113,6 +113,7 @@ export type Database = {
           fee_bps: number
           id: string
           kyb_rejection_reason: string | null
+          kyb_review_notes: string | null
           kyb_status: Database["public"]["Enums"]["kyb_status"]
           kyb_submitted_at: string | null
           legal_name: string | null
@@ -133,6 +134,7 @@ export type Database = {
           fee_bps?: number
           id?: string
           kyb_rejection_reason?: string | null
+          kyb_review_notes?: string | null
           kyb_status?: Database["public"]["Enums"]["kyb_status"]
           kyb_submitted_at?: string | null
           legal_name?: string | null
@@ -153,6 +155,7 @@ export type Database = {
           fee_bps?: number
           id?: string
           kyb_rejection_reason?: string | null
+          kyb_review_notes?: string | null
           kyb_status?: Database["public"]["Enums"]["kyb_status"]
           kyb_submitted_at?: string | null
           legal_name?: string | null
@@ -1147,7 +1150,12 @@ export type Database = {
       app_role: "admin" | "customer"
       job_status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED"
       job_type: "SPIH_RECONCILE" | "USDC_RELEASE" | "STELLAR_CONFIRM"
-      kyb_status: "PENDING" | "APPROVED" | "REJECTED" | "UNDER_REVIEW"
+      kyb_status:
+        | "PENDING"
+        | "APPROVED"
+        | "REJECTED"
+        | "UNDER_REVIEW"
+        | "CHANGES_REQUESTED"
       ledger_account_type:
         | "ASSET"
         | "LIABILITY"
@@ -1306,7 +1314,7 @@ export const Constants = {
       app_role: ["admin", "customer"],
       job_status: ["PENDING", "RUNNING", "COMPLETED", "FAILED"],
       job_type: ["SPIH_RECONCILE", "USDC_RELEASE", "STELLAR_CONFIRM"],
-      kyb_status: ["PENDING", "APPROVED", "REJECTED", "UNDER_REVIEW"],
+      kyb_status: ["PENDING", "APPROVED", "REJECTED", "UNDER_REVIEW", "CHANGES_REQUESTED"],
       ledger_account_type: [
         "ASSET",
         "LIABILITY",
