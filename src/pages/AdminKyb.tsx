@@ -22,11 +22,15 @@ type Row = {
 };
 
 const STATUS_STYLE: Record<KybStatus, { bg: string; color: string; label: string }> = {
-  PENDING:      { bg: "#F3F4F6", color: "#6B7280", label: "Pending" },
+  PENDING:      { bg: "#F3F4F6", color: "#6B7280", label: "Awaiting submission" },
   UNDER_REVIEW: { bg: "#FFF8E0", color: "#7A5F00", label: "Under review" },
   APPROVED:     { bg: "#EFFBF3", color: "#1A7F37", label: "Approved" },
   REJECTED:     { bg: "#FDE8E8", color: "#B91C1C", label: "Rejected" },
 };
+
+type Filter = "UNDER_REVIEW" | "AWAITING" | "ALL";
+
+const emptyCounts = { awaiting: 0, underReview: 0, approved: 0, rejected: 0 };
 
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -40,11 +44,32 @@ function timeAgo(dateStr: string) {
 
 export default function AdminKyb() {
   const [rows, setRows] = useState<Row[]>([]);
-  const [filter, setFilter] = useState<"UNDER_REVIEW" | "ALL">("UNDER_REVIEW");
+  const [filter, setFilter] = useState<Filter>("UNDER_REVIEW");
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [reasonByRow, setReasonByRow] = useState<Record<string, string>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [counts, setCounts] = useState(emptyCounts);
+
+  const loadCounts = async () => {
+    const headCount = (status: KybStatus) =>
+      supabase
+        .from("customers")
+        .select("*", { count: "exact", head: true })
+        .eq("kyb_status", status);
+    const [awaiting, underReview, approved, rejected] = await Promise.all([
+      headCount("PENDING"),
+      headCount("UNDER_REVIEW"),
+      headCount("APPROVED"),
+      headCount("REJECTED"),
+    ]);
+    setCounts({
+      awaiting: awaiting.count ?? 0,
+      underReview: underReview.count ?? 0,
+      approved: approved.count ?? 0,
+      rejected: rejected.count ?? 0,
+    });
+  };
 
   const load = async () => {
     setLoading(true);
@@ -53,10 +78,12 @@ export default function AdminKyb() {
       .select("id, user_id, company_name, legal_name, registration_number, country, business_type, contact_name, email, kyb_status, kyb_submitted_at, kyb_rejection_reason")
       .order("kyb_submitted_at", { ascending: false, nullsFirst: false });
     if (filter === "UNDER_REVIEW") query = query.eq("kyb_status", "UNDER_REVIEW");
+    else if (filter === "AWAITING") query = query.eq("kyb_status", "PENDING");
     const { data, error } = await query;
     if (error) toast.error(error.message);
     setRows((data ?? []) as Row[]);
     setLoading(false);
+    loadCounts();
   };
 
   useEffect(() => { load(); }, [filter]);
@@ -98,11 +125,6 @@ export default function AdminKyb() {
     window.open(signed.signedUrl, "_blank", "noopener,noreferrer");
   };
 
-  // Stats
-  const underReviewCount = rows.filter((r) => r.kyb_status === "UNDER_REVIEW").length;
-  const approvedCount = rows.filter((r) => r.kyb_status === "APPROVED").length;
-  const rejectedCount = rows.filter((r) => r.kyb_status === "REJECTED").length;
-
   const tabStyle = (active: boolean): React.CSSProperties => ({
     padding: "8px 16px", fontSize: 12, fontWeight: 700,
     border: "none", background: "none", cursor: "pointer", fontFamily: "inherit",
@@ -142,11 +164,12 @@ export default function AdminKyb() {
       <div className="mb-5" style={{ width: 28, height: 3, background: "hsl(var(--theo-gold))", borderRadius: 2, marginTop: 8 }} />
 
       {/* Stats */}
-      <div className="grid gap-3 mb-5" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+      <div className="grid gap-3 mb-5" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
         {[
-          { label: "Under review", value: underReviewCount, sub: "awaiting decision", bg: "#FFF8E0", color: "#7A5F00" },
-          { label: "Approved", value: approvedCount, sub: "businesses onboarded", bg: "#EFFBF3", color: "#1A7F37" },
-          { label: "Rejected", value: rejectedCount, sub: "applications declined", bg: "#FDE8E8", color: "#B91C1C" },
+          { label: "Awaiting submission", value: counts.awaiting, sub: "registered, not submitted", bg: "#F3F4F6", color: "#6B7280" },
+          { label: "Under review", value: counts.underReview, sub: "awaiting decision", bg: "#FFF8E0", color: "#7A5F00" },
+          { label: "Approved", value: counts.approved, sub: "businesses onboarded", bg: "#EFFBF3", color: "#1A7F37" },
+          { label: "Rejected", value: counts.rejected, sub: "applications declined", bg: "#FDE8E8", color: "#B91C1C" },
         ].map((s) => (
           <div key={s.label} className="rounded-xl p-4" style={{ background: s.bg, border: "1px solid rgba(0,0,0,0.06)" }}>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: s.color, marginBottom: 4 }}>
@@ -165,9 +188,17 @@ export default function AdminKyb() {
         <div className="flex border-b border-border px-4">
           <button style={tabStyle(filter === "UNDER_REVIEW")} onClick={() => setFilter("UNDER_REVIEW")}>
             Under review
-            {underReviewCount > 0 && (
+            {counts.underReview > 0 && (
               <span style={{ marginLeft: 5, background: "#F59E0B", color: "#fff", borderRadius: 99, fontSize: 10, fontWeight: 700, padding: "1px 6px" }}>
-                {underReviewCount}
+                {counts.underReview}
+              </span>
+            )}
+          </button>
+          <button style={tabStyle(filter === "AWAITING")} onClick={() => setFilter("AWAITING")}>
+            Awaiting submission
+            {counts.awaiting > 0 && (
+              <span style={{ marginLeft: 5, background: "#9CA3AF", color: "#fff", borderRadius: 99, fontSize: 10, fontWeight: 700, padding: "1px 6px" }}>
+                {counts.awaiting}
               </span>
             )}
           </button>
