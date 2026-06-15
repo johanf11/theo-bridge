@@ -234,7 +234,7 @@ export default function Kyb() {
           </div>
           <div className="pt-4 border-t border-border text-sm">
             <div className="text-muted-foreground">{t("kyb.questions")}</div>
-            <a href="mailto:kyb@theo.finance" className="text-accent font-semibold hover:underline">kyb@theo.finance</a>
+            <a href="mailto:hello@theokingdom.com" className="text-accent font-semibold hover:underline">hello@theokingdom.com</a>
           </div>
         </aside>
       </div>
