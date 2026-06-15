@@ -497,10 +497,9 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* Two-column grid */}
-      <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "1fr 1fr", alignItems: "start" }}>
-        {/* Left */}
-        <div className="flex flex-col gap-4">
+      {/* Two-column grid: cards pair row-by-row on desktop, stack on mobile */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4" style={{ alignItems: "start" }}>
+        {/* Business profile card */}
           <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
             <SectionHeader icon={Home} title={t("settings.biz.title")} />
             <div className="p-5">
@@ -546,6 +545,20 @@ export default function Settings() {
               >
                 {savingBiz && <Loader2 className="animate-spin" style={{ width: 12, height: 12 }} />}
                 {t("settings.biz.save")}
+              </button>
+            </div>
+          </div>
+
+          {/* Security card */}
+          <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
+            <SectionHeader icon={Lock} title={t("settings.security.title")} />
+            <div className="px-5 py-1">
+              <SettingsRow label={t("settings.security.2fa")} sub={t("settings.security.2faSub")} right={<Toggle on />} />
+              <SettingsRow label={t("settings.security.loginNotif")} sub={t("settings.security.loginNotifSub")} right={<Toggle on />} />
+            </div>
+            <div className="px-5 pb-4 pt-2">
+              <button className="font-bold" style={{ background: "transparent", border: "1.5px solid hsl(var(--theo-blue))", color: "hsl(var(--theo-blue))", borderRadius: 7, padding: "6px 12px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+                {t("settings.security.changePassword")}
               </button>
             </div>
           </div>
@@ -655,23 +668,8 @@ export default function Settings() {
                 ))}
             </div>
           </div>
-        </div>
 
-        {/* Right */}
-        <div className="flex flex-col gap-4">
-          <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
-            <SectionHeader icon={Lock} title={t("settings.security.title")} />
-            <div className="px-5 py-1">
-              <SettingsRow label={t("settings.security.2fa")} sub={t("settings.security.2faSub")} right={<Toggle on />} />
-              <SettingsRow label={t("settings.security.loginNotif")} sub={t("settings.security.loginNotifSub")} right={<Toggle on />} />
-            </div>
-            <div className="px-5 pb-4 pt-2">
-              <button className="font-bold" style={{ background: "transparent", border: "1.5px solid hsl(var(--theo-blue))", color: "hsl(var(--theo-blue))", borderRadius: 7, padding: "6px 12px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-                {t("settings.security.changePassword")}
-              </button>
-            </div>
-          </div>
-
+          {/* Notifications card */}
           <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
             <SectionHeader icon={Bell} title={t("settings.notif.title")} />
             <div className="px-5 py-1">
@@ -679,7 +677,6 @@ export default function Settings() {
               <SettingsRow label={t("settings.notif.rateAlert")} sub={t("settings.notif.rateSub")} right={<Toggle />} />
             </div>
           </div>
-        </div>
       </div>
 
       {/* Full-width Federation Addresses */}
