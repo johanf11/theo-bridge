@@ -1,43 +1,76 @@
-## Why no code arrived
+## Goal
 
-The recovery hook fired successfully at 00:13 UTC for `johanfrancois@me.com` (auth log confirms `user_recovery_requested` → 200). So the email *was* sent — it just doesn't contain what the reset page needs.
+Extend the admin KYB review workflow beyond Approve/Reject with two new white‑glove actions, and let admins onboard businesses themselves when paperwork arrives via email.
 
-Root cause: there are no custom auth email templates in this repo (`supabase/functions/_shared/email-templates/` and `supabase/functions/auth-email-hook/` don't exist). Supabase is therefore sending its **default recovery email**, which contains a magic-link only — no 6-digit `{{ .Token }}`.
+## New actions on the KYB Review table
 
-But `ForgotPassword.tsx` calls `resetPasswordForEmail` with no `redirectTo` (comment: "we want a code-based recovery, not a magic link") and `ResetPassword.tsx` calls `supabase.auth.verifyOtp({ type: "recovery", token: <6 digits> })`. That flow requires the email to print the OTP token. The default template doesn't, so the user gets a link they can't paste into the 6-digit input — effectively "no code".
+1. **Send back** — soft rejection that returns the application to the customer with reviewer comments and (optionally) a list of suggested edits/inclusions. The customer sees the comments on `/kyb`, can edit their fields / re‑upload, and resubmit.
+2. **Edit** — opens the customer's KYB record in an admin editor so the reviewer can fix fields on the customer's behalf (white glove). Optionally upload a document for them. Save can either keep status as is or push straight to Approved.
+3. **Add business** — top‑right "+ Add business" button that lets the admin create a brand‑new customer from scratch (company, contact, email, country, registration #, business type, optional document, optional fee/corridor bps). Sends a magic‑link invite so the customer can claim the account later.
 
-The email domain `notify.app.theokingdom.com` is verified, so we can scaffold managed Lovable auth templates and the recovery template will include the 6-digit code.
+The existing Approve and Reject (hard reject) actions stay as they are.
 
-## Plan
+## Status model
 
-1. **Scaffold managed auth email templates** via `email_domain--scaffold_auth_email_templates`. This creates:
-   - `supabase/functions/_shared/email-templates/{signup,magic-link,recovery,invite,email-change,reauthentication}.tsx`
-   - `supabase/functions/auth-email-hook/{index.ts,deno.json}`
+Add one new value to the `kyb_status` enum:
 
-2. **Brand the templates with Theo tokens** (read `src/index.css` for the actual HSL values; don't guess):
-   - Primary button: `--theo-blue` (#33359A) bg, white text, 10px radius
-   - Heading color: `--theo-ink`
-   - Body text: `--theo-mid`
-   - Font stack: Inter (Plain isn't email-safe), with system-ui fallback
-   - Apply to all six templates, not just recovery
-   - Recovery email **must** prominently display `{{ .Token }}` as a large, monospaced 6-digit block, with copy below: "Enter this code at app.theokingdom.com to set a new password. Code expires in 1 hour."
-   - Email tone: match the app's professional B2B Haitian-market voice; keep both EN copy (FR localization can be a follow-up)
-   - Add a small Theo "T" mark at top if a suitable logo asset exists in `public/` (skip if not — don't ask)
+- `CHANGES_REQUESTED` — set by "Send back". Customer can edit & resubmit (treated like `REJECTED` on the customer side: form unlocks, status card shows reviewer notes).
 
-3. **Deploy** `auth-email-hook` via `supabase--deploy_edge_functions`.
+Add two columns to `customers`:
 
-4. **Tell the user** to re-tap "Request a new code" on `/forgot-password` — the new template will include the 6-digit code. No changes to `ForgotPassword.tsx` or `ResetPassword.tsx` are needed; the OTP flow they implement is correct, it was just starved of a token in the email.
+- `kyb_review_notes text` — free‑text reviewer comments shown to the customer on send‑back.
+- `kyb_requested_changes text[]` — optional list of specific items the customer needs to fix/upload (rendered as a checklist on `/kyb`).
+
+Existing `kyb_rejection_reason` is kept and reused for hard `REJECTED`.
+
+`protect_customer_fields` trigger needs the same "customer may transition `CHANGES_REQUESTED → UNDER_REVIEW` on resubmit" allowance it already has for `PENDING`/`REJECTED → UNDER_REVIEW`.
+
+## Server (edge function)
+
+New `admin-kyb` edge function (verifies caller is admin via `user_roles`, uses service‑role client for writes). Single endpoint, switched by `action`:
+
+- `approve` — `{ customer_id }`
+- `reject` — `{ customer_id, reason }` (hard)
+- `send_back` — `{ customer_id, notes, requested_changes? }` → sets `kyb_status='CHANGES_REQUESTED'`, stores notes/checklist
+- `edit` — `{ customer_id, fields, set_status? }` → updates allowed KYB fields on behalf of customer
+- `add_business` — `{ email, company_name, contact_name, country, registration_number, business_type, legal_name, phone?, fee_bps?, corridor_bps? }` → creates `auth.users` (invite by email via admin API), the `handle_new_user` trigger creates the `customers` row, function then patches the KYB fields and (optionally) approves immediately
+
+Existing approve/reject in `AdminKyb.tsx` move from direct table updates to calling this function (keeps RLS clean and lets us write audit fields server‑side).
+
+Optional doc upload for `edit` / `add_business`: client uploads to `kyb-documents/<user_id>/...` after the function returns the new `user_id`.
+
+## Admin UI changes (`src/pages/AdminKyb.tsx`)
+
+Row actions become: **Doc · Approve · Send back · Edit · Reject**.
+
+- "Send back" expands an inline panel (mirror of the existing reject panel) with a notes textarea and an "add suggested change" chip input, plus a "Send back to customer" button.
+- "Edit" opens a side drawer / dialog (`AdminKybEditor`) prefilled with the customer's KYB fields + a doc upload slot. Save calls `admin-kyb` `edit`. A separate "Save & approve" button is offered.
+- Header gets a primary **+ Add business** button next to Refresh. Clicking it opens a dialog (reuse `AdminKybEditor` in "create" mode) that collects email + company + contact + country + KYB fields, then calls `admin-kyb` `add_business`.
+- Add a 5th stat card or change the "Awaiting submission" copy so it also counts `CHANGES_REQUESTED` returned-to-customer items, OR add a small "Changes requested" pill state and a tab. Plan: add `CHANGES_REQUESTED` as its own status pill (amber/orange) and surface a count under the "Under review" tab as a sub‑badge.
+
+## Customer UI changes (`src/pages/Kyb.tsx`)
+
+- Treat `CHANGES_REQUESTED` like `REJECTED` for editability (form unlocks).
+- StatusCard gets a new variant "Changes requested" showing `kyb_review_notes` and, if present, the `kyb_requested_changes` checklist.
+- Add i18n keys for the new copy (EN + FR).
+
+## Files touched
+
+- `supabase/migrations/<timestamp>_kyb_changes_requested.sql` — enum value, columns, trigger update, grants.
+- `supabase/functions/admin-kyb/index.ts` — new.
+- `src/pages/AdminKyb.tsx` — new actions, Add‑business button, status styling.
+- `src/components/theo/AdminKybEditor.tsx` — new (dialog used for Edit and Add business).
+- `src/pages/Kyb.tsx` — handle `CHANGES_REQUESTED` state and render notes/checklist.
+- `src/lib/i18n.ts` (or wherever the strings live) — new keys.
 
 ## Out of scope
 
-- French translations of the email templates (can follow as a separate request)
-- Touching the existing reset/forgot pages — they're correct
-- DNS / domain setup — already verified
-- `SPIH_CONFIRM_HMAC_SECRET` and the recently deployed edge functions — unrelated
+- Audit log table for KYB actions (can be added later).
+- File‑level review (per‑document accept/reject).
+- Email notifications to the customer on send‑back (function will be structured so an email hook can be added later).
 
-## Technical notes
+## Open questions
 
-- Managed templates use `LOVABLE_API_KEY` (auto-provisioned). Do not add `RESEND_API_KEY` or `SEND_EMAIL_HOOK_SECRET`.
-- `auth-email-hook` is a system-contract name — do not rename.
-- Email body background stays `#ffffff` per Lovable guidance, even though the app uses cream.
-- Templates import React via `npm:react@18.3.1` and components via `@react-email/components@0.0.22` — pinned versions per the email guide.
+1. On **Add business**: should we send the customer a magic‑link invite immediately so they can sign in and claim the account, or just create a placeholder and let them sign up normally with that email later? (Default in plan: send invite.)
+2. On **Edit**: do you want the admin to be able to also change `fee_bps` / `corridor_bps` from this drawer, or keep those in a separate "Customer settings" surface?
+3. Should "Send back" auto‑email the customer the notes, or only show them in‑app for now?

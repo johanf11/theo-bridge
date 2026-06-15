@@ -13,7 +13,7 @@ import { ShieldCheck, FileUp, Clock, CheckCircle2, XCircle } from "lucide-react"
 import { useAuth } from "@/lib/auth";
 import { useT } from "@/lib/i18n";
 
-type KybStatus = "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
+type KybStatus = "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED" | "CHANGES_REQUESTED";
 
 type CustomerProfile = {
   id: string;
@@ -26,6 +26,8 @@ type CustomerProfile = {
   kyb_status: KybStatus;
   kyb_rejection_reason: string | null;
   kyb_submitted_at: string | null;
+  kyb_review_notes: string | null;
+  kyb_requested_changes: string[] | null;
 };
 
 const schema = z.object({
@@ -60,7 +62,7 @@ export default function Kyb() {
     let cancelled = false;
     supabase
       .from("customers")
-      .select("id, company_name, legal_name, registration_number, country, business_type, contact_name, kyb_status, kyb_rejection_reason, kyb_submitted_at")
+      .select("id, company_name, legal_name, registration_number, country, business_type, contact_name, kyb_status, kyb_rejection_reason, kyb_submitted_at, kyb_review_notes, kyb_requested_changes")
       .eq("user_id", user.id)
       .maybeSingle()
       .then(({ data, error }) => {
@@ -83,7 +85,7 @@ export default function Kyb() {
   }, [user]);
 
   const status = profile?.kyb_status ?? "PENDING";
-  const editable = status === "PENDING" || status === "REJECTED";
+  const editable = status === "PENDING" || status === "REJECTED" || status === "CHANGES_REQUESTED";
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,7 +166,7 @@ export default function Kyb() {
         </p>
       </div>
 
-      <StatusCard status={status} reason={profile?.kyb_rejection_reason ?? null} submittedAt={profile?.kyb_submitted_at ?? null} />
+      <StatusCard status={status} reason={profile?.kyb_rejection_reason ?? null} submittedAt={profile?.kyb_submitted_at ?? null} reviewNotes={profile?.kyb_review_notes ?? null} requestedChanges={profile?.kyb_requested_changes ?? null} />
 
       <div className="grid lg:grid-cols-[1fr,260px] gap-6 mt-6 items-start">
         <form onSubmit={submit}>
@@ -262,7 +264,7 @@ function Item({ title, body }: { title: string; body: string }) {
   );
 }
 
-function StatusCard({ status, reason, submittedAt }: { status: KybStatus; reason: string | null; submittedAt: string | null }) {
+function StatusCard({ status, reason, submittedAt, reviewNotes, requestedChanges }: { status: KybStatus; reason: string | null; submittedAt: string | null; reviewNotes: string | null; requestedChanges: string[] | null }) {
   const map: Record<KybStatus, { icon: JSX.Element; title: string; body: string; pill: string; pillClass: string }> = {
     PENDING: {
       icon: <ShieldCheck className="h-5 w-5" />,
@@ -294,22 +296,44 @@ function StatusCard({ status, reason, submittedAt }: { status: KybStatus; reason
       pill: "Action needed",
       pillClass: "bg-destructive/15 text-destructive border-destructive/40",
     },
+    CHANGES_REQUESTED: {
+      icon: <Clock className="h-5 w-5" />,
+      title: "Changes requested",
+      body: reviewNotes ?? "Our team has requested some updates. Please review the notes below and resubmit.",
+      pill: "Changes requested",
+      pillClass: "bg-accent/15 text-accent border-accent/40",
+    },
   };
   const s = map[status];
   return (
-    <div className="bg-card rounded-2xl border border-border shadow-xs p-5 flex items-start justify-between gap-4">
-      <div className="flex items-start gap-4">
-        <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-muted text-primary">
-          {s.icon}
-        </span>
-        <div>
-          <div className="font-bold text-primary">{s.title}</div>
-          <div className="text-sm text-muted-foreground mt-0.5">{s.body}</div>
+    <div className="bg-card rounded-2xl border border-border shadow-xs p-5 space-y-3">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-4">
+          <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-muted text-primary">
+            {s.icon}
+          </span>
+          <div>
+            <div className="font-bold text-primary">{s.title}</div>
+            <div className="text-sm text-muted-foreground mt-0.5">{s.body}</div>
+          </div>
         </div>
+        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border ${s.pillClass}`}>
+          {s.pill}
+        </span>
       </div>
-      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border ${s.pillClass}`}>
-        {s.pill}
-      </span>
+      {status === "CHANGES_REQUESTED" && requestedChanges && requestedChanges.length > 0 && (
+        <div className="ml-14 rounded-xl bg-muted/40 border border-border p-3">
+          <div className="text-xs font-bold uppercase tracking-wider text-primary mb-2">Please update</div>
+          <ul className="space-y-1 text-sm text-foreground">
+            {requestedChanges.map((c, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <span className="text-accent mt-1">•</span>
+                <span>{c}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
