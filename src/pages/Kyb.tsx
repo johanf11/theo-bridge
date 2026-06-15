@@ -62,7 +62,7 @@ export default function Kyb() {
     let cancelled = false;
     supabase
       .from("customers")
-      .select("id, company_name, legal_name, registration_number, country, business_type, contact_name, kyb_status, kyb_rejection_reason, kyb_submitted_at")
+      .select("id, company_name, legal_name, registration_number, country, business_type, contact_name, kyb_status, kyb_rejection_reason, kyb_submitted_at, kyb_review_notes, kyb_requested_changes")
       .eq("user_id", user.id)
       .maybeSingle()
       .then(({ data, error }) => {
@@ -85,7 +85,7 @@ export default function Kyb() {
   }, [user]);
 
   const status = profile?.kyb_status ?? "PENDING";
-  const editable = status === "PENDING" || status === "REJECTED";
+  const editable = status === "PENDING" || status === "REJECTED" || status === "CHANGES_REQUESTED";
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
