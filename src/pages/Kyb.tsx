@@ -13,7 +13,7 @@ import { ShieldCheck, FileUp, Clock, CheckCircle2, XCircle } from "lucide-react"
 import { useAuth } from "@/lib/auth";
 import { useT } from "@/lib/i18n";
 
-type KybStatus = "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
+type KybStatus = "PENDING" | "UNDER_REVIEW" | "CHANGES_REQUESTED" | "APPROVED" | "REJECTED";
 
 type CustomerProfile = {
   id: string;
@@ -25,6 +25,7 @@ type CustomerProfile = {
   contact_name: string | null;
   kyb_status: KybStatus;
   kyb_rejection_reason: string | null;
+  kyb_review_notes: string | null;
   kyb_submitted_at: string | null;
 };
 
@@ -60,7 +61,7 @@ export default function Kyb() {
     let cancelled = false;
     supabase
       .from("customers")
-      .select("id, company_name, legal_name, registration_number, country, business_type, contact_name, kyb_status, kyb_rejection_reason, kyb_submitted_at")
+      .select("id, company_name, legal_name, registration_number, country, business_type, contact_name, kyb_status, kyb_rejection_reason, kyb_review_notes, kyb_submitted_at")
       .eq("user_id", user.id)
       .maybeSingle()
       .then(({ data, error }) => {
@@ -83,7 +84,7 @@ export default function Kyb() {
   }, [user]);
 
   const status = profile?.kyb_status ?? "PENDING";
-  const editable = status === "PENDING" || status === "REJECTED";
+  const editable = status === "PENDING" || status === "REJECTED" || status === "CHANGES_REQUESTED";
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,7 +165,7 @@ export default function Kyb() {
         </p>
       </div>
 
-      <StatusCard status={status} reason={profile?.kyb_rejection_reason ?? null} submittedAt={profile?.kyb_submitted_at ?? null} />
+      <StatusCard status={status} reason={profile?.kyb_rejection_reason ?? null} notes={profile?.kyb_review_notes ?? null} submittedAt={profile?.kyb_submitted_at ?? null} />
 
       <div className="grid lg:grid-cols-[1fr,260px] gap-6 mt-6 items-start">
         <form onSubmit={submit}>
@@ -262,7 +263,7 @@ function Item({ title, body }: { title: string; body: string }) {
   );
 }
 
-function StatusCard({ status, reason, submittedAt }: { status: KybStatus; reason: string | null; submittedAt: string | null }) {
+function StatusCard({ status, reason, notes, submittedAt }: { status: KybStatus; reason: string | null; notes: string | null; submittedAt: string | null }) {
   const map: Record<KybStatus, { icon: JSX.Element; title: string; body: string; pill: string; pillClass: string }> = {
     PENDING: {
       icon: <ShieldCheck className="h-5 w-5" />,
@@ -279,6 +280,13 @@ function StatusCard({ status, reason, submittedAt }: { status: KybStatus; reason
         : "Submitted. We'll email you once it's approved.",
       pill: "Under review",
       pillClass: "bg-accent/15 text-accent border-accent/40",
+    },
+    CHANGES_REQUESTED: {
+      icon: <FileUp className="h-5 w-5" />,
+      title: "Changes requested",
+      body: notes ?? "Our team asked for a few updates. Please review the notes, adjust the details below, and resubmit.",
+      pill: "Changes requested",
+      pillClass: "bg-secondary/30 text-primary border-secondary",
     },
     APPROVED: {
       icon: <CheckCircle2 className="h-5 w-5" />,
