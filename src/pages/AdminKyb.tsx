@@ -254,7 +254,7 @@ export default function AdminKyb() {
           <table className="w-full border-collapse">
             <thead>
               <tr style={{ background: "hsl(var(--theo-cream))" }}>
-                {["Business", "Contact", "Registration", "Country", "Submitted", "Status", "Actions"].map((h) => (
+                {["Business", "Contact", "Registration", "Country", "Submitted", "Status", "Document", "Actions"].map((h) => (
                   <th key={h} className="text-left px-4 py-2.5 border-b border-border"
                     style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.10em", color: "hsl(var(--theo-mid))" }}>
                     {h}
@@ -291,10 +291,12 @@ export default function AdminKyb() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
+                        <button onClick={() => viewDoc(r.user_id)} style={btn("transparent", "hsl(var(--border))", "hsl(var(--theo-mid))")}>
+                          <FileText size={11} /> Doc
+                        </button>
+                      </td>
+                      <td className="px-4 py-3">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <button onClick={() => viewDoc(r.user_id)} style={btn("transparent", "hsl(var(--border))", "hsl(var(--theo-mid))")}>
-                            <FileText size={11} /> Doc
-                          </button>
                           {actionable && (
                             <>
                               <button onClick={() => approve(r)} disabled={isBusy} style={btn("#EFFBF3", "#86EFAC", "#1A7F37")}>
@@ -328,7 +330,7 @@ export default function AdminKyb() {
 
                     {isOpen && expanded?.mode === "reject" && (
                       <tr key={`${r.id}-reject`} className="border-b border-border">
-                        <td colSpan={7} className="px-4 pb-4 pt-2" style={{ background: "#FFF8F8" }}>
+                        <td colSpan={8} className="px-4 pb-4 pt-2" style={{ background: "#FFF8F8" }}>
                           <div style={{ fontSize: 12, fontWeight: 700, color: "#B91C1C", marginBottom: 6 }}>Rejection reason</div>
                           <div className="flex gap-2">
                             <textarea
@@ -349,7 +351,7 @@ export default function AdminKyb() {
 
                     {isOpen && expanded?.mode === "send_back" && (
                       <tr key={`${r.id}-back`} className="border-b border-border">
-                        <td colSpan={7} className="px-4 pb-4 pt-2" style={{ background: "#FFFAF3" }}>
+                        <td colSpan={8} className="px-4 pb-4 pt-2" style={{ background: "#FFFAF3" }}>
                           <div style={{ fontSize: 12, fontWeight: 700, color: "#9A3412", marginBottom: 6 }}>
                             Reviewer notes (visible to customer)
                           </div>
