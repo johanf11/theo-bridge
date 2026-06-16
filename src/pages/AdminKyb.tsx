@@ -291,10 +291,12 @@ export default function AdminKyb() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
+                        <button onClick={() => viewDoc(r.user_id)} style={btn("transparent", "hsl(var(--border))", "hsl(var(--theo-mid))")}>
+                          <FileText size={11} /> Doc
+                        </button>
+                      </td>
+                      <td className="px-4 py-3">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <button onClick={() => viewDoc(r.user_id)} style={btn("transparent", "hsl(var(--border))", "hsl(var(--theo-mid))")}>
-                            <FileText size={11} /> Doc
-                          </button>
                           {actionable && (
                             <>
                               <button onClick={() => approve(r)} disabled={isBusy} style={btn("#EFFBF3", "#86EFAC", "#1A7F37")}>
