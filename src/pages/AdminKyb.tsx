@@ -254,7 +254,7 @@ export default function AdminKyb() {
           <table className="w-full border-collapse">
             <thead>
               <tr style={{ background: "hsl(var(--theo-cream))" }}>
-                {["Business", "Contact", "Registration", "Country", "Submitted", "Status", "Actions"].map((h) => (
+                {["Business", "Contact", "Registration", "Country", "Submitted", "Status", "Document", "Actions"].map((h) => (
                   <th key={h} className="text-left px-4 py-2.5 border-b border-border"
                     style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.10em", color: "hsl(var(--theo-mid))" }}>
                     {h}
