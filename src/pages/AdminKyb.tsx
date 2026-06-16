@@ -330,7 +330,7 @@ export default function AdminKyb() {
 
                     {isOpen && expanded?.mode === "reject" && (
                       <tr key={`${r.id}-reject`} className="border-b border-border">
-                        <td colSpan={7} className="px-4 pb-4 pt-2" style={{ background: "#FFF8F8" }}>
+                        <td colSpan={8} className="px-4 pb-4 pt-2" style={{ background: "#FFF8F8" }}>
                           <div style={{ fontSize: 12, fontWeight: 700, color: "#B91C1C", marginBottom: 6 }}>Rejection reason</div>
                           <div className="flex gap-2">
                             <textarea
@@ -351,7 +351,7 @@ export default function AdminKyb() {
 
                     {isOpen && expanded?.mode === "send_back" && (
                       <tr key={`${r.id}-back`} className="border-b border-border">
-                        <td colSpan={7} className="px-4 pb-4 pt-2" style={{ background: "#FFFAF3" }}>
+                        <td colSpan={8} className="px-4 pb-4 pt-2" style={{ background: "#FFFAF3" }}>
                           <div style={{ fontSize: 12, fontWeight: 700, color: "#9A3412", marginBottom: 6 }}>
                             Reviewer notes (visible to customer)
                           </div>
