@@ -174,7 +174,7 @@ export default function Invoices() {
     setListLoading(true);
     const { data } = await supabase
       .from("invoices")
-      .select("*")
+      .select("id, invoice_number, client_name, client_email, currency, line_items, discount_type, discount_value, subtotal, total, payment_wallet_id, due_date, note, status, paid_at, created_at")
       .eq("customer_id", cid)
       .order("created_at", { ascending: false });
     setInvoices((data ?? []) as unknown as Invoice[]);
