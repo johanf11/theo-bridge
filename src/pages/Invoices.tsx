@@ -29,7 +29,6 @@ type Wallet = { id: string; label: string; stellar_address: string };
 
 type Invoice = {
   id: string;
-  share_token: string;
   invoice_number: string;
   client_name: string;
   client_email: string | null;
