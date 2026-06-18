@@ -86,6 +86,7 @@ export default function OrderStatus() {
   const [now, setNow] = useState(Date.now());
   const [simulating, setSimulating] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
+  const [linkedBank, setLinkedBank] = useState<LinkedBank | null>(null);
   const fetchedRef = useRef(false);
   const { isAdmin } = useRoles();
 
