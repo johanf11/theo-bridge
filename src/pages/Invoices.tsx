@@ -297,7 +297,12 @@ export default function Invoices() {
   };
 
   const copyPaymentLink = async (inv: Invoice) => {
-    const link = `${window.location.origin}/inv/${inv.share_token}`;
+    const { data: token, error } = await supabase.rpc("get_invoice_share_token", { p_invoice_id: inv.id });
+    if (error || !token) {
+      toast.error(error?.message || "Could not generate payment link");
+      return;
+    }
+    const link = `${window.location.origin}/inv/${token}`;
     try {
       await navigator.clipboard.writeText(link);
     } catch {
