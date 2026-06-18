@@ -314,6 +314,104 @@ export default function OrderStatus() {
         </div>
       )}
 
+      {/* Sending from (Deposit HTG only, while awaiting payment) */}
+      {order.status === "QUOTED" && order.order_kind === "htgc_mint" && (
+        <>
+          {linkedBank ? (
+            <div className="rounded-2xl border bg-card p-5 mb-4">
+              <div className="text-[11px] font-bold uppercase tracking-[0.18em] mb-3" style={{ color: "hsl(var(--theo-cyan))" }}>
+                Sending from
+              </div>
+              <div className="flex items-center gap-3">
+                <div
+                  className="h-10 w-10 rounded-full flex items-center justify-center shrink-0 text-sm font-bold"
+                  style={{ background: "hsl(var(--theo-blue-soft))", color: "hsl(var(--theo-blue))" }}
+                >
+                  {bankInitials(linkedBank.bank_name)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-bold truncate" style={{ color: "hsl(var(--theo-blue))" }}>
+                    {linkedBank.bank_name} · {maskAccount(linkedBank.account_number)}
+                  </div>
+                  <div className="text-xs mt-0.5 truncate" style={{ color: "hsl(var(--theo-mid))" }}>
+                    {linkedBank.account_name}
+                  </div>
+                </div>
+                <span
+                  className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold"
+                  style={{ background: "rgba(26, 127, 55, 0.10)", color: "#1A7F37", border: "1px solid rgba(26, 127, 55, 0.25)" }}
+                >
+                  <Check className="h-3 w-3" /> Linked
+                </span>
+              </div>
+              <div className="mt-3 pt-3 border-t border-border/50">
+                <Link
+                  to="/convert"
+                  className="text-xs font-semibold hover:underline"
+                  style={{ color: "hsl(var(--theo-cyan))" }}
+                >
+                  Change account
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-2xl border bg-card p-5 mb-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div
+                  className="h-10 w-10 rounded-full flex items-center justify-center shrink-0"
+                  style={{ background: "hsl(var(--theo-blue-soft))", color: "hsl(var(--theo-blue))" }}
+                >
+                  <Building2 className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="text-sm font-bold" style={{ color: "hsl(var(--theo-blue))" }}>No bank account linked</div>
+                  <div className="text-xs mt-0.5" style={{ color: "hsl(var(--theo-mid))" }}>
+                    Link a bank to make sending faster next time.
+                  </div>
+                </div>
+              </div>
+              <Link
+                to="/convert"
+                className="text-xs font-semibold hover:underline shrink-0"
+                style={{ color: "hsl(var(--theo-cyan))" }}
+              >
+                Link a bank account
+              </Link>
+            </div>
+          )}
+
+          {linkedBank && (
+            <div
+              className="rounded-xl mb-4 p-4"
+              style={{ background: "hsl(var(--theo-blue-soft))", border: "1px solid hsl(var(--theo-light))" }}
+            >
+              <div
+                className="mb-3"
+                style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: "hsl(var(--theo-cyan))" }}
+              >
+                Transfer summary
+              </div>
+              {[
+                { label: "To account", value: maskAccount(linkedBank.account_number) },
+                { label: "To bank", value: linkedBank.bank_name },
+                { label: "Amount", value: fmtHTG(Number(order.htg_amount)) },
+              ].map((r) => (
+                <div key={r.label} className="flex justify-between" style={{ fontSize: 12, marginBottom: 6 }}>
+                  <span style={{ color: "hsl(var(--theo-mid))" }}>{r.label}</span>
+                  <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>{r.value}</span>
+                </div>
+              ))}
+              <div className="flex justify-between items-center" style={{ fontSize: 12 }}>
+                <span style={{ color: "hsl(var(--theo-mid))" }}>Reference</span>
+                <span className="font-mono" style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
+                  {order.reference_number}
+                </span>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
       {/* QUOTED panel */}
       {order.status === "QUOTED" && (
         <div className="rounded-2xl border bg-theo-blue-soft/60 mb-6 overflow-hidden">
