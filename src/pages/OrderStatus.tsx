@@ -4,7 +4,7 @@ import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { useRoles } from "@/lib/auth";
 import { fmtHTG, fmtRate, fmtUSDC } from "@/lib/format";
-import { Copy, ExternalLink, CheckCircle2, Clock, Loader2, CreditCard, AlertTriangle, Hourglass, Check, FileDown } from "lucide-react";
+import { Copy, ExternalLink, CheckCircle2, Clock, Loader2, CreditCard, AlertTriangle, Hourglass, Check, FileDown, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { generateReceipt } from "@/lib/receipt";
