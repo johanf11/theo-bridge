@@ -16,6 +16,7 @@ type Order = {
   failure_reason: string | null; created_at: string; completed_at?: string | null; order_kind?: string | null;
   swap_direction?: string | null;
   wallet_id?: string | null;
+  customer_id?: string | null;
   usdc_gross?: number | null; fee_usdc?: number | null; fee_bps?: number | null;
   principal_balance?: number | null;  // balance earning yield (yield orders only)
   net_apy?: number | null;            // APY as decimal (0.07 = 7%)
@@ -24,6 +25,28 @@ type Order = {
   destination_wallet_address?: string | null;
   customers?: { company_name?: string | null } | null;
 };
+
+type LinkedBank = {
+  id: string;
+  bank_name: string;
+  account_name: string;
+  account_number: string;
+  routing_code: string | null;
+  is_default: boolean;
+};
+
+function maskAccount(num: string) {
+  const s = String(num ?? "");
+  return s.length <= 4 ? s : `**** ${s.slice(-4)}`;
+}
+function bankInitials(name: string) {
+  return String(name ?? "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("") || "B";
+}
 
 function getSteps(kind: string | null | undefined, reference: string | null | undefined, t: (key: TKey) => string) {
   if (kind === "htgc_mint") {
