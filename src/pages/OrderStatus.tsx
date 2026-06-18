@@ -139,6 +139,26 @@ export default function OrderStatus() {
     })();
   }, [order?.wallet_id, order?.destination_stellar_address, order?.destination_wallet_address, order]);
 
+  // Fetch linked bank for Deposit HTG orders
+  useEffect(() => {
+    if (!order || order.order_kind !== "htgc_mint" || !order.customer_id) {
+      setLinkedBank(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("bank_accounts")
+        .select("id, bank_name, account_name, account_number, routing_code, is_default")
+        .eq("customer_id", order.customer_id!)
+        .order("is_default", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!cancelled) setLinkedBank((data as LinkedBank | null) ?? null);
+    })();
+    return () => { cancelled = true; };
+  }, [order?.customer_id, order?.order_kind]);
+
   const remaining = useMemo(() => {
     if (!order) return 0;
     return Math.max(0, new Date(order.quote_expires_at).getTime() - now);
