@@ -29,7 +29,6 @@ type Wallet = { id: string; label: string; stellar_address: string };
 
 type Invoice = {
   id: string;
-  share_token: string;
   invoice_number: string;
   client_name: string;
   client_email: string | null;
@@ -174,7 +173,7 @@ export default function Invoices() {
     setListLoading(true);
     const { data } = await supabase
       .from("invoices")
-      .select("*")
+      .select("id, invoice_number, client_name, client_email, currency, line_items, discount_type, discount_value, subtotal, total, payment_wallet_id, due_date, note, status, paid_at, created_at")
       .eq("customer_id", cid)
       .order("created_at", { ascending: false });
     setInvoices((data ?? []) as unknown as Invoice[]);
@@ -298,7 +297,12 @@ export default function Invoices() {
   };
 
   const copyPaymentLink = async (inv: Invoice) => {
-    const link = `${window.location.origin}/inv/${inv.share_token}`;
+    const { data: token, error } = await supabase.rpc("get_invoice_share_token", { p_invoice_id: inv.id });
+    if (error || !token) {
+      toast.error(error?.message || "Could not generate payment link");
+      return;
+    }
+    const link = `${window.location.origin}/inv/${token}`;
     try {
       await navigator.clipboard.writeText(link);
     } catch {

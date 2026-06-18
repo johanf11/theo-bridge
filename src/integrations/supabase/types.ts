@@ -1107,6 +1107,10 @@ export type Database = {
         Returns: number
       }
       get_effective_customer_id: { Args: never; Returns: string }
+      get_invoice_share_token: {
+        Args: { p_invoice_id: string }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
