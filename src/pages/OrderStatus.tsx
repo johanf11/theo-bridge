@@ -4,7 +4,7 @@ import { AppLayout } from "@/components/theo/Layout";
 import { supabase } from "@/integrations/supabase/client";
 import { useRoles } from "@/lib/auth";
 import { fmtHTG, fmtRate, fmtUSDC } from "@/lib/format";
-import { Copy, ExternalLink, CheckCircle2, Clock, Loader2, CreditCard, AlertTriangle, Hourglass, Check, FileDown } from "lucide-react";
+import { Copy, ExternalLink, CheckCircle2, Clock, Loader2, CreditCard, AlertTriangle, Hourglass, Check, FileDown, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { generateReceipt } from "@/lib/receipt";
@@ -16,6 +16,7 @@ type Order = {
   failure_reason: string | null; created_at: string; completed_at?: string | null; order_kind?: string | null;
   swap_direction?: string | null;
   wallet_id?: string | null;
+  customer_id?: string | null;
   usdc_gross?: number | null; fee_usdc?: number | null; fee_bps?: number | null;
   principal_balance?: number | null;  // balance earning yield (yield orders only)
   net_apy?: number | null;            // APY as decimal (0.07 = 7%)
@@ -24,6 +25,28 @@ type Order = {
   destination_wallet_address?: string | null;
   customers?: { company_name?: string | null } | null;
 };
+
+type LinkedBank = {
+  id: string;
+  bank_name: string;
+  account_name: string;
+  account_number: string;
+  routing_code: string | null;
+  is_default: boolean;
+};
+
+function maskAccount(num: string) {
+  const s = String(num ?? "");
+  return s.length <= 4 ? s : `**** ${s.slice(-4)}`;
+}
+function bankInitials(name: string) {
+  return String(name ?? "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("") || "B";
+}
 
 function getSteps(kind: string | null | undefined, reference: string | null | undefined, t: (key: TKey) => string) {
   if (kind === "htgc_mint") {
@@ -63,6 +86,7 @@ export default function OrderStatus() {
   const [now, setNow] = useState(Date.now());
   const [simulating, setSimulating] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
+  const [linkedBank, setLinkedBank] = useState<LinkedBank | null>(null);
   const fetchedRef = useRef(false);
   const { isAdmin } = useRoles();
 
@@ -114,6 +138,26 @@ export default function OrderStatus() {
       setWalletStellarAddress(wallet?.stellar_address ?? null);
     })();
   }, [order?.wallet_id, order?.destination_stellar_address, order?.destination_wallet_address, order]);
+
+  // Fetch linked bank for Deposit HTG orders
+  useEffect(() => {
+    if (!order || order.order_kind !== "htgc_mint" || !order.customer_id) {
+      setLinkedBank(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("bank_accounts")
+        .select("id, bank_name, account_name, account_number, routing_code, is_default")
+        .eq("customer_id", order.customer_id!)
+        .order("is_default", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!cancelled) setLinkedBank((data as LinkedBank | null) ?? null);
+    })();
+    return () => { cancelled = true; };
+  }, [order?.customer_id, order?.order_kind]);
 
   const remaining = useMemo(() => {
     if (!order) return 0;
@@ -268,6 +312,104 @@ export default function OrderStatus() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Sending from (Deposit HTG only, while awaiting payment) */}
+      {order.status === "QUOTED" && order.order_kind === "htgc_mint" && (
+        <>
+          {linkedBank ? (
+            <div className="rounded-2xl border bg-card p-5 mb-4">
+              <div className="text-[11px] font-bold uppercase tracking-[0.18em] mb-3" style={{ color: "hsl(var(--theo-cyan))" }}>
+                Sending from
+              </div>
+              <div className="flex items-center gap-3">
+                <div
+                  className="h-10 w-10 rounded-full flex items-center justify-center shrink-0 text-sm font-bold"
+                  style={{ background: "hsl(var(--theo-blue-soft))", color: "hsl(var(--theo-blue))" }}
+                >
+                  {bankInitials(linkedBank.bank_name)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-bold truncate" style={{ color: "hsl(var(--theo-blue))" }}>
+                    {linkedBank.bank_name} · {maskAccount(linkedBank.account_number)}
+                  </div>
+                  <div className="text-xs mt-0.5 truncate" style={{ color: "hsl(var(--theo-mid))" }}>
+                    {linkedBank.account_name}
+                  </div>
+                </div>
+                <span
+                  className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold"
+                  style={{ background: "rgba(26, 127, 55, 0.10)", color: "#1A7F37", border: "1px solid rgba(26, 127, 55, 0.25)" }}
+                >
+                  <Check className="h-3 w-3" /> Linked
+                </span>
+              </div>
+              <div className="mt-3 pt-3 border-t border-border/50">
+                <Link
+                  to="/convert"
+                  className="text-xs font-semibold hover:underline"
+                  style={{ color: "hsl(var(--theo-cyan))" }}
+                >
+                  Change account
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-2xl border bg-card p-5 mb-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div
+                  className="h-10 w-10 rounded-full flex items-center justify-center shrink-0"
+                  style={{ background: "hsl(var(--theo-blue-soft))", color: "hsl(var(--theo-blue))" }}
+                >
+                  <Building2 className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="text-sm font-bold" style={{ color: "hsl(var(--theo-blue))" }}>No bank account linked</div>
+                  <div className="text-xs mt-0.5" style={{ color: "hsl(var(--theo-mid))" }}>
+                    Link a bank to make sending faster next time.
+                  </div>
+                </div>
+              </div>
+              <Link
+                to="/convert"
+                className="text-xs font-semibold hover:underline shrink-0"
+                style={{ color: "hsl(var(--theo-cyan))" }}
+              >
+                Link a bank account
+              </Link>
+            </div>
+          )}
+
+          {linkedBank && (
+            <div
+              className="rounded-xl mb-4 p-4"
+              style={{ background: "hsl(var(--theo-blue-soft))", border: "1px solid hsl(var(--theo-light))" }}
+            >
+              <div
+                className="mb-3"
+                style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: "hsl(var(--theo-cyan))" }}
+              >
+                Transfer summary
+              </div>
+              {[
+                { label: "To account", value: maskAccount(linkedBank.account_number) },
+                { label: "To bank", value: linkedBank.bank_name },
+                { label: "Amount", value: fmtHTG(Number(order.htg_amount)) },
+              ].map((r) => (
+                <div key={r.label} className="flex justify-between" style={{ fontSize: 12, marginBottom: 6 }}>
+                  <span style={{ color: "hsl(var(--theo-mid))" }}>{r.label}</span>
+                  <span style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>{r.value}</span>
+                </div>
+              ))}
+              <div className="flex justify-between items-center" style={{ fontSize: 12 }}>
+                <span style={{ color: "hsl(var(--theo-mid))" }}>Reference</span>
+                <span className="font-mono" style={{ fontWeight: 700, color: "hsl(var(--theo-blue))" }}>
+                  {order.reference_number}
+                </span>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* QUOTED panel */}
