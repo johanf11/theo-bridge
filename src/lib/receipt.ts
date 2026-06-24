@@ -12,6 +12,7 @@ const HAIR  = [229, 229, 238] as const;  // #E5E5EE
 const RED   = [194,  51,  58] as const;  // #C2333A
 const GREEN = [31,  138,  91] as const;  // #1F8A5B
 const DGOLD = [181, 138,   0] as const;  // #B58A00 (pending amber)
+const CYAN  = [  8, 181, 229] as const;  // #08B5E5 (theo-cyan, links)
 
 // ── Page constants  (A4 portrait, all in pt) ──────────────────────────────────
 const PW = 595;   // page width
@@ -284,12 +285,15 @@ function _buildPdf(data: ReceiptData): void {
     doc.setLineWidth(0.4);
     doc.rect(L, y, W, HASH_H, "FD");
 
-    ink(doc, INK);
+    ink(doc, CYAN);
     doc.setFont("courier", "normal");
     doc.setFontSize(7.5);
     // Stellar tx hashes are 64 hex chars. At 7.5pt Courier (~4.5pt/char),
     // 64 × 4.5 = 288pt — well within the 505pt available. Show in full.
     doc.text(hash, L + 9, y + 17);
+
+    // Clicking the hash box opens the transaction on Stellar Expert
+    doc.link(L, y, W, HASH_H, { url: `https://stellar.expert/explorer/testnet/tx/${hash}` });
 
     y += HASH_H;
   }
