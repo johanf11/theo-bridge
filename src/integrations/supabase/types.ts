@@ -64,6 +64,24 @@ export type Database = {
           },
         ]
       }
+      app_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
+      }
       bank_accounts: {
         Row: {
           account_name: string
@@ -1083,6 +1101,78 @@ export type Database = {
         }
         Relationships: []
       }
+      vendor_wire_instructions: {
+        Row: {
+          account_number: string | null
+          amount_usdc: number
+          bank_name: string | null
+          created_at: string
+          customer_id: string
+          id: string
+          note: string | null
+          owlting_status: Database["public"]["Enums"]["owlting_wire_status"]
+          payout_id: string
+          reference: string | null
+          simulated_wire_ref: string | null
+          swift_bic: string | null
+          updated_at: string
+          vendor_country: string | null
+          vendor_name: string
+          wired_at: string | null
+        }
+        Insert: {
+          account_number?: string | null
+          amount_usdc: number
+          bank_name?: string | null
+          created_at?: string
+          customer_id: string
+          id?: string
+          note?: string | null
+          owlting_status?: Database["public"]["Enums"]["owlting_wire_status"]
+          payout_id: string
+          reference?: string | null
+          simulated_wire_ref?: string | null
+          swift_bic?: string | null
+          updated_at?: string
+          vendor_country?: string | null
+          vendor_name: string
+          wired_at?: string | null
+        }
+        Update: {
+          account_number?: string | null
+          amount_usdc?: number
+          bank_name?: string | null
+          created_at?: string
+          customer_id?: string
+          id?: string
+          note?: string | null
+          owlting_status?: Database["public"]["Enums"]["owlting_wire_status"]
+          payout_id?: string
+          reference?: string | null
+          simulated_wire_ref?: string | null
+          swift_bic?: string | null
+          updated_at?: string
+          vendor_country?: string | null
+          vendor_name?: string
+          wired_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_wire_instructions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_wire_instructions_payout_id_fkey"
+            columns: ["payout_id"]
+            isOneToOne: false
+            referencedRelation: "payouts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wallets: {
         Row: {
           created_at: string
@@ -1239,6 +1329,7 @@ export type Database = {
         | "balance_view_keys"
         | "accounts_manage"
         | "view_balances"
+      owlting_wire_status: "RECEIVED" | "WIRED" | "FAILED"
       payout_status: "PENDING" | "COMPLETED" | "FAILED"
       wallet_type: "TREASURY" | "CUSTOMER"
     }
@@ -1408,6 +1499,7 @@ export const Constants = {
         "accounts_manage",
         "view_balances",
       ],
+      owlting_wire_status: ["RECEIVED", "WIRED", "FAILED"],
       payout_status: ["PENDING", "COMPLETED", "FAILED"],
       wallet_type: ["TREASURY", "CUSTOMER"],
     },
