@@ -31,7 +31,7 @@ export default function PayBill() {
   useEffect(() => {
     (async () => {
       if (!user) return;
-      const cid = await resolveEffectiveCustomerId(user.id);
+      const cid = await resolveEffectiveCustomerId();
       if (!cid) return;
       setCustomerId(cid);
       const { data } = await supabase.from("wallets")
