@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Shield, Home, Bell, Lock, Users, ChevronDown, ChevronUp, User, Check, Loader2, AtSign, Copy, Trash2, Plus, X } from "lucide-react";
 import { WalletKeys } from "@/components/theo/WalletKeys";
+import { ApiKeysSection } from "@/components/theo/ApiKeysSection";
 import { usePermissions, type Permission } from "@/hooks/usePermissions";
 import { toast } from "sonner";
 import { useT, type TKey } from "@/lib/i18n";
@@ -827,6 +828,9 @@ export default function Settings() {
           </div>
         </div>
       )}
+
+      {/* API keys for Odoo and other integrations */}
+      <ApiKeysSection customerId={customer?.id ?? null} isOwner={isOwner} />
 
       {/* Account credentials — owner only (contains secret keys) */}
       {isOwner && <AdvancedSection />}

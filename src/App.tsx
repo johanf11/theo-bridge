@@ -27,6 +27,7 @@ import Compliance from "./pages/Compliance";
 import Billing from "./pages/Billing";
 import Invoices from "./pages/Invoices";
 import InvoiceView from "./pages/InvoiceView";
+import DocsOdoo from "./pages/DocsOdoo";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "@/components/theo/ProtectedRoute";
 
@@ -63,6 +64,7 @@ const App = () => (
           <Route path="/admin/transactions" element={<ProtectedRoute adminOnly><AdminTransactions /></ProtectedRoute>} />
           <Route path="/compliance" element={<ProtectedRoute><Compliance /></ProtectedRoute>} />
           <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
+          <Route path="/docs/odoo" element={<DocsOdoo />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
