@@ -1,6 +1,6 @@
 import {
   LayoutGrid, ArrowLeftRight, ArrowRightLeft, Wallet, SendHorizonal,
-  Settings, ShieldCheck, Wrench, BookLock, Receipt, FileText, BookOpen, Activity,
+  Settings, ShieldCheck, Wrench, BookLock, Receipt, FileText, BookOpen, Activity, Building2,
   type LucideIcon,
 } from "lucide-react";
 import type { TKey } from "@/lib/i18n";
@@ -47,6 +47,12 @@ export function buildSearchNavItems(
       label: t("nav.payout"),
       icon: SendHorizonal,
       keywords: ["payout", "send", "payment", "transfer", "envoyer", "new payout", "send money"],
+    },
+    {
+      to: "/pay-bill",
+      label: t("nav.payBill"),
+      icon: Building2,
+      keywords: ["pay bill", "vendor", "supplier", "wire", "fiat", "owlting", "off ramp", "facture", "fournisseur"],
     },
     {
       to: "/invoices",
@@ -110,6 +116,13 @@ export function buildSearchNavItems(
       label: t("nav.admin.tools"),
       icon: Wrench,
       keywords: ["admin tools", "utilities"],
+      adminOnly: true,
+    },
+    {
+      to: "/admin/owlting",
+      label: t("nav.admin.owlting"),
+      icon: Building2,
+      keywords: ["owlting", "off ramp", "vendor wires", "fiat queue"],
       adminOnly: true,
     },
     {
