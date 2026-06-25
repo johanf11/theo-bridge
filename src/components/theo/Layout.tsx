@@ -136,6 +136,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             .filter(n => n.to !== "/settings" && n.to !== "/billing" && n.to !== "/kyb" && !n.adminOnly)
             .filter(n => n.to !== "/convert" || navAuthLoading || isOwner || isAdmin || can("convert"))
             .filter(n => n.to !== "/payout"  || navAuthLoading || isOwner || isAdmin || can("payout_send"))
+            .filter(n => n.to !== "/pay-bill" || navAuthLoading || isOwner || isAdmin || can("payout_send"))
             .map((item) => (
               <NavItem key={item.to} to={item.to} label={item.label} icon={item.icon} />
             ))}
