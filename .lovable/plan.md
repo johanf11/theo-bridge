@@ -1,75 +1,39 @@
+# Plan: Pass-down doc for Theo ↔ Odoo plugin integration
 
-# Theo for Odoo — API keys + public payment API
+Create a single markdown handoff at `docs/theo-odoo-integration.md` so whoever builds/demos the `theo_payment` Odoo 17 module can wire it up against the Theo API with zero ramp-up. No code changes — doc only.
 
-Scope is the Theo side only: a way for org **owners** to mint API keys in Settings, and a small public REST surface the Odoo `theo_payment` module will call. The Odoo Python module itself ships separately and is out of scope for this project.
+## File: `docs/theo-odoo-integration.md`
 
-## 1. Database
+Sections:
 
-New migration adds `public.api_keys`:
+1. **Overview** — one-paragraph summary of the flow: importer pre-funds HTG → HTG-C → "Pay with Theo" on an Odoo vendor bill → Theo debits USDC (or auto-converts HTG-C at live BRH rate) → settles supplier on Stellar → returns tx hash for Odoo to mark the bill paid.
 
-| column | type | notes |
-|---|---|---|
-| `id` | uuid pk | |
-| `customer_id` | uuid → customers | org scope |
-| `name` | text | user label, e.g. "Odoo prod" |
-| `prefix` | text | `theo_live_xxxx` shown in UI |
-| `last_four` | text | last 4 chars for display |
-| `hashed_key` | text | sha-256 hex; raw key never stored |
-| `scopes` | text[] | default `{payments:write,wallets:read,balance:read,quotes:write}` |
-| `created_by` | uuid → auth.users | |
-| `created_at` / `last_used_at` / `revoked_at` | timestamptz | |
+2. **Prerequisites** — Theo org with KYB `APPROVED`, owner-level user, at least one funded wallet, Odoo 17 self-hosted with developer mode.
 
-Migration also: GRANTs (`authenticated` SELECT/UPDATE, `service_role` ALL); RLS — owners only (`is_org_owner(customer_id)`) can SELECT/INSERT/UPDATE; `service_role` full; nothing for `anon`. Index on `(hashed_key)` for fast lookup.
+3. **Generate an API key** — step-by-step: Settings → API & Integrations → Generate. Key shown once, format `theo_live_<32 hex>`. Owner-only. Scopes default to `payments:write, wallets:read, balance:read, quotes:write`.
 
-## 2. Edge function `api-keys` (authenticated, JWT-verified)
+4. **Endpoint base URL** — `https://nlbnmsiqfywskuxhqjon.supabase.co/functions/v1` (and how to point at a different env). Auth header: `Authorization: Bearer theo_live_…`. Wide-open CORS, no `apikey` header needed.
 
-- `POST /create` `{ name, scopes? }` — owner-only check via `is_org_owner`. Generates `theo_live_` + 32 hex chars, stores SHA-256 hash, returns the raw key **once**.
-- `POST /revoke` `{ id }` — sets `revoked_at`.
-- Listing uses Supabase client + RLS from the UI (no list endpoint needed).
+5. **API reference** — for each of `GET /theo-api-ping`, `GET /theo-api-wallets`, `POST /theo-api-quote`, `POST /theo-api-pay`: purpose, request shape, response shape, sample curl, sample JSON. Call out:
+   - HTG-C synthetic wallet id format `htgc:<customer_id>`.
+   - Quote TTL = 15 min, idempotent via `quote_id`.
+   - `supplier.stellar_address` is currently the only supported settlement rail.
+   - `external_invoice_ref` flows into the on-chain memo (28 byte cap).
 
-## 3. Settings UI — new "API & Integrations" section
+6. **End-to-end flow** — ASCII sequence diagram: Odoo → `/ping` → `/wallets` → user picks source → `/quote` → confirm → `/pay` → store `stellar_tx_hash` on `account.move`.
 
-In `src/pages/Settings.tsx`, owner-only (uses existing `usePermissions().isOwner`). Adds an "Odoo & API" card:
+7. **Error codes** — full table (401/403/404/409/410/502) with what each means and the Odoo-side handling we recommend (retry vs. surface to user vs. re-quote).
 
-- Endpoint URL (read-only, copy button).
-- "Generate API key" → modal showing the raw key once with a copy button + "I've saved it" confirmation; toast warns it won't be shown again.
-- Table of existing keys: name, `prefix···last_four`, created, last used, Revoke button. Revoked keys greyed out.
-- Helper link "Install the Odoo plugin" pointing to the docs page.
+8. **Odoo module expectations** — what the `theo_payment` module should ship: settings model (api_key, base_url, default_wallet_id), wizard on `account.move` with wallet picker + quote preview + confirm, `ir.config_parameter` for the key, system parameter to toggle test/live. Out of scope for this repo but listed so the plugin author knows the contract.
 
-Non-owners see a notice that only owners can manage API keys.
+9. **Test plan / demo script** — copy-pasteable curl sequence that exercises ping → wallets → quote → pay end to end, plus how to verify on the Theo side (Transactions page, reference prefix `THEO-ODO-`).
 
-## 4. Public REST API (verify_jwt = false, Bearer api-key auth)
+10. **Troubleshooting** — common issues: 401 (wrong/revoked key), 403 (KYB not approved or missing scope), 410 (quote expired, just re-quote), 502 (insufficient distributor USDC — admin top-up), CORS (should be none — wildcard).
 
-New shared helper `_shared/api-key-auth.ts` (this is a new file, not a modification of the existing _shared perimeter): hashes the `Authorization: Bearer …` header, looks up `api_keys`, rejects if missing/revoked, returns `{ customer_id, scopes }`, bumps `last_used_at`. Wide-open CORS (Odoo servers are arbitrary). Never logs the raw key.
+11. **Security notes** — key shown once, hash-only at rest, owner-only mint/revoke, `last_used_at` audit, rotate via revoke + regenerate, never log the raw key in Odoo.
 
-Endpoints, each its own function:
+12. **Roadmap (not in v1)** — vendor sync from Odoo → Theo, bank-rail settlement, per-user keys, webhook callback to Odoo on settlement.
 
-- `GET  theo-api-ping` → `{ ok: true, customer: { id, company_name } }` (Test Connection).
-- `GET  theo-api-wallets` → `[{ id, label, currency, available_balance }]` for every wallet the customer can pay from. Includes USDC wallets (live Horizon balance) and the HTG-C internal balance as a synthetic wallet entry. The plugin uses this to render the wallet picker + balance.
-- `POST theo-api-quote` `{ source_wallet_id, amount_usd, supplier: { name, stellar_address?, bank? } }` →
-  - If source is a USDC wallet with ≥ amount: returns `{ quote_id, source_currency: "USDC", debit_usdc: amount_usd, fee_usd, total_debit_usd, rate: 1, expires_at }`.
-  - If source is HTG-C: returns `{ quote_id, source_currency: "HTGC", debit_htgc, rate, fee_usd, expires_at }` using the live BRH rate from `rate_snapshots` + standard fee bps — same math as `create-quote`.
-  - Persists a row in `orders` (status `QUOTED`, kind `usdc_conversion` or new `odoo_payment`) with 15-min TTL so `theo-api-pay` is idempotent.
-- `POST theo-api-pay` `{ quote_id, external_invoice_ref }` → executes settlement to the supplier address using existing `send-payment` / `execute-swap` logic internally, returns `{ reference_number, stellar_tx_hash, status }`. Validates quote is unexpired + belongs to caller's customer.
-
-All endpoints validate input with Zod, enforce scopes, and rate-limit (simple per-key per-minute counter in `job_queue`-style table or in-memory — basic limit, 60 req/min).
-
-Supplier details are **always passed inline** on quote/pay — no vendor sync built now. Adding a `theo_vendors` mirror later is a separate feature.
-
-## 5. Docs page
-
-New static React route `/docs/odoo` (no auth) with: endpoint base URL, sample curl for each endpoint, install steps for the Odoo module, error code table. Linked from the Settings card.
-
-## 6. Out of scope (separate work)
-
-- The `theo_payment` Odoo 17 Python/XML module + docker-compose — shipped as a separate ZIP.
-- Vendor sync (Odoo → Theo supplier mirror). Possible follow-up once the inline flow is in production.
-- OAuth / per-user keys. Single org-level API key model only.
-
-## Technical notes
-
-- Key format: `theo_live_` + 32 hex chars (16 bytes). Hash with `crypto.subtle.digest('SHA-256')`. Prefix = first 14 chars; last_four = last 4 of the raw key.
-- Owner check uses existing `public.is_org_owner(customer_id)` SQL function for both RLS and the create endpoint.
-- Reuses existing `_shared/stellar-signer.ts`, `tx-limits.ts`, rate snapshots, and the same fee math (`fee_bps` + `corridor_bps`) — no parallel pricing logic.
-- No new project secrets needed; everything uses existing infra.
-- `_shared/api-key-auth.ts` is a new file and does not touch any existing `_shared/*` helper (per project security constraint).
+## Out of scope
+- Any code change (Settings UI, edge functions, plugin source).
+- The Odoo Python/XML module itself — that's a separate deliverable.
