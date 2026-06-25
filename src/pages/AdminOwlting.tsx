@@ -183,7 +183,7 @@ export default function AdminOwlting() {
 function Th({ children }: { children?: React.ReactNode }) {
   return <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "hsl(var(--theo-mid))" }}>{children}</th>;
 }
-function Td({ children }: { children: React.ReactNode }) {
+function Td({ children }: { children?: React.ReactNode }) {
   return <td style={{ padding: "12px", color: "hsl(var(--theo-ink))", verticalAlign: "top" }}>{children}</td>;
 }
 function StatusPill({ status }: { status: "RECEIVED" | "WIRED" | "FAILED" }) {
