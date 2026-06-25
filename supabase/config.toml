@@ -19,3 +19,11 @@ project_id = "nlbnmsiqfywskuxhqjon"
     verify_jwt = true
   [functions.scheduled-tx]
     verify_jwt = false
+  [functions.theo-api-ping]
+    verify_jwt = false
+  [functions.theo-api-wallets]
+    verify_jwt = false
+  [functions.theo-api-quote]
+    verify_jwt = false
+  [functions.theo-api-pay]
+    verify_jwt = false
