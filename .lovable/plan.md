@@ -1,40 +1,75 @@
-## Goal
 
-On the Deposit HTG order detail page (`src/pages/OrderStatus.tsx`), when `order.order_kind === "htgc_mint"` and `order.status === "QUOTED"`, render a "Sending from" section directly above the existing "Pay via SPIH" panel. Reuse the customer's existing `bank_accounts` rows (same source used in `Convert.tsx`'s Withdraw to Bank tab). No DB or backend changes.
+# Theo for Odoo — API keys + public payment API
 
-## Changes (single file: `src/pages/OrderStatus.tsx`)
+Scope is the Theo side only: a way for org **owners** to mint API keys in Settings, and a small public REST surface the Odoo `theo_payment` module will call. The Odoo Python module itself ships separately and is out of scope for this project.
 
-1. **Fetch the customer's default bank account** alongside the existing order load:
-   - After resolving `order.customer_id`, query `bank_accounts` with `select("id, bank_name, account_name, account_number, routing_code, is_default").eq("customer_id", customerId).order("is_default", { ascending: false }).limit(1)`.
-   - Store the first row in a `linkedBank` state (nullable). Skip the query for non-mint orders.
+## 1. Database
 
-2. **Add a helper** local to the file:
-   - `maskAccount(num: string)` → returns `**** ${num.slice(-4)}` (mirrors `Convert.tsx`).
-   - `bankInitials(name: string)` → first letters of up to 2 words for the avatar circle.
+New migration adds `public.api_keys`:
 
-3. **Render the "Sending from" block** inside the `order.status === "QUOTED"` branch, gated by `order.order_kind === "htgc_mint"`, placed immediately above the existing `Pay via SPIH` panel (around line 273).
+| column | type | notes |
+|---|---|---|
+| `id` | uuid pk | |
+| `customer_id` | uuid → customers | org scope |
+| `name` | text | user label, e.g. "Odoo prod" |
+| `prefix` | text | `theo_live_xxxx` shown in UI |
+| `last_four` | text | last 4 chars for display |
+| `hashed_key` | text | sha-256 hex; raw key never stored |
+| `scopes` | text[] | default `{payments:write,wallets:read,balance:read,quotes:write}` |
+| `created_by` | uuid → auth.users | |
+| `created_at` / `last_used_at` / `revoked_at` | timestamptz | |
 
-   Structure:
-   - Card: `rounded-2xl border bg-card p-5 mb-4`
-   - Eyebrow: `SENDING FROM` (11px, 700, uppercase, tracking 0.18em, cyan).
-   - Row: 40px initials circle (theo-blue-soft bg, theo-blue text) + bank name (bold theo-blue) and `${bank_name} · ${maskAccount(account_number)}` line + owner name underneath in `theo-mid` + right-aligned green "Linked" badge (theo-cyan-soft style chip with check icon, green text `#1A7F37`).
-   - Footer text link: "Change account" → routes to `/convert` (Withdraw to Bank tab) using `<Link>`, styled as cyan underline-on-hover.
+Migration also: GRANTs (`authenticated` SELECT/UPDATE, `service_role` ALL); RLS — owners only (`is_org_owner(customer_id)`) can SELECT/INSERT/UPDATE; `service_role` full; nothing for `anon`. Index on `(hashed_key)` for fast lookup.
 
-4. **Render the compact transfer summary panel** directly below the bank card and above the SPIH panel, using `--theo-blue-soft` background:
-   - `rounded-xl mb-4 p-4` with `background: hsl(var(--theo-blue-soft))`, `border: 1px solid hsl(var(--theo-blue-chip))`.
-   - Rows (label left in `theo-mid`, value right bold `theo-blue`):
-     - To account → `maskAccount(account_number)`
-     - To bank → `bank_name`
-     - Amount → `fmtHTG(order.htg_amount)`
-     - Reference → `order.reference_number` (mono font)
-   - Matches the styling pattern of the "Transfer Summary" block in `Convert.tsx` lines 1408–1470.
+## 2. Edge function `api-keys` (authenticated, JWT-verified)
 
-5. **Empty state**: if `linkedBank` is null (customer has no bank on file), render a compact prompt card in the same slot: "No bank account linked" + a "Link a bank account" CTA → `/convert`. Do not block the SPIH instructions from rendering.
+- `POST /create` `{ name, scopes? }` — owner-only check via `is_org_owner`. Generates `theo_live_` + 32 hex chars, stores SHA-256 hash, returns the raw key **once**.
+- `POST /revoke` `{ id }` — sets `revoked_at`.
+- Listing uses Supabase client + RLS from the UI (no list endpoint needed).
 
-6. **Scope**: Only show both blocks when `order.order_kind === "htgc_mint"`. The existing SPIH instructions panel and admin debug section remain unchanged.
+## 3. Settings UI — new "API & Integrations" section
 
-## Out of scope
+In `src/pages/Settings.tsx`, owner-only (uses existing `usePermissions().isOwner`). Adds an "Odoo & API" card:
 
-- No schema changes, no edge function changes.
-- No changes to other order kinds.
-- No bank-account picker on this page (the link sends users to the existing Convert page to manage banks).
+- Endpoint URL (read-only, copy button).
+- "Generate API key" → modal showing the raw key once with a copy button + "I've saved it" confirmation; toast warns it won't be shown again.
+- Table of existing keys: name, `prefix···last_four`, created, last used, Revoke button. Revoked keys greyed out.
+- Helper link "Install the Odoo plugin" pointing to the docs page.
+
+Non-owners see a notice that only owners can manage API keys.
+
+## 4. Public REST API (verify_jwt = false, Bearer api-key auth)
+
+New shared helper `_shared/api-key-auth.ts` (this is a new file, not a modification of the existing _shared perimeter): hashes the `Authorization: Bearer …` header, looks up `api_keys`, rejects if missing/revoked, returns `{ customer_id, scopes }`, bumps `last_used_at`. Wide-open CORS (Odoo servers are arbitrary). Never logs the raw key.
+
+Endpoints, each its own function:
+
+- `GET  theo-api-ping` → `{ ok: true, customer: { id, company_name } }` (Test Connection).
+- `GET  theo-api-wallets` → `[{ id, label, currency, available_balance }]` for every wallet the customer can pay from. Includes USDC wallets (live Horizon balance) and the HTG-C internal balance as a synthetic wallet entry. The plugin uses this to render the wallet picker + balance.
+- `POST theo-api-quote` `{ source_wallet_id, amount_usd, supplier: { name, stellar_address?, bank? } }` →
+  - If source is a USDC wallet with ≥ amount: returns `{ quote_id, source_currency: "USDC", debit_usdc: amount_usd, fee_usd, total_debit_usd, rate: 1, expires_at }`.
+  - If source is HTG-C: returns `{ quote_id, source_currency: "HTGC", debit_htgc, rate, fee_usd, expires_at }` using the live BRH rate from `rate_snapshots` + standard fee bps — same math as `create-quote`.
+  - Persists a row in `orders` (status `QUOTED`, kind `usdc_conversion` or new `odoo_payment`) with 15-min TTL so `theo-api-pay` is idempotent.
+- `POST theo-api-pay` `{ quote_id, external_invoice_ref }` → executes settlement to the supplier address using existing `send-payment` / `execute-swap` logic internally, returns `{ reference_number, stellar_tx_hash, status }`. Validates quote is unexpired + belongs to caller's customer.
+
+All endpoints validate input with Zod, enforce scopes, and rate-limit (simple per-key per-minute counter in `job_queue`-style table or in-memory — basic limit, 60 req/min).
+
+Supplier details are **always passed inline** on quote/pay — no vendor sync built now. Adding a `theo_vendors` mirror later is a separate feature.
+
+## 5. Docs page
+
+New static React route `/docs/odoo` (no auth) with: endpoint base URL, sample curl for each endpoint, install steps for the Odoo module, error code table. Linked from the Settings card.
+
+## 6. Out of scope (separate work)
+
+- The `theo_payment` Odoo 17 Python/XML module + docker-compose — shipped as a separate ZIP.
+- Vendor sync (Odoo → Theo supplier mirror). Possible follow-up once the inline flow is in production.
+- OAuth / per-user keys. Single org-level API key model only.
+
+## Technical notes
+
+- Key format: `theo_live_` + 32 hex chars (16 bytes). Hash with `crypto.subtle.digest('SHA-256')`. Prefix = first 14 chars; last_four = last 4 of the raw key.
+- Owner check uses existing `public.is_org_owner(customer_id)` SQL function for both RLS and the create endpoint.
+- Reuses existing `_shared/stellar-signer.ts`, `tx-limits.ts`, rate snapshots, and the same fee math (`fee_bps` + `corridor_bps`) — no parallel pricing logic.
+- No new project secrets needed; everything uses existing infra.
+- `_shared/api-key-auth.ts` is a new file and does not touch any existing `_shared/*` helper (per project security constraint).
