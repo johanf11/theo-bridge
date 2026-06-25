@@ -3,7 +3,7 @@ import { useAuth, useRoles } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import {
   ArrowLeftRight,
-  Settings, LogOut, ShieldCheck, Wrench, Receipt, BookOpen, Activity,
+  Settings, LogOut, ShieldCheck, Wrench, Receipt, BookOpen, Activity, Building2,
 } from "lucide-react";
 import { GlobalSearchBar } from "@/components/theo/GlobalSearchBar";
 import { LanguageToggle } from "@/components/theo/LanguageToggle";
@@ -156,6 +156,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <NavItem to="/admin/kyb" label={t("nav.admin.kyb")} icon={ShieldCheck} />
               <NavItem to="/admin/conversions" label={t("nav.admin.conversions")} icon={ArrowLeftRight} />
               <NavItem to="/admin/transactions" label={t("nav.admin.transactions")} icon={Activity} />
+              <NavItem to="/admin/owlting" label={t("nav.admin.owlting")} icon={Building2} />
               <NavItem to="/admin/tools" label={t("nav.admin.tools")} icon={Wrench} />
               <NavItem to="/admin/ledger" label={t("nav.admin.ledger")} icon={BookOpen} />
             </>
