@@ -52,6 +52,9 @@ Deno.serve(async (req) => {
       reference_number: order.reference_number,
       stellar_tx_hash: order.stellar_tx_hash,
       status: "COMPLETED",
+      stellar_memo: order.stellar_memo ?? order.payout_memo ?? order.reference_number,
+      stellar_memo_source: order.stellar_memo_source ?? (order.payout_memo ? "vendor" : "theo_ref"),
+      settled_at: order.completed_at ?? null,
       idempotent_replay: true,
     });
   }
