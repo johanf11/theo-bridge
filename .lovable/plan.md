@@ -1,32 +1,24 @@
-## Cleanup
-Delete all stuck `THEO-ODO-*` orders with status `QUOTED` (currently 28+ rows from the Odoo ping bug), plus any ledger entries/transactions tied to them. Preserve `COMPLETED` orders.
+# Deploy Theo API functions + verify convert 404 fix
 
-Migration:
-```sql
-DELETE FROM ledger_entries WHERE transaction_id IN (
-  SELECT id FROM ledger_transactions WHERE order_id IN (
-    SELECT id FROM orders WHERE reference_number LIKE 'THEO-ODO-%' AND status = 'QUOTED'
-  )
-);
-DELETE FROM ledger_transactions WHERE order_id IN (
-  SELECT id FROM orders WHERE reference_number LIKE 'THEO-ODO-%' AND status = 'QUOTED'
-);
-DELETE FROM orders WHERE reference_number LIKE 'THEO-ODO-%' AND status = 'QUOTED';
-```
+## Goal
+Odoo is hitting `POST /theo-api-convert` and getting `404 Requested function was not found`. The function source exists in the repo (`supabase/functions/theo-api-convert/index.ts`) so the most likely cause is that it was never deployed (or was deployed under a different revision). Redeploy the affected functions and confirm with curl.
 
-## Cursor pass-through prompt
-I'll provide a prompt you can paste into Cursor (working in the Odoo `theo_payment` plugin repo) that explains the bug and prescribes the fix: stop calling `/theo-api-quote` on every wizard render/health-check, only call it when the user explicitly opens the Pay-with-Theo wizard, and never persist/ping a quote that hasn't been confirmed via `/theo-api-pay`. The prompt will cover:
+## Steps
 
-- Root cause: plugin is calling `POST /theo-api-quote` during connection tests, wizard preloads, or polling — each call creates a `QUOTED` order on Theo's side.
-- Required behavior:
-  - `Test Connection` button → only call `GET /theo-api-ping` (never `/quote`).
-  - Wallet picker refresh → only `GET /theo-api-wallets`.
-  - `/theo-api-quote` is only called once, on explicit user click of "Get quote", and the returned `quote_id` is held in wizard memory (not persisted) until the user clicks "Confirm & Pay".
-  - If the user cancels or the wizard closes before `/theo-api-pay`, do nothing — the quote will expire server-side in 15 min.
-  - Add idempotency: store a `client_request_id` (UUID v4 generated per wizard open) and dedupe in the plugin so a double-click or retry doesn't fire two `/quote` calls.
-  - Remove any cron/scheduled action that calls `/quote`.
-  - Log every outbound call with method + endpoint + status so duplicates are visible.
-- Acceptance: opening the wizard and closing it must produce zero `QUOTED` orders on the Theo side; only an explicit Confirm produces one `COMPLETED` order.
+1. Redeploy these edge functions to project `nlbnmsiqfywskuxhqjon`:
+   - `theo-api-convert`
+   - `theo-api-pay-bank`
+   - `theo-api-quote`
+   - `theo-api-pay`
+   - `theo-api-wallets`
 
-## Server-side hardening (optional, not in this plan)
-Mention to user: longer-term we should make `/theo-api-quote` itself idempotent via an `Idempotency-Key` header so even a buggy client can't create duplicates. Flag only — not implementing now per "only what user asked".
+2. Verify with unauthenticated curl that each slug now resolves at the gateway (i.e., returns an auth error from our code, not Supabase's `NOT_FOUND`):
+   - `POST /theo-api-convert` → expect `401 { "error": "Missing API key" }` (or equivalent), NOT `404 Requested function was not found`.
+   - Same check for `/theo-api-pay-bank`.
+
+3. Report back the HTTP status + JSON body returned by each curl so it's clear the slug exists.
+
+## Out of scope
+- No code changes to any function.
+- No changes to `_shared/*` (per project constraint).
+- No schema or secret changes.
