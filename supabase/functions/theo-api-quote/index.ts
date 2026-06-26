@@ -175,6 +175,8 @@ Deno.serve(async (req) => {
       destination_wallet_address: dest,
       destination_stellar_address: dest,
       order_kind: sourceCurrency === "HTGC" ? "usdc_conversion" : "htgc_usdc_swap",
+      payout_memo: payoutMemo,
+      payout_memo_type: payoutMemoType,
     })
     .select("id")
     .single();
@@ -195,6 +197,8 @@ Deno.serve(async (req) => {
       name: supplier.name,
       stellar_address: dest,
       external_ref: supplier.external_ref ?? null,
+      memo: payoutMemo,
+      memo_type: payoutMemoType,
     },
   });
 });
