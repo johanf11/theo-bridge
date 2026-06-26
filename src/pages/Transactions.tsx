@@ -18,7 +18,7 @@ import { useRoles } from "@/lib/auth";
 
 type TxType = "conversion" | "htgc_mint" | "swap" | "withdraw" | "payout" | "yield_payout" | "yield" | "yield_earned" | "transfer";
 
-type TypeFilterKey = "all" | "conversion" | "mint" | "swap" | "payout" | "yieldDeposit" | "withdraw" | "transfer";
+type TypeFilterKey = "all" | "conversion" | "mint" | "swap" | "payout" | "yieldDeposit" | "withdraw" | "transfer" | "odoo";
 type StatusFilterKey = "all" | "complete" | "pending" | "failed";
 type DateFilterKey = "30d" | "90d" | "ytd" | "all";
 
@@ -31,6 +31,7 @@ const TYPE_FILTER_OPTIONS: { value: TypeFilterKey; labelKey: TKey }[] = [
   { value: "yieldDeposit", labelKey: "tx.type.yieldDeposit" },
   { value: "withdraw", labelKey: "tx.type.withdraw" },
   { value: "transfer", labelKey: "tx.type.transfer" },
+  { value: "odoo", labelKey: "tx.type.odoo" },
 ];
 
 const STATUS_FILTER_OPTIONS: { value: StatusFilterKey; labelKey: TKey }[] = [
@@ -431,6 +432,7 @@ export default function Transactions() {
     if (typeFilter === "yieldDeposit" && tx.type !== "yield" && tx.type !== "yield_earned" && tx.type !== "yield_payout") return false;
     if (typeFilter === "withdraw" && tx.type !== "withdraw") return false;
     if (typeFilter === "transfer" && tx.type !== "transfer") return false;
+    if (typeFilter === "odoo" && !(tx.reference_number ?? "").toUpperCase().startsWith("THEO-ODO-")) return false;
 
     const statusUpper = tx.status.toUpperCase();
     if (statusFilter === "complete" && statusUpper !== "COMPLETED" && !statusUpper.includes("COMPLETE")) return false;
