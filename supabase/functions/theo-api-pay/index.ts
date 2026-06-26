@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
 
   const { data: order } = await admin
     .from("orders")
-    .select("id, customer_id, status, usdc_amount, htg_amount, reference_number, destination_stellar_address, order_kind, quote_expires_at")
+    .select("id, customer_id, status, usdc_amount, htg_amount, reference_number, destination_stellar_address, order_kind, quote_expires_at, payout_memo, payout_memo_type")
     .eq("id", quoteId)
     .maybeSingle();
   if (!order) return json({ error: "quote not found" }, 404);
