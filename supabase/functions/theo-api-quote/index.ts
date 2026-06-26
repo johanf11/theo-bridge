@@ -208,7 +208,7 @@ Deno.serve(async (req) => {
       .limit(1)
       .maybeSingle();
     spotRate = Number(r?.spot_rate ?? 0);
-    if (!spotRate || spotRate <= 0) return json({ error: "No spot rate available" }, 500);
+    if (!spotRate || spotRate <= 0) return err("No spot rate available", "rate_unavailable", 500);
     rate = spotRate;
     debitHtgc = Math.round(totalDebitUsd * rate * 100) / 100;
   }
