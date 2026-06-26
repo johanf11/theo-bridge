@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
     .eq("status", "QUOTED")
     .select("id")
     .maybeSingle();
-  if (claimErr) return json({ error: claimErr.message }, 500);
+  if (claimErr) return err(claimErr.message, "internal_error", 500);
   if (!claimed) {
     const { data: latest } = await admin
       .from("orders")
@@ -89,11 +89,11 @@ Deno.serve(async (req) => {
         idempotent_replay: true,
       });
     }
-    return json({ error: `quote already used (status=${latest?.status ?? "unknown"})` }, 409);
+    return err(`quote already used (status=${latest?.status ?? "unknown"})`, "quote_already_used", 409);
   }
 
   const usdcIssuer = Deno.env.get("STELLAR_USDC_ISSUER");
-  if (!usdcIssuer) return json({ error: "STELLAR_USDC_ISSUER not configured" }, 500);
+  if (!usdcIssuer) return err("STELLAR_USDC_ISSUER not configured", "internal_error", 500);
 
   const server = new Horizon.Server(HORIZON_URL);
   const usdc = new Asset("USDC", usdcIssuer);
