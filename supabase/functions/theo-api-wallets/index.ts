@@ -6,7 +6,8 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { authenticateApiKey } from "../_shared/api-key-auth.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
-import { owltningOfframpAddress } from "../_shared/odoo-settlement.ts";
+import { resolveOwltingStellarDestination } from "../_shared/odoo-settlement.ts";
+import { apiErrorResponse, authErrorCode } from "../_shared/api-errors.ts";
 
 const HORIZON_URL = "https://horizon-testnet.stellar.org";
 
