@@ -93,22 +93,28 @@ Deno.serve(async (req) => {
     }>);
     const usdcLine = destBals.find((b) => b.asset_code === "USDC" && b.asset_issuer === usdcIssuer);
     if (!usdcLine) {
-      return json({
-        error: "destination_not_provisioned: Owlting omnibus is missing a USDC trustline. Contact Theo support.",
-      }, 503);
+      return err(
+        "destination_not_provisioned: Owlting omnibus is missing a USDC trustline. Contact Theo support.",
+        "destination_not_configured",
+        503,
+      );
     }
     if (usdcLine.is_authorized === false) {
       const issuerSecret = Deno.env.get("STELLAR_USDC_ISSUER_SECRET") ?? Deno.env.get("STELLAR_HTGC_ISSUER_SECRET");
       if (!issuerSecret) {
-        return json({
-          error: "destination_not_provisioned: Owlting omnibus USDC trustline is not authorized. Contact Theo support.",
-        }, 503);
+        return err(
+          "destination_not_provisioned: Owlting omnibus USDC trustline is not authorized. Contact Theo support.",
+          "destination_not_configured",
+          503,
+        );
       }
       const issuerKp = Keypair.fromSecret(issuerSecret);
       if (issuerKp.publicKey() !== usdcIssuer) {
-        return json({
-          error: "destination_not_provisioned: configured USDC issuer secret does not match the USDC issuer. Contact Theo support.",
-        }, 503);
+        return err(
+          "destination_not_provisioned: configured USDC issuer secret does not match the USDC issuer. Contact Theo support.",
+          "destination_not_configured",
+          503,
+        );
       }
       const issuerAcct = await preServer.loadAccount(issuerKp.publicKey());
       const authTx = new TransactionBuilder(issuerAcct, { fee: BASE_FEE, networkPassphrase: Networks.TESTNET })
@@ -125,11 +131,13 @@ Deno.serve(async (req) => {
   } catch (e: unknown) {
     const status = (e as { response?: { status?: number } })?.response?.status;
     if (status === 404) {
-      return json({
-        error: "destination_not_provisioned: Owlting omnibus account does not exist on Stellar. Contact Theo support.",
-      }, 503);
+      return err(
+        "destination_not_provisioned: Owlting omnibus account does not exist on Stellar. Contact Theo support.",
+        "destination_not_configured",
+        503,
+      );
     }
-    return json({ error: `destination preflight failed: ${(e as Error).message}` }, 502);
+    return err(`destination preflight failed: ${(e as Error).message}`, "on_chain_failed", 502);
   }
 
   const { data: claimed, error: claimErr } = await admin
