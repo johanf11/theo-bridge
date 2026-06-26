@@ -649,6 +649,7 @@ export type Database = {
       orders: {
         Row: {
           api_idempotency_key: string | null
+          beneficiary_metadata: Json | null
           completed_at: string | null
           corridor_bps: number | null
           created_at: string
@@ -684,6 +685,7 @@ export type Database = {
         }
         Insert: {
           api_idempotency_key?: string | null
+          beneficiary_metadata?: Json | null
           completed_at?: string | null
           corridor_bps?: number | null
           created_at?: string
@@ -719,6 +721,7 @@ export type Database = {
         }
         Update: {
           api_idempotency_key?: string | null
+          beneficiary_metadata?: Json | null
           completed_at?: string | null
           corridor_bps?: number | null
           created_at?: string
