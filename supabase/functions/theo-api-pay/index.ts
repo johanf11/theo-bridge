@@ -106,6 +106,31 @@ Deno.serve(async (req) => {
   const usdc = new Asset("USDC", usdcIssuer);
   const amount = Number(order.usdc_amount);
 
+  // Resolve final on-chain Stellar memo. Priority:
+  // 1) caller's stellar_memo (Odoo pre-resolved)
+  // 2) order.vendor_memo (set at quote time)
+  // 3) order.payout_memo (legacy supplier memo) -> treated as vendor
+  // 4) reference_number (Theo ref fallback)
+  let resolved;
+  try {
+    const vendorCandidate =
+      callerVendorMemo ||
+      (order.vendor_memo as string | null) ||
+      ((order.payout_memo as string | null) ?? "");
+    resolved = resolveStellarMemo({
+      referenceNumber: String(order.reference_number),
+      vendorMemo: vendorCandidate || null,
+      prePicked: callerStellarMemo || null,
+      prePickedSource: callerStellarMemoSource || null,
+    });
+  } catch (e) {
+    if (e instanceof InvalidMemoError) {
+      await admin.from("orders").update({ status: "QUOTED" }).eq("id", order.id);
+      return err(e.message, "invalid_memo", 400);
+    }
+    throw e;
+  }
+
   let hash: string;
   try {
     const distPub = distributorPublicKey();
