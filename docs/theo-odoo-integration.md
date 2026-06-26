@@ -347,3 +347,82 @@ Verify on the Theo side:
 - Webhook callback to Odoo on settlement (`payment.completed`) instead of the
   current synchronous pay call.
 - OAuth 2.0 client-credentials grant as an alternative to long-lived keys.
+
+---
+
+## 12. Backend-led integration spec (for the Odoo wizard)
+
+The backend is the source of truth. The plugin's job is to forward bill data,
+display whatever the quote returns, and surface any error verbatim.
+
+### 12.1 Endpoint matrix per settlement rail
+
+| Rail    | Quote endpoint   | Pay endpoint        | Required `settlement.beneficiary` fields                 |
+|---------|------------------|---------------------|-----------------------------------------------------------|
+| `wire`  | `/theo-api-quote`| `/theo-api-pay-bank`| `name`, `bank_name`, `account_number`, `swift`, `country` |
+| `local` | `/theo-api-quote`| `/theo-api-pay`     | `name`, `bank_name`, `account_number`, `currency`         |
+| `ach`   | `/theo-api-quote`| `/theo-api-pay`     | `name`, `bank_name`, `account_number`                     |
+| `usdc`  | `/theo-api-quote`| `/theo-api-pay`     | `name`, `wallet_address` (G…, ≥ 50 chars)                 |
+
+All quote bodies must include:
+
+- `source_wallet_id` (from `/theo-api-wallets`)
+- `amount_usd` (> 0, ≤ 100,000)
+- One of: `invoice_ref`, `settlement.external_ref`, or `supplier.memo`
+  (health checks must use `/theo-api-ping`, **not** `/theo-api-quote`).
+
+The off-ramp Stellar destination is **resolved server-side** for every rail
+(`app_settings.owlting_omnibus_address` → env fallback). The plugin must read
+`off_ramp.stellar_address` from the quote response — never hardcode it.
+
+### 12.2 Wizard popup safety
+
+The Odoo `theo_payment_wizard` must open its modal **before** evaluating
+`response.ok`, so failures show in the dialog instead of suppressing it.
+
+Pseudo-code:
+
+```python
+resp = http.post(url, json=body, headers={...}, timeout=30)
+try:
+    payload = resp.json()
+except ValueError:
+    payload = {"error": resp.text or "Empty response", "code": "invalid_response"}
+
+self.open_modal(payload)              # always
+if resp.status_code != 200:
+    self.modal_state = "error"
+    self.error_code = payload.get("code")
+    self.error_message = payload.get("error")
+    return                            # do NOT raise UserError — it kills the popup
+# else: render quote breakdown
+```
+
+Retry policy:
+
+- `502 on_chain_failed`, `503 destination_not_configured` → show a "Retry" button.
+- All other 4xx → no auto-retry; user must edit the bill or contact ops.
+- `409 quote_already_used` with a known `stellar_tx_hash` → treat as success.
+
+### 12.3 Step-by-step trigger sequence
+
+1. **Test connection** → `GET /theo-api-ping` (used for the Settings → Test button).
+2. **Load wallets** → `GET /theo-api-wallets` (refresh on every wizard open).
+3. **Quote** → `POST /theo-api-quote` with the rail-specific body above.
+4. **Display** the quote: `amount_usd`, `fee_usd`, `platform_fee_usd`,
+   `total_debit_usd`, `rate`, `debit_htgc`, `off_ramp.stellar_address`,
+   countdown to `expires_at`.
+5. **Pay** → `POST /theo-api-pay-bank` (wire) or `POST /theo-api-pay` (all other
+   rails) with `{ quote_id, external_invoice_ref }`.
+6. On 200, store `stellar_tx_hash` + `reference_number` on the `account.move`,
+   mark the bill paid, close the wizard.
+
+### 12.4 Idempotency contract
+
+- The plugin SHOULD include `client_request_id` on quote requests, but the
+  backend dedupes on the **business reference** anyway (`external_ref` +
+  `settlement_method` + `amount_usd` + destination). Re-posting the same bill
+  returns the same `quote_id` (`idempotent_replay: true`).
+- `/theo-api-pay` and `/theo-api-pay-bank` are idempotent on `quote_id` — calling
+  them again after a completed payment returns the original `stellar_tx_hash`
+  with `idempotent_replay: true`.
