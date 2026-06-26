@@ -18,7 +18,7 @@ import {
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { authenticateApiKey } from "../_shared/api-key-auth.ts";
 import { corsHeaders } from "../_shared/cors.ts";
-import { owltningOfframpAddress } from "../_shared/odoo-settlement.ts";
+import { resolveOfframpStellarDestination } from "../_shared/odoo-settlement.ts";
 import { distributorPublicKey, signWithDistributor } from "../_shared/stellar-signer.ts";
 
 const HORIZON_URL = "https://horizon-testnet.stellar.org";
