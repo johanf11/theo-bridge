@@ -121,8 +121,12 @@ Deno.serve(async (req) => {
   const clientRequestId = clean(body.client_request_id ?? body.idempotency_key);
 
   if (!sourceWalletId) return err("source_wallet_id required", "invalid_request", 400);
-  if (!Number.isFinite(amountUsd) || amountUsd <= 0 || amountUsd > MAX_USDC) {
-    return err(`amount_usd must be > 0 and <= ${MAX_USDC}`, "invalid_request", 400);
+  if (!Number.isFinite(amountUsd) || amountUsd <= 0) {
+    return err("amount_usd must be a positive number", "invalid_request", 400);
+  }
+  const opsCap = odooQuoteMaxUsd();
+  if (opsCap !== null && amountUsd > opsCap) {
+    return err(`amount_usd ${amountUsd} exceeds ops-configured maximum ${opsCap}`, "amount_out_of_range", 400);
   }
 
   const parsed = parseSettlementBody(body);
