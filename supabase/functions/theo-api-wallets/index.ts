@@ -74,5 +74,16 @@ Deno.serve(async (req) => {
     });
   }
 
-  return json({ wallets: out });
+  const totalUsdc = out
+    .filter((w) => w.currency === "USDC")
+    .reduce((s, w) => s + w.available_balance, 0);
+
+  return json({
+    wallets: out,
+    totals: {
+      usdc: totalUsdc,
+      htgc: totalHtgc,
+    },
+    total_usdc: totalUsdc,
+  });
 });
