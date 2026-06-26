@@ -74,10 +74,19 @@ Deno.serve(async (req) => {
     }
 
     const fresh = await server.loadAccount(distPub);
-    const memoText = (externalRef ?? order.reference_number).slice(0, 28);
+    // Memo precedence: order.payout_memo (collected at quote time, used by
+    // Owlting to match the off-ramp ticket) > external_invoice_ref > reference.
+    const storedMemo = order.payout_memo as string | null;
+    const storedMemoType = (order.payout_memo_type as "text" | "id" | null) ?? "text";
+    let memo;
+    if (storedMemo) {
+      memo = storedMemoType === "id" ? Memo.id(storedMemo) : Memo.text(storedMemo);
+    } else {
+      memo = Memo.text((externalRef ?? order.reference_number).slice(0, 28));
+    }
     const tx = new TransactionBuilder(fresh, { fee: BASE_FEE, networkPassphrase: Networks.TESTNET })
       .addOperation(Operation.payment({ destination: dest, asset: usdc, amount: amount.toFixed(7) }))
-      .addMemo(Memo.text(memoText))
+      .addMemo(memo)
       .setTimeout(60).build();
     signWithDistributor(tx);
     const r = await server.submitTransaction(tx);
