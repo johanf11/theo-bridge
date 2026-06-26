@@ -68,19 +68,45 @@ Deno.serve(async (req) => {
   const dest = order.destination_stellar_address;
   if (!dest) return json({ error: "quote has no destination address" }, 400);
 
-  // Pre-flight destination: must exist on Horizon AND trust USDC.
+  const usdcIssuer = Deno.env.get("STELLAR_USDC_ISSUER");
+  if (!usdcIssuer) return json({ error: "STELLAR_USDC_ISSUER not configured" }, 500);
+
+  // Pre-flight destination: must exist on Horizon, trust USDC, and be authorized.
   // If not, fail fast WITHOUT claiming the quote so the caller can retry once
   // the omnibus account is provisioned.
-  const usdcIssuerCheck = Deno.env.get("STELLAR_USDC_ISSUER");
   try {
     const preServer = new Horizon.Server(HORIZON_URL);
     const destAcct = await preServer.loadAccount(dest);
-    const destBals = (destAcct.balances as Array<{ asset_code?: string; asset_issuer?: string }>);
-    const hasUsdc = destBals.some((b) => b.asset_code === "USDC" && b.asset_issuer === usdcIssuerCheck);
-    if (!hasUsdc) {
+    const destBals = (destAcct.balances as Array<{
+      asset_code?: string;
+      asset_issuer?: string;
+      is_authorized?: boolean;
+    }>);
+    const usdcLine = destBals.find((b) => b.asset_code === "USDC" && b.asset_issuer === usdcIssuer);
+    if (!usdcLine) {
       return json({
         error: "destination_not_provisioned: Owlting omnibus is missing a USDC trustline. Contact Theo support.",
       }, 503);
+    }
+    if (usdcLine.is_authorized === false) {
+      const issuerSecret = Deno.env.get("STELLAR_USDC_ISSUER_SECRET");
+      if (!issuerSecret) {
+        return json({
+          error: "destination_not_provisioned: Owlting omnibus USDC trustline is not authorized. Contact Theo support.",
+        }, 503);
+      }
+      const issuerKp = Keypair.fromSecret(issuerSecret);
+      const issuerAcct = await preServer.loadAccount(issuerKp.publicKey());
+      const authTx = new TransactionBuilder(issuerAcct, { fee: BASE_FEE, networkPassphrase: Networks.TESTNET })
+        .addOperation(Operation.setTrustLineFlags({
+          trustor: dest,
+          asset: new Asset("USDC", usdcIssuer),
+          flags: { authorized: true },
+        }))
+        .setTimeout(60)
+        .build();
+      authTx.sign(issuerKp);
+      await preServer.submitTransaction(authTx);
     }
   } catch (e: unknown) {
     const status = (e as { response?: { status?: number } })?.response?.status;
@@ -118,9 +144,6 @@ Deno.serve(async (req) => {
     }
     return json({ error: `quote already used (status=${latest?.status ?? "unknown"})` }, 409);
   }
-
-  const usdcIssuer = Deno.env.get("STELLAR_USDC_ISSUER");
-  if (!usdcIssuer) return json({ error: "STELLAR_USDC_ISSUER not configured" }, 500);
 
   const server = new Horizon.Server(HORIZON_URL);
   const usdc = new Asset("USDC", usdcIssuer);
