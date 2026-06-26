@@ -218,7 +218,6 @@ Deno.serve(async (req) => {
   const strongBusinessRef = externalRef || clean(payoutMemo);
   const idempotencySeed = {
       scope: "business_ref",
-      client_request_id: clientRequestId || null,
       source_wallet_id: sourceWalletId,
       amount_usd: Math.round(amountUsd * 1e7) / 1e7,
       supplier_name: clean(settlement.beneficiary.name).toLowerCase(),
