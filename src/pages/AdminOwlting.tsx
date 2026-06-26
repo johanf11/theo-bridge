@@ -178,10 +178,6 @@ function StatusPill({ status }: { status: "RECEIVED" | "WIRED" | "FAILED" }) {
   return <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700, background: s.bg, color: s.color }}>{s.label}</span>;
 }
 
-const primaryBtn: React.CSSProperties = {
-  display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "none",
-  background: "hsl(var(--theo-gold))", color: "hsl(var(--theo-blue))", fontWeight: 700, fontSize: 13, cursor: "pointer",
-};
 const smallBtn: React.CSSProperties = {
   display: "inline-flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 6, border: "1px solid hsl(var(--theo-light))",
   background: "white", color: "hsl(var(--theo-ink))", fontSize: 12, fontWeight: 600, cursor: "pointer",
