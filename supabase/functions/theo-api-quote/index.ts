@@ -26,6 +26,15 @@ function generateReference(): string {
   return `THEO-ODO-${s}`;
 }
 
+async function sha256Hex(input: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function clean(value: unknown): string {
+  return String(value ?? "").trim();
+}
+
 Deno.serve(async (req) => {
   const headers = corsHeaders(req, { wildcard: true });
   if (req.method === "OPTIONS") return new Response(null, { headers });
@@ -42,6 +51,7 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({} as Record<string, unknown>));
   const sourceWalletId = String(body.source_wallet_id ?? "");
   const amountUsd = Number(body.amount_usd);
+  const clientRequestId = clean(body.client_request_id ?? body.idempotency_key);
   const supplier = body.supplier as {
     name?: string;
     stellar_address?: string;
@@ -155,6 +165,57 @@ Deno.serve(async (req) => {
   const reference = generateReference();
   const expiresAt = new Date(Date.now() + QUOTE_TTL_MIN * 60 * 1000).toISOString();
 
+  const strongBusinessRef = clean(supplier.external_ref) || clean(payoutMemo);
+  const idempotencySeed = clientRequestId
+    ? { scope: "client", client_request_id: clientRequestId }
+    : {
+      scope: strongBusinessRef ? "business_ref" : "quote_window",
+      quote_window: strongBusinessRef ? null : Math.floor(Date.now() / (QUOTE_TTL_MIN * 60 * 1000)),
+      source_wallet_id: sourceWalletId,
+      amount_usd: Math.round(amountUsd * 1e7) / 1e7,
+      supplier_name: clean(supplier.name).toLowerCase(),
+      external_ref: clean(supplier.external_ref),
+      settlement_method: isBankWire ? "bank_wire" : "stellar",
+      destination: dest,
+      memo: payoutMemo,
+      memo_type: payoutMemoType,
+    };
+  const apiIdempotencyKey = `theo-api-quote:${await sha256Hex(JSON.stringify(idempotencySeed))}`;
+
+  const existingQuoteSelect = "id, status, htg_amount, usdc_amount, usdc_gross, fee_usdc, rate, reference_number, quote_expires_at, destination_stellar_address, payout_memo, payout_memo_type";
+  const { data: existing } = await admin
+    .from("orders")
+    .select(existingQuoteSelect)
+    .eq("customer_id", auth.customer_id)
+    .eq("api_idempotency_key", apiIdempotencyKey)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) {
+    return json({
+      quote_id: existing.id,
+      reference_number: existing.reference_number,
+      expires_at: existing.quote_expires_at,
+      source_currency: sourceCurrency,
+      source_wallet_id: sourceWalletDbId ?? sourceWalletId,
+      amount_usd: Number(existing.usdc_amount),
+      fee_usd: Number(existing.fee_usdc ?? 0),
+      total_debit_usd: Number(existing.usdc_gross ?? existing.usdc_amount),
+      debit_htgc: sourceCurrency === "HTGC" ? Number(existing.htg_amount) : null,
+      rate: Number(existing.rate),
+      status: existing.status,
+      idempotent_replay: true,
+      supplier: {
+        name: supplier.name,
+        stellar_address: existing.destination_stellar_address,
+        external_ref: supplier.external_ref ?? null,
+        memo: existing.payout_memo,
+        memo_type: existing.payout_memo_type,
+      },
+    });
+  }
+
   const { data: order, error: insErr } = await admin
     .from("orders")
     .insert({
@@ -177,10 +238,46 @@ Deno.serve(async (req) => {
       order_kind: sourceCurrency === "HTGC" ? "usdc_conversion" : "htgc_usdc_swap",
       payout_memo: payoutMemo,
       payout_memo_type: payoutMemoType,
+      api_idempotency_key: apiIdempotencyKey,
     })
     .select("id")
     .single();
-  if (insErr) return json({ error: insErr.message }, 500);
+  if (insErr) {
+    if ((insErr as { code?: string }).code === "23505") {
+      const { data: replay } = await admin
+        .from("orders")
+        .select(existingQuoteSelect)
+        .eq("customer_id", auth.customer_id)
+        .eq("api_idempotency_key", apiIdempotencyKey)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (replay) {
+        return json({
+          quote_id: replay.id,
+          reference_number: replay.reference_number,
+          expires_at: replay.quote_expires_at,
+          source_currency: sourceCurrency,
+          source_wallet_id: sourceWalletDbId ?? sourceWalletId,
+          amount_usd: Number(replay.usdc_amount),
+          fee_usd: Number(replay.fee_usdc ?? 0),
+          total_debit_usd: Number(replay.usdc_gross ?? replay.usdc_amount),
+          debit_htgc: sourceCurrency === "HTGC" ? Number(replay.htg_amount) : null,
+          rate: Number(replay.rate),
+          status: replay.status,
+          idempotent_replay: true,
+          supplier: {
+            name: supplier.name,
+            stellar_address: replay.destination_stellar_address,
+            external_ref: supplier.external_ref ?? null,
+            memo: replay.payout_memo,
+            memo_type: replay.payout_memo_type,
+          },
+        });
+      }
+    }
+    return json({ error: insErr.message }, 500);
+  }
 
   return json({
     quote_id: order.id,
