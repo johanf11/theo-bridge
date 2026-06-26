@@ -14,7 +14,7 @@ import Dashboard from "./pages/Dashboard";
 import Transactions from "./pages/Transactions";
 import Balance from "./pages/Balance";
 import Payout from "./pages/Payout";
-import PayBill from "./pages/PayBill";
+
 import AdminOwlting from "./pages/AdminOwlting";
 import Convert from "./pages/Convert";
 import Settings from "./pages/Settings";
