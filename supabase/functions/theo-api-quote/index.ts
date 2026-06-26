@@ -257,6 +257,43 @@ Deno.serve(async (req) => {
     ));
   }
 
+  const { data: existingByBusinessRef } = await admin
+    .from("orders")
+    .select(existingQuoteSelect)
+    .eq("customer_id", auth.customer_id)
+    .eq("destination_stellar_address", dest)
+    .eq("usdc_amount", totalDebitUsd)
+    .eq("order_kind", sourceCurrency === "HTGC" ? "usdc_conversion" : "htgc_usdc_swap")
+    .in("status", ["QUOTED", "FUNDED"])
+    .contains("beneficiary_metadata", {
+      external_ref: externalRef,
+      settlement_method: isBankWire ? "bank_wire" : settlement.rail,
+    })
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingByBusinessRef) {
+    await admin
+      .from("orders")
+      .update({ api_idempotency_key: apiIdempotencyKey })
+      .eq("id", existingByBusinessRef.id)
+      .is("api_idempotency_key", null);
+    return json(buildQuoteReplayResponse(
+      existingByBusinessRef as Record<string, unknown>,
+      sourceCurrency,
+      sourceWalletDbId,
+      sourceWalletId,
+      settlement,
+      dest,
+      payoutMemo,
+      payoutMemoType,
+      billAmountUsd,
+      fxFeeUsd,
+      platformFeeUsd,
+    ));
+  }
+
   const { data: order, error: insErr } = await admin
     .from("orders")
     .insert({
