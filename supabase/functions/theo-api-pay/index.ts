@@ -139,7 +139,7 @@ Deno.serve(async (req) => {
       ? JSON.stringify((e as { response: { data: unknown } }).response.data)
       : (e as Error).message;
     await admin.from("orders").update({ status: "FAILED", failure_reason: String(msg).slice(0, 1000) }).eq("id", order.id);
-    return json({ error: `Payment failed: ${msg}` }, 502);
+    return err(`Payment failed: ${msg}`, "on_chain_failed", 502);
   }
 
   await admin.from("orders").update({
