@@ -37,8 +37,11 @@ Importer (Odoo)     theo_payment plugin        Theo API              Stellar/Owl
 - Org **owner** account (only owners can mint API keys).
 - At least one funded wallet (USDC and/or HTG-C balance).
 - Odoo 17 self-hosted, developer mode enabled, outbound HTTPS allowed.
-- Supabase secret **`OWLTING_OFFRAMP_STELLAR_ADDRESS`** set to the Owlting testnet
-  (demo) or mainnet off-ramp `G…` address.
+- Off-ramp Stellar destination configured on the Theo backend. Theo resolves it
+  via `app_settings.owlting_omnibus_address` (preferred) and falls back to the
+  `OWLTING_OFFRAMP_STELLAR_ADDRESS` env. The plugin does NOT need to know which
+  source is used — every quote response returns `off_ramp.stellar_address`.
+  If neither is set, all rails return `503 { code: "destination_not_configured" }`.
 
 ---
 
