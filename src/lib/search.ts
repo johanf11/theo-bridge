@@ -49,12 +49,6 @@ export function buildSearchNavItems(
       keywords: ["payout", "send", "payment", "transfer", "envoyer", "new payout", "send money"],
     },
     {
-      to: "/pay-bill",
-      label: t("nav.payBill"),
-      icon: Building2,
-      keywords: ["pay bill", "vendor", "supplier", "wire", "fiat", "owlting", "off ramp", "facture", "fournisseur"],
-    },
-    {
       to: "/invoices",
       label: t("nav.invoices"),
       icon: FileText,
