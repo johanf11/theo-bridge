@@ -96,14 +96,32 @@ export default function DocsOdoo() {
         </Section>
 
         <Section title="Error codes">
+          <p style={{ fontSize: 13, color: "hsl(var(--theo-ink))", marginBottom: 10 }}>
+            Every non-2xx response is JSON with <code>{`{ error, code? }`}</code>.
+            Always parse the body even on 5xx — never gate the wizard popup on{" "}
+            <code>response.ok</code>. Surface <code>code</code> + <code>error</code>{" "}
+            in the modal so failures stay visible.
+          </p>
           <ul style={{ fontSize: 13, color: "hsl(var(--theo-ink))", lineHeight: 1.7, paddingLeft: 18 }}>
+            <li><code>400</code> — Bad request (missing field, invalid settlement)</li>
             <li><code>401</code> — Missing or invalid API key</li>
-            <li><code>403</code> — Missing scope, KYB not approved, or quote belongs to another customer</li>
+            <li><code>403 kyb_required</code> — Missing scope, KYB not approved, or quote belongs to another customer</li>
             <li><code>404</code> — Quote, wallet, or customer not found</li>
-            <li><code>409</code> — Quote already used</li>
-            <li><code>410</code> — Quote expired (15-min TTL)</li>
-            <li><code>502</code> — On-chain payment failed (transient or insufficient funds)</li>
+            <li><code>409 quote_already_used</code> — Treat as success if <code>stellar_tx_hash</code> is known</li>
+            <li><code>410 quote_expired</code> — 15-min TTL; re-quote</li>
+            <li><code>502 on_chain_failed</code> — On-chain payment failed (retryable)</li>
+            <li><code>503 destination_not_configured</code> — Owlting off-ramp missing on backend (ops)</li>
           </ul>
+        </Section>
+
+        <Section title="Settlement rails">
+          <p style={{ fontSize: 13, color: "hsl(var(--theo-ink))", lineHeight: 1.7 }}>
+            <code>wire</code> → <code>/theo-api-pay-bank</code>. All other rails
+            (<code>local</code>, <code>ach</code>, <code>usdc</code>) →{" "}
+            <code>/theo-api-pay</code>. The backend resolves the off-ramp Stellar
+            address for every rail; read it from <code>off_ramp.stellar_address</code>{" "}
+            on the quote response — never hardcode it in the plugin.
+          </p>
         </Section>
       </div>
     </div>
