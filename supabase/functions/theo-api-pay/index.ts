@@ -151,14 +151,7 @@ Deno.serve(async (req) => {
     }
 
     const fresh = await server.loadAccount(distPub);
-    const storedMemo = order.payout_memo as string | null;
-    const storedMemoType = (order.payout_memo_type as "text" | "id" | null) ?? "text";
-    let memo;
-    if (storedMemo) {
-      memo = storedMemoType === "id" ? Memo.id(storedMemo) : Memo.text(storedMemo);
-    } else {
-      memo = Memo.text((externalRef ?? order.reference_number).slice(0, 28));
-    }
+    const memo = resolved.memoType === "id" ? Memo.id(resolved.memo) : Memo.text(resolved.memo);
     const tx = new TransactionBuilder(fresh, { fee: BASE_FEE, networkPassphrase: Networks.TESTNET })
       .addOperation(Operation.payment({ destination: dest, asset: usdc, amount: amount.toFixed(7) }))
       .addMemo(memo)
