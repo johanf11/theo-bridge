@@ -14,7 +14,7 @@ import Dashboard from "./pages/Dashboard";
 import Transactions from "./pages/Transactions";
 import Balance from "./pages/Balance";
 import Payout from "./pages/Payout";
-import PayBill from "./pages/PayBill";
+
 import AdminOwlting from "./pages/AdminOwlting";
 import Convert from "./pages/Convert";
 import Settings from "./pages/Settings";
@@ -53,7 +53,7 @@ const App = () => (
           <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
           <Route path="/balance" element={<ProtectedRoute><Balance /></ProtectedRoute>} />
           <Route path="/payout" element={<ProtectedRoute><Payout /></ProtectedRoute>} />
-          <Route path="/pay-bill" element={<ProtectedRoute><PayBill /></ProtectedRoute>} />
+          
           <Route path="/admin/owlting" element={<ProtectedRoute adminOnly><AdminOwlting /></ProtectedRoute>} />
           <Route path="/invoices" element={<ProtectedRoute><Invoices /></ProtectedRoute>} />
           <Route path="/inv/:token" element={<InvoiceView />} />
