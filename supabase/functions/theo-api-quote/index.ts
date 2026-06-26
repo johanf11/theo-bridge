@@ -222,14 +222,16 @@ Deno.serve(async (req) => {
   }
 
   const strongBusinessRef = externalRef || clean(payoutMemo);
+  // Idempotency key intentionally omits `destination` — rotating the Owlting
+  // omnibus must NOT spawn duplicate quotes for the same bill / wizard ping.
   const idempotencySeed = {
       scope: "business_ref",
+      customer_id: auth.customer_id,
       source_wallet_id: sourceWalletId,
       amount_usd: Math.round(amountUsd * 1e7) / 1e7,
       supplier_name: clean(settlement.beneficiary.name).toLowerCase(),
       external_ref: externalRef,
       settlement_method: isBankWire ? "bank_wire" : settlement.rail,
-      destination: dest,
       memo: idempotencyMemo,
       memo_type: idempotencyMemoType,
     };
@@ -280,21 +282,25 @@ Deno.serve(async (req) => {
   }
 
 
-  const { data: existingByBusinessRef } = await admin
-    .from("orders")
-    .select(existingQuoteSelect)
-    .eq("customer_id", auth.customer_id)
-    .eq("destination_stellar_address", dest)
-    .eq("usdc_amount", totalDebitUsd)
-    .eq("order_kind", sourceCurrency === "HTGC" ? "usdc_conversion" : "htgc_usdc_swap")
-    .in("status", ["QUOTED", "FUNDED"])
-    .contains("beneficiary_metadata", {
-      external_ref: externalRef,
-      settlement_method: isBankWire ? "bank_wire" : settlement.rail,
-    })
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // Fallback lookup: same customer + external_ref + supplier + settlement_method,
+  // still QUOTED/FUNDED, not expired. Intentionally ignores destination and
+  // amount so a rotated omnibus / re-quoted fee doesn't spawn duplicates.
+  const { data: existingByBusinessRef } = strongBusinessRef
+    ? await admin
+        .from("orders")
+        .select(existingQuoteSelect)
+        .eq("customer_id", auth.customer_id)
+        .eq("order_kind", sourceCurrency === "HTGC" ? "usdc_conversion" : "htgc_usdc_swap")
+        .in("status", ["QUOTED", "FUNDED"])
+        .gt("quote_expires_at", new Date().toISOString())
+        .contains("beneficiary_metadata", {
+          external_ref: strongBusinessRef,
+          settlement_method: isBankWire ? "bank_wire" : settlement.rail,
+        })
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    : { data: null };
 
   if (existingByBusinessRef) {
     await admin
