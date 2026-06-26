@@ -115,6 +115,9 @@ function buildQuoteReplayResponse(
     },
     payout_memo: existing.payout_memo ?? payoutMemo,
     payout_memo_type: existing.payout_memo_type ?? payoutMemoType,
+    vendor_memo: (existing as { vendor_memo?: string | null }).vendor_memo ?? null,
+    stellar_memo: (existing as { stellar_memo?: string | null }).stellar_memo ?? existing.payout_memo ?? existing.reference_number,
+    stellar_memo_source: (existing as { stellar_memo_source?: string | null }).stellar_memo_source ?? (existing.payout_memo ? "vendor" : "theo_ref"),
   };
 }
 
