@@ -15,23 +15,10 @@ const HORIZON_URL = "https://horizon-testnet.stellar.org";
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
-  const authHeader = req.headers.get("Authorization") ?? "";
-  const userClient = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_ANON_KEY")!,
-    { global: { headers: { Authorization: authHeader } } },
-  );
-  const { data: { user } } = await userClient.auth.getUser();
-  if (!user) {
+  const cs = req.headers.get("x-cron-secret");
+  if (!cs || cs !== Deno.env.get("CRON_SECRET")) {
     return new Response(JSON.stringify({ error: "unauthorized" }), {
       status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-  const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-  const { data: roleRow } = await admin.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle();
-  if (!roleRow) {
-    return new Response(JSON.stringify({ error: "forbidden" }), {
-      status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
