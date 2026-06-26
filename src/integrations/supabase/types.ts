@@ -648,6 +648,7 @@ export type Database = {
       }
       orders: {
         Row: {
+          api_idempotency_key: string | null
           completed_at: string | null
           corridor_bps: number | null
           created_at: string
@@ -682,6 +683,7 @@ export type Database = {
           wallet_id: string | null
         }
         Insert: {
+          api_idempotency_key?: string | null
           completed_at?: string | null
           corridor_bps?: number | null
           created_at?: string
@@ -716,6 +718,7 @@ export type Database = {
           wallet_id?: string | null
         }
         Update: {
+          api_idempotency_key?: string | null
           completed_at?: string | null
           corridor_bps?: number | null
           created_at?: string
