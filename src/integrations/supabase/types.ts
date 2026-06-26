@@ -673,6 +673,8 @@ export type Database = {
           released_at: string | null
           spot_rate: number | null
           status: Database["public"]["Enums"]["order_status"]
+          stellar_memo: string | null
+          stellar_memo_source: string | null
           stellar_tx_hash: string | null
           swap_direction: string | null
           theo_fee_bps: number | null
@@ -681,6 +683,7 @@ export type Database = {
           usdc_amount: number | null
           usdc_gross: number | null
           user_id: string | null
+          vendor_memo: string | null
           wallet_id: string | null
         }
         Insert: {
@@ -709,6 +712,8 @@ export type Database = {
           released_at?: string | null
           spot_rate?: number | null
           status?: Database["public"]["Enums"]["order_status"]
+          stellar_memo?: string | null
+          stellar_memo_source?: string | null
           stellar_tx_hash?: string | null
           swap_direction?: string | null
           theo_fee_bps?: number | null
@@ -717,6 +722,7 @@ export type Database = {
           usdc_amount?: number | null
           usdc_gross?: number | null
           user_id?: string | null
+          vendor_memo?: string | null
           wallet_id?: string | null
         }
         Update: {
@@ -745,6 +751,8 @@ export type Database = {
           released_at?: string | null
           spot_rate?: number | null
           status?: Database["public"]["Enums"]["order_status"]
+          stellar_memo?: string | null
+          stellar_memo_source?: string | null
           stellar_tx_hash?: string | null
           swap_direction?: string | null
           theo_fee_bps?: number | null
@@ -753,6 +761,7 @@ export type Database = {
           usdc_amount?: number | null
           usdc_gross?: number | null
           user_id?: string | null
+          vendor_memo?: string | null
           wallet_id?: string | null
         }
         Relationships: [

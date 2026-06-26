@@ -14,6 +14,23 @@ import {
   odooQuoteMaxUsd,
 } from "../_shared/odoo-settlement.ts";
 import { apiErrorResponse, authErrorCode } from "../_shared/api-errors.ts";
+import { InvalidMemoError, resolveStellarMemo } from "../_shared/stellar-memo.ts";
+
+function extractVendorMemo(body: Record<string, unknown>): string {
+  const supplier = body.supplier as Record<string, unknown> | undefined;
+  const settlement = body.settlement as Record<string, unknown> | undefined;
+  const beneficiary = settlement?.beneficiary as Record<string, unknown> | undefined;
+  const candidates = [
+    supplier?.vendor_memo,
+    supplier?.memo,
+    beneficiary?.memo,
+  ];
+  for (const c of candidates) {
+    const v = String(c ?? "").trim();
+    if (v) return v;
+  }
+  return "";
+}
 
 const QUOTE_TTL_MIN = 15;
 
@@ -98,6 +115,9 @@ function buildQuoteReplayResponse(
     },
     payout_memo: existing.payout_memo ?? payoutMemo,
     payout_memo_type: existing.payout_memo_type ?? payoutMemoType,
+    vendor_memo: (existing as { vendor_memo?: string | null }).vendor_memo ?? null,
+    stellar_memo: (existing as { stellar_memo?: string | null }).stellar_memo ?? existing.payout_memo ?? existing.reference_number,
+    stellar_memo_source: (existing as { stellar_memo_source?: string | null }).stellar_memo_source ?? (existing.payout_memo ? "vendor" : "theo_ref"),
   };
 }
 
@@ -154,6 +174,15 @@ Deno.serve(async (req) => {
   let payoutMemoType = memoParsed.payoutMemoType;
   const idempotencyMemo = memoParsed.payoutMemo;
   const idempotencyMemoType = memoParsed.payoutMemoType;
+
+  // Vendor memo (Stellar exchange tag) — may come from settlement.beneficiary.memo,
+  // supplier.memo, or supplier.vendor_memo. payoutMemo (supplier.memo) takes precedence.
+  const vendorMemo = (payoutMemo ?? "").trim() || extractVendorMemo(body);
+  if (vendorMemo) {
+    const bytes = new TextEncoder().encode(vendorMemo).length;
+    if (bytes > 28) return err("vendor memo exceeds 28 bytes for Stellar MEMO_TEXT", "invalid_memo", 400);
+  }
+
 
   const userProvidedBusinessRef = externalRef || payoutMemo;
   if (!userProvidedBusinessRef) {
@@ -238,6 +267,21 @@ Deno.serve(async (req) => {
     payoutMemoType = "text";
   }
 
+  // Resolve the on-chain Stellar memo (vendor wins, else Theo reference).
+  let resolvedStellarMemo: string;
+  let resolvedStellarMemoSource: "vendor" | "theo_ref";
+  try {
+    const resolved = resolveStellarMemo({
+      referenceNumber: reference,
+      vendorMemo: vendorMemo || null,
+    });
+    resolvedStellarMemo = resolved.memo;
+    resolvedStellarMemoSource = resolved.source;
+  } catch (e) {
+    if (e instanceof InvalidMemoError) return err(e.message, "invalid_memo", 400);
+    throw e;
+  }
+
   const strongBusinessRef = externalRef || clean(payoutMemo);
   // Idempotency key intentionally omits `destination` — rotating the Owlting
   // omnibus must NOT spawn duplicate quotes for the same bill / wizard ping.
@@ -251,10 +295,11 @@ Deno.serve(async (req) => {
       settlement_method: isBankWire ? "bank_wire" : settlement.rail,
       memo: idempotencyMemo,
       memo_type: idempotencyMemoType,
+      vendor_memo: vendorMemo || null,
     };
   const apiIdempotencyKey = `theo-api-quote:${await sha256Hex(JSON.stringify(idempotencySeed))}`;
 
-  const existingQuoteSelect = "id, status, htg_amount, usdc_amount, usdc_gross, fee_usdc, rate, reference_number, quote_expires_at, destination_stellar_address, payout_memo, payout_memo_type, beneficiary_metadata";
+  const existingQuoteSelect = "id, status, htg_amount, usdc_amount, usdc_gross, fee_usdc, rate, reference_number, quote_expires_at, destination_stellar_address, payout_memo, payout_memo_type, beneficiary_metadata, vendor_memo, stellar_memo, stellar_memo_source";
   const { data: existing } = await admin
     .from("orders")
     .select(existingQuoteSelect)
@@ -362,6 +407,9 @@ Deno.serve(async (req) => {
       order_kind: sourceCurrency === "HTGC" ? "usdc_conversion" : "htgc_usdc_swap",
       payout_memo: payoutMemo,
       payout_memo_type: payoutMemoType,
+      vendor_memo: vendorMemo || null,
+      stellar_memo: resolvedStellarMemo,
+      stellar_memo_source: resolvedStellarMemoSource,
       api_idempotency_key: apiIdempotencyKey,
       beneficiary_metadata: {
         ...settlement,
@@ -371,6 +419,9 @@ Deno.serve(async (req) => {
         platform_fee_usdc: platformFeeUsd,
         bill_amount_usd: billAmountUsd,
         total_debit_usd: totalDebitUsd,
+        vendor_memo: vendorMemo || null,
+        stellar_memo: resolvedStellarMemo,
+        stellar_memo_source: resolvedStellarMemoSource,
       },
     })
     .select("id")
@@ -436,5 +487,8 @@ Deno.serve(async (req) => {
     },
     payout_memo: payoutMemo,
     payout_memo_type: payoutMemoType,
+    vendor_memo: vendorMemo || null,
+    stellar_memo: resolvedStellarMemo,
+    stellar_memo_source: resolvedStellarMemoSource,
   });
 });

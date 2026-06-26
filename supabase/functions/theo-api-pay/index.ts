@@ -13,6 +13,7 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { resolveOwltingStellarDestination } from "../_shared/odoo-settlement.ts";
 import { apiErrorResponse, authErrorCode } from "../_shared/api-errors.ts";
 import { distributorPublicKey, signWithDistributor } from "../_shared/stellar-signer.ts";
+import { InvalidMemoError, resolveStellarMemo } from "../_shared/stellar-memo.ts";
 
 const HORIZON_URL = "https://horizon-testnet.stellar.org";
 
@@ -33,11 +34,14 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({} as Record<string, unknown>));
   const quoteId = String(body.quote_id ?? "");
   const externalRef = body.external_invoice_ref ? String(body.external_invoice_ref) : null;
+  const callerStellarMemo = body.stellar_memo ? String(body.stellar_memo).trim() : "";
+  const callerStellarMemoSource = body.stellar_memo_source ? String(body.stellar_memo_source).trim().toLowerCase() : "";
+  const callerVendorMemo = body.vendor_memo ? String(body.vendor_memo).trim() : "";
   if (!quoteId) return err("quote_id required", "invalid_request", 400);
 
   const { data: order } = await admin
     .from("orders")
-    .select("id, customer_id, status, usdc_amount, htg_amount, reference_number, destination_stellar_address, order_kind, quote_expires_at, beneficiary_metadata, payout_memo, payout_memo_type, stellar_tx_hash")
+    .select("id, customer_id, status, usdc_amount, htg_amount, reference_number, destination_stellar_address, order_kind, quote_expires_at, beneficiary_metadata, payout_memo, payout_memo_type, stellar_tx_hash, vendor_memo, stellar_memo, stellar_memo_source, completed_at")
     .eq("id", quoteId)
     .maybeSingle();
   if (!order) return err("quote not found", "not_found", 404);
@@ -48,6 +52,9 @@ Deno.serve(async (req) => {
       reference_number: order.reference_number,
       stellar_tx_hash: order.stellar_tx_hash,
       status: "COMPLETED",
+      stellar_memo: order.stellar_memo ?? order.payout_memo ?? order.reference_number,
+      stellar_memo_source: order.stellar_memo_source ?? (order.payout_memo ? "vendor" : "theo_ref"),
+      settled_at: order.completed_at ?? null,
       idempotent_replay: true,
     });
   }
@@ -99,6 +106,31 @@ Deno.serve(async (req) => {
   const usdc = new Asset("USDC", usdcIssuer);
   const amount = Number(order.usdc_amount);
 
+  // Resolve final on-chain Stellar memo. Priority:
+  // 1) caller's stellar_memo (Odoo pre-resolved)
+  // 2) order.vendor_memo (set at quote time)
+  // 3) order.payout_memo (legacy supplier memo) -> treated as vendor
+  // 4) reference_number (Theo ref fallback)
+  let resolved;
+  try {
+    const vendorCandidate =
+      callerVendorMemo ||
+      (order.vendor_memo as string | null) ||
+      ((order.payout_memo as string | null) ?? "");
+    resolved = resolveStellarMemo({
+      referenceNumber: String(order.reference_number),
+      vendorMemo: vendorCandidate || null,
+      prePicked: callerStellarMemo || null,
+      prePickedSource: callerStellarMemoSource || null,
+    });
+  } catch (e) {
+    if (e instanceof InvalidMemoError) {
+      await admin.from("orders").update({ status: "QUOTED" }).eq("id", order.id);
+      return err(e.message, "invalid_memo", 400);
+    }
+    throw e;
+  }
+
   let hash: string;
   try {
     const distPub = distributorPublicKey();
@@ -119,14 +151,7 @@ Deno.serve(async (req) => {
     }
 
     const fresh = await server.loadAccount(distPub);
-    const storedMemo = order.payout_memo as string | null;
-    const storedMemoType = (order.payout_memo_type as "text" | "id" | null) ?? "text";
-    let memo;
-    if (storedMemo) {
-      memo = storedMemoType === "id" ? Memo.id(storedMemo) : Memo.text(storedMemo);
-    } else {
-      memo = Memo.text((externalRef ?? order.reference_number).slice(0, 28));
-    }
+    const memo = resolved.memoType === "id" ? Memo.id(resolved.memo) : Memo.text(resolved.memo);
     const tx = new TransactionBuilder(fresh, { fee: BASE_FEE, networkPassphrase: Networks.TESTNET })
       .addOperation(Operation.payment({ destination: dest, asset: usdc, amount: amount.toFixed(7) }))
       .addMemo(memo)
@@ -145,10 +170,15 @@ Deno.serve(async (req) => {
     return err(`Payment failed: ${msg}`, "on_chain_failed", 502);
   }
 
+  const completedAt = new Date().toISOString();
   await admin.from("orders").update({
     status: "COMPLETED",
     stellar_tx_hash: hash,
-    completed_at: new Date().toISOString(),
+    completed_at: completedAt,
+    stellar_memo: resolved.memo,
+    stellar_memo_source: resolved.source,
+    payout_memo: resolved.memo,
+    payout_memo_type: resolved.memoType,
   }).eq("id", order.id);
 
   return json({
@@ -156,6 +186,9 @@ Deno.serve(async (req) => {
     reference_number: order.reference_number,
     stellar_tx_hash: hash,
     status: "COMPLETED",
+    stellar_memo: resolved.memo,
+    stellar_memo_source: resolved.source,
+    settled_at: completedAt,
     off_ramp: {
       provider: "owlting",
       stellar_address: dest,
