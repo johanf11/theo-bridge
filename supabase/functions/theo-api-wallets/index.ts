@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  const offRampAddress = owltningOfframpAddress();
+  const offRampAddress = await resolveOwltingStellarDestination(admin);
   const totalUsdc = out
     .filter((w) => w.currency === "USDC")
     .reduce((s, w) => s + w.available_balance, 0);
