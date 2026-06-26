@@ -19,44 +19,51 @@ export type SettlementPayload = {
   external_ref?: string | null;
 };
 
-export function owltningOfframpAddress(): string | null {
-  const addr = (Deno.env.get("OWLTING_OFFRAMP_STELLAR_ADDRESS") ?? "").trim();
-  if (addr.startsWith("G") && addr.length >= 50) return addr;
+function validStellar(addr: string | null | undefined): string | null {
+  const a = (addr ?? "").trim();
+  if (a.startsWith("G") && a.length >= 50) return a;
   return null;
+}
+
+/** Legacy env-only off-ramp (kept as deprecated fallback). */
+export function owltningOfframpAddress(): string | null {
+  return validStellar(Deno.env.get("OWLTING_OFFRAMP_STELLAR_ADDRESS"));
 }
 
 // deno-lint-ignore no-explicit-any
 type AdminClient = any;
 
 /**
- * Unified off-ramp destination resolver. Prefers app_settings.owlting_omnibus_address,
- * falls back to OWLTING_OFFRAMP_STELLAR_ADDRESS env. Returns a typed error envelope
- * so callers can surface a machine-readable `code` to API consumers (Odoo wizard).
+ * Unified off-ramp Stellar destination for ALL Odoo settlement rails.
+ * Order: app_settings.owlting_omnibus_address → OWLTING_OFFRAMP_STELLAR_ADDRESS env → null.
+ * Callers compose a 503 { code: "destination_not_configured" } on null.
  */
-export async function resolveOfframpStellarDestination(
+export async function resolveOwltingStellarDestination(
   admin: AdminClient,
-  _rail: SettlementRail,
-): Promise<
-  | { address: string }
-  | { error: string; code: string; status: number }
-> {
+): Promise<string | null> {
   try {
     const { data: setting } = await admin
       .from("app_settings")
       .select("value")
       .eq("key", "owlting_omnibus_address")
       .maybeSingle();
-    const omnibus = ((setting?.value as { address?: string } | null)?.address ?? "").trim();
-    if (omnibus.startsWith("G") && omnibus.length >= 50) {
-      return { address: omnibus };
-    }
+    const omnibus = validStellar((setting?.value as { address?: string } | null)?.address ?? null);
+    if (omnibus) return omnibus;
   } catch {
     // fall through to env fallback
   }
-  const envAddr = owltningOfframpAddress();
-  if (envAddr) return { address: envAddr };
+  return owltningOfframpAddress();
+}
+
+/** @deprecated kept for one release; use resolveOwltingStellarDestination. */
+export async function resolveOfframpStellarDestination(
+  admin: AdminClient,
+  _rail: SettlementRail,
+): Promise<{ address: string } | { error: string; code: string; status: number }> {
+  const addr = await resolveOwltingStellarDestination(admin);
+  if (addr) return { address: addr };
   return {
-    error: "Owlting off-ramp destination not configured",
+    error: "Owlting off-ramp Stellar destination not configured",
     code: "destination_not_configured",
     status: 503,
   };

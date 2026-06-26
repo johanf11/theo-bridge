@@ -6,7 +6,8 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { authenticateApiKey } from "../_shared/api-key-auth.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
-import { owltningOfframpAddress } from "../_shared/odoo-settlement.ts";
+import { resolveOwltingStellarDestination } from "../_shared/odoo-settlement.ts";
+import { apiErrorResponse, authErrorCode } from "../_shared/api-errors.ts";
 
 const HORIZON_URL = "https://horizon-testnet.stellar.org";
 
@@ -33,10 +34,11 @@ Deno.serve(async (req) => {
 
   const json = (b: unknown, status = 200) =>
     new Response(JSON.stringify(b), { status, headers: { ...headers, "Content-Type": "application/json" } });
+  const err = (message: string, code: string, status: number) => apiErrorResponse(req, message, code, status);
 
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const auth = await authenticateApiKey(admin, req, "wallets:read");
-  if ("error" in auth) return json({ error: auth.error }, auth.status);
+  if ("error" in auth) return err(auth.error, authErrorCode(auth.status, auth.error), auth.status);
 
   const { data: wallets } = await admin
     .from("wallets")
@@ -77,7 +79,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  const offRampAddress = owltningOfframpAddress();
+  const offRampAddress = await resolveOwltingStellarDestination(admin);
   const totalUsdc = out
     .filter((w) => w.currency === "USDC")
     .reduce((s, w) => s + w.available_balance, 0);

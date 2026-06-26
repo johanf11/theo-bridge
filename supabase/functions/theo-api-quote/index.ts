@@ -6,7 +6,8 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { authenticateApiKey } from "../_shared/api-key-auth.ts";
 import { corsHeaders } from "../_shared/cors.ts";
-import { resolveOfframpStellarDestination, parseSettlementBody, calcOwltingPlatformFeeUsd } from "../_shared/odoo-settlement.ts";
+import { resolveOwltingStellarDestination, parseSettlementBody, calcOwltingPlatformFeeUsd } from "../_shared/odoo-settlement.ts";
+import { apiErrorResponse, authErrorCode } from "../_shared/api-errors.ts";
 
 const QUOTE_TTL_MIN = 15;
 const MAX_USDC = 100_000;
@@ -101,44 +102,44 @@ Deno.serve(async (req) => {
 
   const json = (b: unknown, status = 200) =>
     new Response(JSON.stringify(b), { status, headers: { ...headers, "Content-Type": "application/json" } });
+  const err = (message: string, code: string, status: number) => apiErrorResponse(req, message, code, status);
 
-  if (req.method !== "POST") return json({ error: "Use POST" }, 405);
+  if (req.method !== "POST") return err("Use POST", "invalid_request", 405);
 
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const auth = await authenticateApiKey(admin, req, "quotes:write");
-  if ("error" in auth) return json({ error: auth.error }, auth.status);
+  if ("error" in auth) return err(auth.error, authErrorCode(auth.status, auth.error), auth.status);
 
   const body = await req.json().catch(() => ({} as Record<string, unknown>));
   const sourceWalletId = String(body.source_wallet_id ?? "");
   const amountUsd = Number(body.amount_usd);
   const clientRequestId = clean(body.client_request_id ?? body.idempotency_key);
 
-  if (!sourceWalletId) return json({ error: "source_wallet_id required" }, 400);
+  if (!sourceWalletId) return err("source_wallet_id required", "invalid_request", 400);
   if (!Number.isFinite(amountUsd) || amountUsd <= 0 || amountUsd > MAX_USDC) {
-    return json({ error: `amount_usd must be > 0 and <= ${MAX_USDC}` }, 400);
+    return err(`amount_usd must be > 0 and <= ${MAX_USDC}`, "invalid_request", 400);
   }
 
   const parsed = parseSettlementBody(body);
-  if (parsed.error || !parsed.settlement) return json({ error: parsed.error ?? "invalid settlement" }, 400);
+  if (parsed.error || !parsed.settlement) return err(parsed.error ?? "invalid settlement", "invalid_settlement", 400);
   const settlement = parsed.settlement;
   const isBankWire = settlement.rail === "wire";
   const externalRef = clean(settlement.external_ref) || clean(body.invoice_ref);
 
-  // Resolve off-ramp destination for all rails: prefer omnibus, fallback to env.
+  // Resolve off-ramp destination for ALL rails: prefer omnibus, fallback to env.
   // For rail === "usdc" with explicit beneficiary wallet, route directly to that wallet.
   let dest: string | null = null;
   if (settlement.rail === "usdc" && settlement.beneficiary.wallet_address) {
     dest = settlement.beneficiary.wallet_address;
   } else {
-    const resolved = await resolveOfframpStellarDestination(admin, settlement.rail);
-    if ("error" in resolved) {
-      return json({ error: resolved.error, code: resolved.code }, resolved.status);
+    dest = await resolveOwltingStellarDestination(admin);
+    if (!dest) {
+      return err("Owlting off-ramp Stellar destination not configured", "destination_not_configured", 503);
     }
-    dest = resolved.address;
   }
 
   const memoParsed = parseSupplierMemo(body);
-  if (memoParsed.error) return json({ error: memoParsed.error }, 400);
+  if (memoParsed.error) return err(memoParsed.error, "invalid_request", 400);
 
   let payoutMemo = memoParsed.payoutMemo;
   let payoutMemoType = memoParsed.payoutMemoType;
@@ -147,9 +148,11 @@ Deno.serve(async (req) => {
 
   const userProvidedBusinessRef = externalRef || payoutMemo;
   if (!userProvidedBusinessRef) {
-    return json({
-      error: "invoice_ref, settlement.external_ref, or supplier.memo required; health checks must use /theo-api-ping",
-    }, 400);
+    return err(
+      "invoice_ref, settlement.external_ref, or supplier.memo required; health checks must use /theo-api-ping",
+      "invalid_request",
+      400,
+    );
   }
 
   const { data: customer } = await admin
@@ -157,8 +160,8 @@ Deno.serve(async (req) => {
     .select("id, fee_bps, corridor_bps, kyb_status")
     .eq("id", auth.customer_id)
     .maybeSingle();
-  if (!customer) return json({ error: "Customer not found" }, 404);
-  if (customer.kyb_status !== "APPROVED") return json({ error: "KYB approval required" }, 403);
+  if (!customer) return err("Customer not found", "not_found", 404);
+  if (customer.kyb_status !== "APPROVED") return err("KYB approval required", "kyb_required", 403);
 
   const theoBps = (customer as { fee_bps?: number | null }).fee_bps ?? 130;
   const corrBps = (customer as { corridor_bps?: number | null }).corridor_bps ?? 70;
@@ -177,7 +180,7 @@ Deno.serve(async (req) => {
       .eq("id", sourceWalletId)
       .eq("customer_id", auth.customer_id)
       .maybeSingle();
-    if (!w) return json({ error: "source_wallet_id not found for this customer" }, 404);
+    if (!w) return err("source_wallet_id not found for this customer", "not_found", 404);
     sourceCurrency = "USDC";
     sourceWalletDbId = w.id;
   }
@@ -205,7 +208,7 @@ Deno.serve(async (req) => {
       .limit(1)
       .maybeSingle();
     spotRate = Number(r?.spot_rate ?? 0);
-    if (!spotRate || spotRate <= 0) return json({ error: "No spot rate available" }, 500);
+    if (!spotRate || spotRate <= 0) return err("No spot rate available", "rate_unavailable", 500);
     rate = spotRate;
     debitHtgc = Math.round(totalDebitUsd * rate * 100) / 100;
   }
@@ -242,7 +245,16 @@ Deno.serve(async (req) => {
     .limit(1)
     .maybeSingle();
 
-  if (existing) {
+  const isReplayable = (row: Record<string, unknown> | null | undefined): boolean => {
+    if (!row) return false;
+    const status = String(row.status ?? "");
+    if (status !== "QUOTED" && status !== "FUNDED") return false;
+    const exp = row.quote_expires_at ? new Date(String(row.quote_expires_at)).getTime() : 0;
+    if (exp && exp < Date.now()) return false;
+    return true;
+  };
+
+  if (existing && isReplayable(existing as Record<string, unknown>)) {
     return json(buildQuoteReplayResponse(
       existing as Record<string, unknown>,
       sourceCurrency,
@@ -257,6 +269,16 @@ Deno.serve(async (req) => {
       platformFeeUsd,
     ));
   }
+
+  // Stale row exists for this idempotency key (expired or terminal). Free up the
+  // unique slot so we can insert a fresh quote with the same key.
+  if (existing && !isReplayable(existing as Record<string, unknown>)) {
+    await admin
+      .from("orders")
+      .update({ api_idempotency_key: null })
+      .eq("id", (existing as { id: string }).id);
+  }
+
 
   const { data: existingByBusinessRef } = await admin
     .from("orders")
@@ -340,7 +362,7 @@ Deno.serve(async (req) => {
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (replay) {
+      if (replay && isReplayable(replay as Record<string, unknown>)) {
         return json(buildQuoteReplayResponse(
           replay as Record<string, unknown>,
           sourceCurrency,
@@ -356,7 +378,7 @@ Deno.serve(async (req) => {
         ));
       }
     }
-    return json({ error: insErr.message }, 500);
+    return err(insErr.message, "internal_error", 500);
   }
 
   return json({
