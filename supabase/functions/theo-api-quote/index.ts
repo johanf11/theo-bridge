@@ -222,14 +222,16 @@ Deno.serve(async (req) => {
   }
 
   const strongBusinessRef = externalRef || clean(payoutMemo);
+  // Idempotency key intentionally omits `destination` — rotating the Owlting
+  // omnibus must NOT spawn duplicate quotes for the same bill / wizard ping.
   const idempotencySeed = {
       scope: "business_ref",
+      customer_id: auth.customer_id,
       source_wallet_id: sourceWalletId,
       amount_usd: Math.round(amountUsd * 1e7) / 1e7,
       supplier_name: clean(settlement.beneficiary.name).toLowerCase(),
       external_ref: externalRef,
       settlement_method: isBankWire ? "bank_wire" : settlement.rail,
-      destination: dest,
       memo: idempotencyMemo,
       memo_type: idempotencyMemoType,
     };
