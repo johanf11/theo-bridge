@@ -1,17 +1,7 @@
 // Public Theo API: POST /theo-api-quote
-// Body: {
-//   source_wallet_id: string,
-//   amount_usd: number,
-//   invoice_ref?: string,
-//   settlement: {
-//     rail: "wire" | "local" | "usdc" | "ach",
-//     currency?: string,
-//     beneficiary: { name, bank_name?, account_number?, swift?, country?, wallet_address? },
-//     external_ref?: string,
-//   }
-// }
-// On-chain settlement always routes to OWLTING_OFFRAMP_STELLAR_ADDRESS; beneficiary
-// metadata is stored for Owlting fiat off-ramp (demo: testnet; mainnet: production).
+// Accepts Odoo settlement object or supplier { bank_wire | stellar_address }.
+// Bank-wire quotes route USDC to the Owlting omnibus address; local/USDC quotes
+// route to OWLTING_OFFRAMP_STELLAR_ADDRESS.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { authenticateApiKey } from "../_shared/api-key-auth.ts";
@@ -28,6 +18,30 @@ function generateReference(): string {
   let s = "";
   for (const b of buf) s += chars[b % chars.length];
   return `THEO-ODO-${s}`;
+}
+
+function parseSupplierMemo(body: Record<string, unknown>): {
+  payoutMemo: string | null;
+  payoutMemoType: "text" | "id" | null;
+  error?: string;
+} {
+  const supplier = body.supplier as {
+    memo?: string;
+    memo_type?: string;
+  } | undefined;
+  const rawMemo = (supplier?.memo ?? "").toString().trim();
+  const memoType = (supplier?.memo_type ?? "text").toString().toLowerCase();
+  if (!rawMemo) return { payoutMemo: null, payoutMemoType: null };
+  if (memoType !== "text" && memoType !== "id") {
+    return { payoutMemo: null, payoutMemoType: null, error: "supplier.memo_type must be 'text' or 'id'" };
+  }
+  if (memoType === "text") {
+    const bytes = new TextEncoder().encode(rawMemo).length;
+    if (bytes > 28) return { payoutMemo: null, payoutMemoType: null, error: "supplier.memo exceeds 28 bytes for MEMO_TEXT" };
+  } else if (!/^\d+$/.test(rawMemo)) {
+    return { payoutMemo: null, payoutMemoType: null, error: "supplier.memo must be digits only for MEMO_ID" };
+  }
+  return { payoutMemo: rawMemo, payoutMemoType: memoType };
 }
 
 Deno.serve(async (req) => {
@@ -52,15 +66,25 @@ Deno.serve(async (req) => {
     return json({ error: `amount_usd must be > 0 and <= ${MAX_USDC}` }, 400);
   }
 
-  const offRamp = owltningOfframpAddress();
   const parsed = parseSettlementBody(body);
   if (parsed.error || !parsed.settlement) return json({ error: parsed.error ?? "invalid settlement" }, 400);
   const settlement = parsed.settlement;
   const isBankWire = settlement.rail === "wire";
 
-  if (!isBankWire && !offRamp) {
-    return json({ error: "OWLTING_OFFRAMP_STELLAR_ADDRESS not configured" }, 500);
+  const offRamp = owltningOfframpAddress();
+  let dest: string | null = null;
+  if (isBankWire) {
+    const { data: setting } = await admin.from("app_settings")
+      .select("value").eq("key", "owlting_omnibus_address").maybeSingle();
+    dest = (setting?.value as { address?: string } | null)?.address ?? null;
+    if (!dest) return json({ error: "Owlting omnibus wallet not configured" }, 503);
+  } else {
+    if (!offRamp) return json({ error: "OWLTING_OFFRAMP_STELLAR_ADDRESS not configured" }, 500);
+    dest = offRamp;
   }
+
+  const memoParsed = parseSupplierMemo(body);
+  if (memoParsed.error) return json({ error: memoParsed.error }, 400);
 
   const { data: customer } = await admin
     .from("customers")
@@ -92,7 +116,6 @@ Deno.serve(async (req) => {
     sourceWalletDbId = w.id;
   }
 
-  // FX conversion fee applies only when debiting HTG-C (HTG → USDC). Direct USDC has no FX fee.
   const billAmountUsd = amountUsd;
   const fxFeeUsd = sourceCurrency === "HTGC"
     ? Math.round(billAmountUsd * (totalBps / 10_000) * 1e7) / 1e7
@@ -124,6 +147,13 @@ Deno.serve(async (req) => {
   const reference = generateReference();
   const expiresAt = new Date(Date.now() + QUOTE_TTL_MIN * 60 * 1000).toISOString();
 
+  let payoutMemo = memoParsed.payoutMemo;
+  let payoutMemoType = memoParsed.payoutMemoType;
+  if (!payoutMemo && isBankWire) {
+    payoutMemo = reference;
+    payoutMemoType = "text";
+  }
+
   const { data: order, error: insErr } = await admin
     .from("orders")
     .insert({
@@ -141,14 +171,16 @@ Deno.serve(async (req) => {
       spot_rate: spotRate,
       reference_number: reference,
       quote_expires_at: expiresAt,
-      destination_wallet_address: offRamp ?? null,
-      destination_stellar_address: isBankWire ? null : offRamp,
+      destination_wallet_address: dest,
+      destination_stellar_address: dest,
       order_kind: sourceCurrency === "HTGC" ? "usdc_conversion" : "htgc_usdc_swap",
+      payout_memo: payoutMemo,
+      payout_memo_type: payoutMemoType,
       beneficiary_metadata: {
         ...settlement,
         settlement_method: isBankWire ? "bank_wire" : settlement.rail,
-        off_ramp: isBankWire ? "owlting" : "owlting",
-        off_ramp_stellar_address: offRamp,
+        off_ramp: "owlting",
+        off_ramp_stellar_address: dest,
         platform_fee_usdc: platformFeeUsd,
         bill_amount_usd: billAmountUsd,
         total_debit_usd: totalDebitUsd,
@@ -176,12 +208,12 @@ Deno.serve(async (req) => {
       beneficiary: settlement.beneficiary,
       external_ref: settlement.external_ref,
     },
-    off_ramp: offRamp ? {
+    off_ramp: {
       provider: "owlting",
-      stellar_address: offRamp,
-    } : {
-      provider: "owlting",
-      settlement_method: "bank_wire",
+      stellar_address: dest,
+      settlement_method: isBankWire ? "bank_wire" : settlement.rail,
     },
+    payout_memo: payoutMemo,
+    payout_memo_type: payoutMemoType,
   });
 });

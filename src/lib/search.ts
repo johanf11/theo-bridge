@@ -1,6 +1,6 @@
 import {
   LayoutGrid, ArrowLeftRight, ArrowRightLeft, Wallet, SendHorizonal,
-  Settings, ShieldCheck, Wrench, BookLock, Receipt, FileText, BookOpen, Activity,
+  Settings, ShieldCheck, Wrench, BookLock, Receipt, FileText, BookOpen, Activity, Building2,
   type LucideIcon,
 } from "lucide-react";
 import type { TKey } from "@/lib/i18n";
@@ -110,6 +110,13 @@ export function buildSearchNavItems(
       label: t("nav.admin.tools"),
       icon: Wrench,
       keywords: ["admin tools", "utilities"],
+      adminOnly: true,
+    },
+    {
+      to: "/admin/owlting",
+      label: t("nav.admin.owlting"),
+      icon: Building2,
+      keywords: ["owlting", "off ramp", "vendor wires", "fiat queue"],
       adminOnly: true,
     },
     {

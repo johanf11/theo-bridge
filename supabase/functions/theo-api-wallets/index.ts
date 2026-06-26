@@ -78,8 +78,41 @@ Deno.serve(async (req) => {
   }
 
   const offRampAddress = owltningOfframpAddress();
+  const totalUsdc = out
+    .filter((w) => w.currency === "USDC")
+    .reduce((s, w) => s + w.available_balance, 0);
+
+  let spotRate = 0;
+  let rateAsOf: string | null = null;
+  try {
+    const { data: r } = await admin
+      .from("rate_snapshots")
+      .select("spot_rate, captured_at")
+      .order("captured_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    spotRate = Number(r?.spot_rate ?? 0);
+    rateAsOf = r?.captured_at ?? null;
+  } catch { /* leave 0 */ }
+
+  const htgcUsdEquivalent = spotRate > 0 ? totalHtgc / spotRate : 0;
+  const totalUsdEquivalent = totalUsdc + htgcUsdEquivalent;
+
   return json({
     wallets: out,
+    totals: {
+      usdc: totalUsdc,
+      htgc: totalHtgc,
+      htgc_usd_equivalent: Math.round(htgcUsdEquivalent * 100) / 100,
+      usd_equivalent: Math.round(totalUsdEquivalent * 100) / 100,
+    },
+    total_usdc: totalUsdc,
+    rate: {
+      htg_per_usd: spotRate,
+      usd_per_htg: spotRate > 0 ? 1 / spotRate : 0,
+      as_of: rateAsOf,
+      source: "BRH",
+    },
     off_ramp: offRampAddress
       ? { provider: "owlting", stellar_address: offRampAddress }
       : null,

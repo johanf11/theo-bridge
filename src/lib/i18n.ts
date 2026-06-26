@@ -239,6 +239,8 @@ export const translations = {
   "nav.admin.transactions":   { en: "Transactions",                       fr: "Transactions" },
   "nav.admin.tools":          { en: "Tools",                              fr: "Outils" },
   "nav.admin.ledger":         { en: "Ledger",                             fr: "Grand Livre" },
+  "nav.admin.owlting":        { en: "Owlting Queue",                      fr: "File Owlting" },
+  "nav.payBill":              { en: "Pay a Bill",                         fr: "Payer une facture" },
   "nav.signout":              { en: "Sign out",                           fr: "Se déconnecter" },
   "nav.account":              { en: "Account",                            fr: "Compte" },
   "nav.logo.tagline":         { en: "For Business",                       fr: "Pour entreprises" },

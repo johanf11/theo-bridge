@@ -1,7 +1,8 @@
 // Public Theo API: POST /theo-api-convert
-// Call after /theo-api-quote with { quote_id }.
-// Prepares HTG-C → USDC conversion and returns pricing for the Odoo wizard.
-// Response: { debit_htgc, amount_usd, rate, status: "READY_TO_PAY" }
+// Body: { quote_id: string }
+// Call after /theo-api-quote. Validates the quote and returns HTG-C conversion
+// pricing for the Odoo wizard (status: "READY_TO_PAY"). Pricing is fixed at
+// quote time; this endpoint does not mutate order state.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { authenticateApiKey } from "../_shared/api-key-auth.ts";
@@ -26,58 +27,32 @@ Deno.serve(async (req) => {
 
   const { data: order } = await admin
     .from("orders")
-    .select("id, customer_id, status, htg_amount, usdc_amount, rate, fee_usdc, beneficiary_metadata, quote_expires_at, order_kind")
+    .select("id, customer_id, status, usdc_amount, usdc_gross, htg_amount, rate, fee_usdc, reference_number, quote_expires_at, order_kind, beneficiary_metadata")
     .eq("id", quoteId)
     .maybeSingle();
   if (!order) return json({ error: "quote not found" }, 404);
   if (order.customer_id !== auth.customer_id) return json({ error: "quote does not belong to this customer" }, 403);
+  if (order.status !== "QUOTED" && order.status !== "FUNDED") {
+    return json({ error: `quote not available for conversion (status=${order.status})` }, 409);
+  }
   if (order.quote_expires_at && new Date(order.quote_expires_at).getTime() < Date.now()) {
     return json({ error: "quote expired" }, 410);
   }
-
-  const meta = (order.beneficiary_metadata ?? {}) as Record<string, unknown>;
-  if (meta.odoo_status === "READY_TO_PAY") {
-    const billUsd = Number(meta.bill_amount_usd ?? 0) || roundBillFromOrder(order);
-    return json({
-      ok: true,
-      debit_htgc: Number(order.htg_amount ?? 0),
-      amount_usd: billUsd,
-      rate: Number(order.rate ?? 0),
-      status: "READY_TO_PAY",
-    });
-  }
-
-  if (order.status !== "QUOTED") {
-    return json({ error: `quote not available for conversion (status=${order.status})` }, 409);
-  }
-
   if (order.order_kind !== "usdc_conversion") {
     return json({ error: "convert is only required for HTG-C sourced quotes" }, 400);
   }
 
-  const totalDebitUsd = Number(order.usdc_amount ?? 0);
-  const debitHtgc = Number(order.htg_amount ?? 0);
-  const rate = Number(order.rate ?? 0);
-  const billUsd = roundBillFromOrder(order);
-
-  const updatedMeta = {
-    ...meta,
-    odoo_status: "READY_TO_PAY",
-    bill_amount_usd: billUsd,
-    total_debit_usd: totalDebitUsd,
-    converted_at: new Date().toISOString(),
-  };
-
-  await admin.from("orders").update({
-    status: "FUNDED",
-    beneficiary_metadata: updatedMeta,
-  }).eq("id", order.id);
+  const meta = (order.beneficiary_metadata ?? {}) as Record<string, unknown>;
+  const billUsd = Number(meta.bill_amount_usd ?? 0) || roundBillFromOrder(order);
 
   return json({
     ok: true,
-    debit_htgc: debitHtgc,
+    quote_id: order.id,
+    reference_number: order.reference_number,
+    debit_htgc: Number(order.htg_amount ?? 0),
     amount_usd: billUsd,
-    rate,
+    total_debit_usd: Number(order.usdc_gross ?? order.usdc_amount ?? 0),
+    rate: Number(order.rate ?? 0),
     status: "READY_TO_PAY",
   });
 });

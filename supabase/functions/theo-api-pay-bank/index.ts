@@ -1,10 +1,18 @@
 // Public Theo API: POST /theo-api-pay-bank
-// Bank-wire settlement via Owlting (no Stellar off-ramp payment).
+// Bank-wire settlement via Owlting: sends USDC to the Owlting omnibus Stellar
+// address stored on the quote (with payout memo for ticket matching).
 // Body: { quote_id: string, external_invoice_ref?: string }
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import {
+  Asset, Horizon, Keypair, Memo, Networks,
+  Operation, TransactionBuilder, BASE_FEE,
+} from "npm:@stellar/stellar-sdk@12.3.0";
 import { authenticateApiKey } from "../_shared/api-key-auth.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import { distributorPublicKey, signWithDistributor } from "../_shared/stellar-signer.ts";
+
+const HORIZON_URL = "https://horizon-testnet.stellar.org";
 
 Deno.serve(async (req) => {
   const headers = corsHeaders(req, { wildcard: true });
@@ -26,7 +34,7 @@ Deno.serve(async (req) => {
 
   const { data: order } = await admin
     .from("orders")
-    .select("id, customer_id, status, reference_number, beneficiary_metadata, quote_expires_at, order_kind, usdc_amount, htg_amount")
+    .select("id, customer_id, status, usdc_amount, reference_number, destination_stellar_address, quote_expires_at, payout_memo, payout_memo_type, beneficiary_metadata")
     .eq("id", quoteId)
     .maybeSingle();
   if (!order) return json({ error: "quote not found" }, 404);
@@ -51,36 +59,84 @@ Deno.serve(async (req) => {
     });
   }
 
-  const isHtgc = order.order_kind === "usdc_conversion";
-  if (isHtgc && meta.odoo_status !== "READY_TO_PAY" && order.status !== "FUNDED") {
-    return json({ error: "HTG-C conversion required before bank wire payout" }, 409);
-  }
-  if (!isHtgc && order.status !== "QUOTED" && order.status !== "FUNDED") {
+  if (order.status !== "QUOTED" && order.status !== "FUNDED") {
     return json({ error: `quote not available for payment (status=${order.status})` }, 409);
   }
 
-  const settledAt = new Date().toISOString();
-  const updatedMeta = {
-    ...meta,
-    external_invoice_ref: externalRef ?? meta.external_ref ?? null,
-    owlting_bank_wire_submitted_at: settledAt,
-    completed_at: settledAt,
-  };
+  const dest = order.destination_stellar_address;
+  if (!dest) return json({ error: "quote has no destination address" }, 400);
 
+  const usdcIssuer = Deno.env.get("STELLAR_USDC_ISSUER");
+  if (!usdcIssuer) return json({ error: "STELLAR_USDC_ISSUER not configured" }, 500);
+
+  const server = new Horizon.Server(HORIZON_URL);
+  const usdc = new Asset("USDC", usdcIssuer);
+  const amount = Number(order.usdc_amount);
+
+  await admin.from("orders").update({ status: "RELEASING" }).eq("id", order.id);
+
+  let hash: string;
+  try {
+    const distPub = distributorPublicKey();
+    const distAcct = await server.loadAccount(distPub);
+    const distBal = (distAcct.balances as Array<{ asset_code?: string; asset_issuer?: string; balance: string }>)
+      .find((b) => b.asset_code === "USDC" && b.asset_issuer === usdcIssuer);
+    const have = distBal ? Number(distBal.balance) : 0;
+    if (have < amount) {
+      const issuerSecret = Deno.env.get("STELLAR_USDC_ISSUER_SECRET");
+      if (!issuerSecret) throw new Error(`Distributor short on USDC (${have}/${amount})`);
+      const issuerKp = Keypair.fromSecret(issuerSecret);
+      const issuerAcct = await server.loadAccount(issuerKp.publicKey());
+      const topup = new TransactionBuilder(issuerAcct, { fee: BASE_FEE, networkPassphrase: Networks.TESTNET })
+        .addOperation(Operation.payment({ destination: distPub, asset: usdc, amount: (amount - have + 1000).toFixed(7) }))
+        .setTimeout(60).build();
+      topup.sign(issuerKp);
+      await server.submitTransaction(topup);
+    }
+
+    const fresh = await server.loadAccount(distPub);
+    const storedMemo = order.payout_memo as string | null;
+    const storedMemoType = (order.payout_memo_type as "text" | "id" | null) ?? "text";
+    let memo;
+    if (storedMemo) {
+      memo = storedMemoType === "id" ? Memo.id(storedMemo) : Memo.text(storedMemo);
+    } else {
+      memo = Memo.text((externalRef ?? order.reference_number).slice(0, 28));
+    }
+    const tx = new TransactionBuilder(fresh, { fee: BASE_FEE, networkPassphrase: Networks.TESTNET })
+      .addOperation(Operation.payment({ destination: dest, asset: usdc, amount: amount.toFixed(7) }))
+      .addMemo(memo)
+      .setTimeout(60).build();
+    signWithDistributor(tx);
+    const r = await server.submitTransaction(tx);
+    hash = (r as { hash: string }).hash;
+  } catch (e: unknown) {
+    const msg = (e as { response?: { data?: unknown } })?.response?.data
+      ? JSON.stringify((e as { response: { data: unknown } }).response.data)
+      : (e as Error).message;
+    await admin.from("orders").update({ status: "FAILED", failure_reason: String(msg).slice(0, 1000) }).eq("id", order.id);
+    return json({ error: `Payment failed: ${msg}` }, 502);
+  }
+
+  const settledAt = new Date().toISOString();
   await admin.from("orders").update({
     status: "COMPLETED",
+    stellar_tx_hash: hash,
     completed_at: settledAt,
-    beneficiary_metadata: updatedMeta,
+    beneficiary_metadata: {
+      ...meta,
+      external_invoice_ref: externalRef ?? meta.external_ref ?? null,
+      owlting_bank_wire_submitted_at: settledAt,
+      completed_at: settledAt,
+    },
   }).eq("id", order.id);
 
   return json({
     ok: true,
     reference_number: order.reference_number,
+    stellar_tx_hash: hash,
     settlement_method: "bank_wire",
     status: "COMPLETED",
     settled_at: settledAt,
-    amount_usd: Number(meta.bill_amount_usd ?? order.usdc_amount ?? 0),
-    debit_htgc: Number(order.htg_amount ?? 0) || null,
-    settlement: order.beneficiary_metadata ?? null,
   });
 });
