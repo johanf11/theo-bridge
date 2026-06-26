@@ -225,16 +225,23 @@ treasurer has a verifiable on-chain receipt.
 
 ## 6. Error codes
 
-| HTTP | Meaning                                              | Plugin behavior                                  |
-|------|------------------------------------------------------|--------------------------------------------------|
-| 400  | Bad request (missing field, bad address, amount=0)   | Surface validation error to the user             |
-| 401  | Missing/invalid/revoked API key                      | Block, prompt admin to regenerate the key        |
-| 403  | KYB not approved, missing scope, or quote not yours  | Surface as "Contact Theo support"                |
-| 404  | Quote, wallet, or customer not found                 | Re-fetch wallets, re-quote                       |
-| 409  | Quote already used                                   | Treat as success if `stellar_tx_hash` known      |
-| 410  | Quote expired (>15 min)                              | Auto re-quote, ask user to confirm new rate      |
-| 500  | Server error (no rate snapshot, etc.)                | Retry once after 5s, then surface error          |
-| 502  | On-chain payment failed                              | Mark bill as `payment_failed`, alert ops         |
+Every non-2xx response is JSON with `{ error: string, code?: string }`. **Always
+parse the body even on 5xx** — the plugin must never gate the wizard popup on
+`response.ok`. Surface `code` + `error` in the dialog so failures are visible
+instead of swallowed.
+
+| HTTP | `code`                       | Meaning                                            | Plugin behavior                                          |
+|------|------------------------------|----------------------------------------------------|----------------------------------------------------------|
+| 400  | `invalid_settlement` / —     | Bad request (missing field, bad address, amount=0) | Surface validation error to the user                     |
+| 401  | —                            | Missing/invalid/revoked API key                    | Block, prompt admin to regenerate the key                |
+| 403  | `kyb_required` / —           | KYB not approved, missing scope, or quote not yours| Surface as "Contact Theo support"                        |
+| 404  | —                            | Quote, wallet, or customer not found               | Re-fetch wallets, re-quote                               |
+| 409  | `quote_already_used`         | Quote already paid                                 | Treat as success if `stellar_tx_hash` known              |
+| 410  | `quote_expired`              | Quote expired (>15 min)                            | Auto re-quote, ask user to confirm new rate              |
+| 500  | —                            | Server error (no rate snapshot, etc.)              | Retry once after 5s, then surface error                  |
+| 502  | `on_chain_failed`            | On-chain payment failed                            | Mark bill `payment_failed`, alert ops                    |
+| 503  | `destination_not_configured` | Owlting off-ramp address missing on backend        | Show "Theo not provisioned" — do not retry automatically |
+
 
 ---
 
