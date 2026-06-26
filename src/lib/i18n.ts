@@ -568,6 +568,7 @@ export const translations = {
   "tx.type.yieldEarned":      { en: "Yield Earned",                       fr: "Rendement acquis" },
   "tx.type.transfer":         { en: "Transfer",                           fr: "Transfert" },
   "tx.type.withdraw":         { en: "Withdraw",                           fr: "Retrait" },
+  "tx.type.odoo":             { en: "Odoo",                               fr: "Odoo" },
   "tx.details.minted":        { en: "Minted",                             fr: "Émis" },
   "tx.details.from":          { en: "From",                               fr: "De" },
   "tx.details.since":         { en: "since",                              fr: "depuis" },
