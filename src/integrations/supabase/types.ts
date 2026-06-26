@@ -663,6 +663,8 @@ export type Database = {
           id: string
           margin: number
           order_kind: Database["public"]["Enums"]["order_kind"]
+          payout_memo: string | null
+          payout_memo_type: string | null
           quote_expires_at: string
           rate: number | null
           reference_number: string
@@ -695,6 +697,8 @@ export type Database = {
           id?: string
           margin?: number
           order_kind?: Database["public"]["Enums"]["order_kind"]
+          payout_memo?: string | null
+          payout_memo_type?: string | null
           quote_expires_at?: string
           rate?: number | null
           reference_number: string
@@ -727,6 +731,8 @@ export type Database = {
           id?: string
           margin?: number
           order_kind?: Database["public"]["Enums"]["order_kind"]
+          payout_memo?: string | null
+          payout_memo_type?: string | null
           quote_expires_at?: string
           rate?: number | null
           reference_number?: string
