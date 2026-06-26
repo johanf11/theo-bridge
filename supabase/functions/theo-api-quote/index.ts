@@ -102,44 +102,44 @@ Deno.serve(async (req) => {
 
   const json = (b: unknown, status = 200) =>
     new Response(JSON.stringify(b), { status, headers: { ...headers, "Content-Type": "application/json" } });
+  const err = (message: string, code: string, status: number) => apiErrorResponse(req, message, code, status);
 
-  if (req.method !== "POST") return json({ error: "Use POST" }, 405);
+  if (req.method !== "POST") return err("Use POST", "invalid_request", 405);
 
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const auth = await authenticateApiKey(admin, req, "quotes:write");
-  if ("error" in auth) return json({ error: auth.error }, auth.status);
+  if ("error" in auth) return err(auth.error, authErrorCode(auth.status, auth.error), auth.status);
 
   const body = await req.json().catch(() => ({} as Record<string, unknown>));
   const sourceWalletId = String(body.source_wallet_id ?? "");
   const amountUsd = Number(body.amount_usd);
   const clientRequestId = clean(body.client_request_id ?? body.idempotency_key);
 
-  if (!sourceWalletId) return json({ error: "source_wallet_id required" }, 400);
+  if (!sourceWalletId) return err("source_wallet_id required", "invalid_request", 400);
   if (!Number.isFinite(amountUsd) || amountUsd <= 0 || amountUsd > MAX_USDC) {
-    return json({ error: `amount_usd must be > 0 and <= ${MAX_USDC}` }, 400);
+    return err(`amount_usd must be > 0 and <= ${MAX_USDC}`, "invalid_request", 400);
   }
 
   const parsed = parseSettlementBody(body);
-  if (parsed.error || !parsed.settlement) return json({ error: parsed.error ?? "invalid settlement" }, 400);
+  if (parsed.error || !parsed.settlement) return err(parsed.error ?? "invalid settlement", "invalid_settlement", 400);
   const settlement = parsed.settlement;
   const isBankWire = settlement.rail === "wire";
   const externalRef = clean(settlement.external_ref) || clean(body.invoice_ref);
 
-  // Resolve off-ramp destination for all rails: prefer omnibus, fallback to env.
+  // Resolve off-ramp destination for ALL rails: prefer omnibus, fallback to env.
   // For rail === "usdc" with explicit beneficiary wallet, route directly to that wallet.
   let dest: string | null = null;
   if (settlement.rail === "usdc" && settlement.beneficiary.wallet_address) {
     dest = settlement.beneficiary.wallet_address;
   } else {
-    const resolved = await resolveOfframpStellarDestination(admin, settlement.rail);
-    if ("error" in resolved) {
-      return json({ error: resolved.error, code: resolved.code }, resolved.status);
+    dest = await resolveOwltingStellarDestination(admin);
+    if (!dest) {
+      return err("Owlting off-ramp Stellar destination not configured", "destination_not_configured", 503);
     }
-    dest = resolved.address;
   }
 
   const memoParsed = parseSupplierMemo(body);
-  if (memoParsed.error) return json({ error: memoParsed.error }, 400);
+  if (memoParsed.error) return err(memoParsed.error, "invalid_request", 400);
 
   let payoutMemo = memoParsed.payoutMemo;
   let payoutMemoType = memoParsed.payoutMemoType;
@@ -148,9 +148,11 @@ Deno.serve(async (req) => {
 
   const userProvidedBusinessRef = externalRef || payoutMemo;
   if (!userProvidedBusinessRef) {
-    return json({
-      error: "invoice_ref, settlement.external_ref, or supplier.memo required; health checks must use /theo-api-ping",
-    }, 400);
+    return err(
+      "invoice_ref, settlement.external_ref, or supplier.memo required; health checks must use /theo-api-ping",
+      "invalid_request",
+      400,
+    );
   }
 
   const { data: customer } = await admin
@@ -158,8 +160,8 @@ Deno.serve(async (req) => {
     .select("id, fee_bps, corridor_bps, kyb_status")
     .eq("id", auth.customer_id)
     .maybeSingle();
-  if (!customer) return json({ error: "Customer not found" }, 404);
-  if (customer.kyb_status !== "APPROVED") return json({ error: "KYB approval required" }, 403);
+  if (!customer) return err("Customer not found", "not_found", 404);
+  if (customer.kyb_status !== "APPROVED") return err("KYB approval required", "kyb_required", 403);
 
   const theoBps = (customer as { fee_bps?: number | null }).fee_bps ?? 130;
   const corrBps = (customer as { corridor_bps?: number | null }).corridor_bps ?? 70;
