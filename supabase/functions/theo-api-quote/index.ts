@@ -362,7 +362,7 @@ Deno.serve(async (req) => {
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (replay) {
+      if (replay && isReplayable(replay as Record<string, unknown>)) {
         return json(buildQuoteReplayResponse(
           replay as Record<string, unknown>,
           sourceCurrency,
@@ -378,7 +378,7 @@ Deno.serve(async (req) => {
         ));
       }
     }
-    return json({ error: insErr.message }, 500);
+    return err(insErr.message, "internal_error", 500);
   }
 
   return json({
