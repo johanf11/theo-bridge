@@ -147,7 +147,7 @@ Deno.serve(async (req) => {
     .eq("status", "QUOTED")
     .select("id")
     .maybeSingle();
-  if (claimErr) return json({ error: claimErr.message }, 500);
+  if (claimErr) return err(claimErr.message, "internal_error", 500);
   if (!claimed) {
     const { data: latest } = await admin
       .from("orders")
@@ -164,7 +164,7 @@ Deno.serve(async (req) => {
         idempotent_replay: true,
       });
     }
-    return json({ error: `quote already used (status=${latest?.status ?? "unknown"})` }, 409);
+    return err(`quote already used (status=${latest?.status ?? "unknown"})`, "quote_already_used", 409);
   }
 
   const server = new Horizon.Server(HORIZON_URL);
