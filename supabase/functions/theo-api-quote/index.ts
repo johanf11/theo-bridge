@@ -14,6 +14,23 @@ import {
   odooQuoteMaxUsd,
 } from "../_shared/odoo-settlement.ts";
 import { apiErrorResponse, authErrorCode } from "../_shared/api-errors.ts";
+import { InvalidMemoError, resolveStellarMemo } from "../_shared/stellar-memo.ts";
+
+function extractVendorMemo(body: Record<string, unknown>): string {
+  const supplier = body.supplier as Record<string, unknown> | undefined;
+  const settlement = body.settlement as Record<string, unknown> | undefined;
+  const beneficiary = settlement?.beneficiary as Record<string, unknown> | undefined;
+  const candidates = [
+    supplier?.vendor_memo,
+    supplier?.memo,
+    beneficiary?.memo,
+  ];
+  for (const c of candidates) {
+    const v = String(c ?? "").trim();
+    if (v) return v;
+  }
+  return "";
+}
 
 const QUOTE_TTL_MIN = 15;
 
