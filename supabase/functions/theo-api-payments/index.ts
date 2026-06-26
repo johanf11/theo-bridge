@@ -18,7 +18,7 @@ import {
 } from "npm:@stellar/stellar-sdk@12.3.0";
 import { authenticateApiKey } from "../_shared/api-key-auth.ts";
 import { corsHeaders } from "../_shared/cors.ts";
-import { owltningOfframpAddress } from "../_shared/odoo-settlement.ts";
+import { resolveOfframpStellarDestination } from "../_shared/odoo-settlement.ts";
 import { distributorPublicKey, signWithDistributor } from "../_shared/stellar-signer.ts";
 
 const HORIZON_URL = "https://horizon-testnet.stellar.org";
@@ -81,12 +81,11 @@ Deno.serve(async (req) => {
     return json({ error: "quote expired" }, 410);
   }
 
-  const configuredOffRamp = owltningOfframpAddress();
-  if (!configuredOffRamp) return json({ error: "OWLTING_OFFRAMP_STELLAR_ADDRESS not configured" }, 500);
-
-  const dest = order.destination_stellar_address ?? configuredOffRamp;
-  if (dest !== configuredOffRamp) {
-    return json({ error: "quote destination does not match configured Owlting off-ramp address" }, 400);
+  let dest = order.destination_stellar_address as string | null;
+  if (!dest) {
+    const resolved = await resolveOfframpStellarDestination(admin, "wire");
+    if ("error" in resolved) return json({ error: resolved.error, code: resolved.code }, resolved.status);
+    dest = resolved.address;
   }
 
   const memoText = (memoReference || order.reference_number || "").slice(0, 28);

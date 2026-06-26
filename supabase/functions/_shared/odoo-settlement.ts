@@ -25,6 +25,43 @@ export function owltningOfframpAddress(): string | null {
   return null;
 }
 
+// deno-lint-ignore no-explicit-any
+type AdminClient = any;
+
+/**
+ * Unified off-ramp destination resolver. Prefers app_settings.owlting_omnibus_address,
+ * falls back to OWLTING_OFFRAMP_STELLAR_ADDRESS env. Returns a typed error envelope
+ * so callers can surface a machine-readable `code` to API consumers (Odoo wizard).
+ */
+export async function resolveOfframpStellarDestination(
+  admin: AdminClient,
+  _rail: SettlementRail,
+): Promise<
+  | { address: string }
+  | { error: string; code: string; status: number }
+> {
+  try {
+    const { data: setting } = await admin
+      .from("app_settings")
+      .select("value")
+      .eq("key", "owlting_omnibus_address")
+      .maybeSingle();
+    const omnibus = ((setting?.value as { address?: string } | null)?.address ?? "").trim();
+    if (omnibus.startsWith("G") && omnibus.length >= 50) {
+      return { address: omnibus };
+    }
+  } catch {
+    // fall through to env fallback
+  }
+  const envAddr = owltningOfframpAddress();
+  if (envAddr) return { address: envAddr };
+  return {
+    error: "Owlting off-ramp destination not configured",
+    code: "destination_not_configured",
+    status: 503,
+  };
+}
+
 const OWLTING_PLATFORM_FEE_BPS = 50;
 const OWLTING_PLATFORM_FEE_MIN_USD = 50;
 

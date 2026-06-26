@@ -1,64 +1,101 @@
-## Root cause
+## Goal
 
-Odoo `Pay with Theo` (HTG‑C → USDC → wire to Owlting) failed on `THEO-ODO-GPK3W7` ($48,000 → 49,200 USDC incl. 0.5% platform fee). The quote succeeded, but the USDC payment in `theo-api-pay-bank` was rejected by Horizon with:
+Fix the Odoo "Pay with Theo" 500 error on Local / USDC / ACH rails, unify Stellar off-ramp destination resolution so wire and non-wire rails share the same config, and ship an updated API integration spec the Odoo plugin author can paste into their Cursor builder.
 
-- `transaction: tx_failed`
-- `operations: ["op_no_destination"]`
+## Cursor's analysis — review
 
-Reason: the Owlting omnibus address
-`GDLAQLNZNXLDJ2J2LDG3J5EAYAKAHAUSDFTKURMNED2J7LXJ7UET65RQ`
-configured in `app_settings.owlting_omnibus_address` does **not exist** on Stellar testnet (Horizon returns 404). An unfunded account cannot receive USDC, and even after funding it still needs a USDC trustline.
+Cursor's root cause is correct:
+- `theo-api-quote`, `theo-api-pay`, `theo-api-payments` use `owltningOfframpAddress()` (env `OWLTING_OFFRAMP_STELLAR_ADDRESS`) for every rail except `wire`.
+- `wire` already reads `app_settings.owlting_omnibus_address`. The env secret was never set, so non-wire rails 500.
 
-The order is now `status = FAILED` with `failure_reason` set. No USDC was sent; on‑chain state is clean. The DB row needs to be reconciled (any HTG‑C debit reversed if posted) so the customer ledger matches reality.
+What Cursor missed / should improve:
+1. The omnibus address `GDXYHOGRCS5AU745ZAIWVYI2TZ5TFZPZPGTLKOYRMYI2UHWSGJBTCEAW` is already wired up, authorized, and works for wire. Using two different Stellar destinations for "wire" vs "local/ach" on the same demo is the actual bug — there is only one off-ramp on testnet. Unify on the omnibus.
+2. Status code should be `503 destination_not_configured` (matches the existing `theo-api-pay-bank` convention), not `500`. 500 leaks "config error" as an app bug to the plugin and makes the Odoo wizard treat it as a non-retryable crash.
+3. The error string should be machine-readable (`code: "destination_not_configured"`) so the Odoo wizard can open the modal with a clean message instead of swallowing the popup.
+4. `OWLTING_OFFRAMP_STELLAR_ADDRESS` should remain a documented **fallback only** (legacy), not the primary path. Otherwise we'll keep drifting between two configs.
+5. Odoo's wizard also needs a fix: a 500 with no JSON body shouldn't suppress the modal — surface the upstream `error`/`code` in the dialog.
 
-## Plan
+## Changes — backend (build mode)
 
-### 1. Provision the Owlting omnibus account on testnet (one‑time fix)
+### 1. `supabase/functions/_shared/odoo-settlement.ts`
+Add helper:
 
-Create a new edge function `admin-provision-owlting` (admin‑gated, like `admin-setup-wallet`) that:
+```ts
+export async function resolveOfframpStellarDestination(
+  admin: SupabaseClient,
+  rail: SettlementRail,
+): Promise<{ address: string } | { error: string; code: string; status: number }>
+```
 
-1. Reads `app_settings.owlting_omnibus_address`.
-2. If the account is missing on Horizon, calls Friendbot to fund it. If the account has no `STELLAR_OWLTING_OMNIBUS_SECRET` configured, returns a clear error explaining we don't control the keypair and need a different demo address we own.
-3. Adds a USDC trustline (asset = `USDC` / `STELLAR_USDC_ISSUER`) signed by the omnibus secret.
-4. Optionally adds HTG‑C trustline for symmetry.
-5. Returns the resulting balances + trustlines.
+- For all rails (`wire | local | ach | usdc-to-fiat`): first read `app_settings.owlting_omnibus_address`.
+- Fallback to `Deno.env.get("OWLTING_OFFRAMP_STELLAR_ADDRESS")` if set.
+- Else return `{ status: 503, code: "destination_not_configured", error: "Owlting off-ramp destination not configured" }`.
+- For `rail === "usdc"` with explicit `beneficiary.wallet_address`, the caller still uses the beneficiary address directly — helper not called.
 
-Because the current omnibus pubkey was supplied externally (Owlting), the matching secret almost certainly isn't in our secrets. Two options for the demo:
+### 2. Update callers to use the helper
+- `theo-api-quote/index.ts` lines 127–137 → replace the `isBankWire` branching with one call to `resolveOfframpStellarDestination`. Keep `isBankWire` only for downstream `settlement_method` labeling.
+- `theo-api-pay/index.ts` and `theo-api-payments/index.ts` → same swap.
+- Remove the standalone `owltningOfframpAddress()` export once unused (or mark deprecated and re-export from helper for back-compat).
 
-- **A. Rotate to a Theo‑managed demo omnibus**: generate a new keypair locally, store the secret as `STELLAR_OWLTING_OMNIBUS_SECRET`, update `app_settings.owlting_omnibus_address` to the new pubkey, then run the provisioner. Recommended — keeps the demo fully self‑contained.
-- **B. Keep the Owlting pubkey**: Owlting must fund + trust USDC on testnet themselves. Until they do, every wire payout will fail the same way.
+### 3. Migration: seed omnibus if empty
+`supabase/migrations/<ts>_seed_owlting_omnibus.sql`:
 
-I'll proceed with **Option A** unless you say otherwise.
+```sql
+insert into public.app_settings(key, value)
+values ('owlting_omnibus_address',
+        jsonb_build_object('address','GDXYHOGRCS5AU745ZAIWVYI2TZ5TFZPZPGTLKOYRMYI2UHWSGJBTCEAW'))
+on conflict (key) do nothing;
+```
 
-### 2. Harden `theo-api-pay-bank` against this class of failure
+### 4. Set the legacy env secret (belt-and-suspenders)
+Set `OWLTING_OFFRAMP_STELLAR_ADDRESS = GDXYHOGRCS5AU745ZAIWVYI2TZ5TFZPZPGTLKOYRMYI2UHWSGJBTCEAW` via `set_secret`. This satisfies any legacy code path still relying on the env.
 
-Before submitting the USDC payment, pre‑flight the destination:
+### 5. Redeploy
+`theo-api-quote`, `theo-api-pay`, `theo-api-pay-bank`, `theo-api-payments`.
 
-- `loadAccount(dest)` → if it 404s, fail fast with `503 destination_not_provisioned` and leave the order in `QUOTED` (not `FAILED`) so a retry works once the omnibus is set up.
-- Check that `dest` has a USDC trustline; if missing, same `503` behavior.
+## Changes — docs (for Odoo plugin Cursor builder)
 
-This avoids burning quotes (and confusing customers) when the omnibus is misconfigured.
+### 6. Rewrite `docs/theo-odoo-integration.md` API contract sections
 
-### 3. Reconcile the stuck order `THEO-ODO-GPK3W7`
+Tighten the contract so the plugin always succeeds. Key updates:
 
-- Confirm via `ledger_entries` that no HTG‑C was actually debited (the USDC send failed before any ledger post). If a debit did post, write a reversing transaction via `post_ledger_entries`.
-- Leave the order as `FAILED` with a human‑readable `failure_reason` ("Owlting omnibus not provisioned on testnet — fixed; please retry from Odoo").
-- Odoo can re‑click **Pay with Theo** on BILL/2026/06/0008 to create a fresh quote and complete the payment.
+- **Endpoint matrix** — one table per flow (USDC-direct, bank wire, local payout, ACH) showing required body fields and which endpoint pair to call: `quote` then `pay-bank` (wire) or `pay` (others).
+- **Required vs optional body keys** for `/theo-api-quote`:
+  - Always: `source_wallet_id`, `amount_usd`, one of `invoice_ref` / `settlement.external_ref` / `supplier.memo`.
+  - For wire/local/ach: full `settlement.beneficiary` (name, bank_name, account_number, swift for wire; bank_name + account_number + currency for local; bank_name + account_number for ach).
+  - For usdc-to-wallet: `settlement.beneficiary.wallet_address` (G…).
+- **Error envelope** — every non-2xx now returns `{ error, code }`. List `code` values the plugin should branch on: `destination_not_configured (503)`, `quote_expired (410)`, `quote_already_used (409)`, `kyb_required (403)`, `invalid_settlement (400)`.
+- **Wizard popup robustness** — instruct the plugin to:
+  - Always parse the JSON body even on 5xx; never gate the modal on `response.ok`.
+  - Surface `error` + `code` in the modal so the user sees `destination_not_configured` instead of a blank popup.
+  - Retry only on `502`/`503` with `code` in `{ destination_not_configured, on_chain_transient }`.
+- **Test connection flow** — plugin "Test Connection" button must call `/theo-api-ping` only. Document that `/theo-api-quote` is not idempotent for health checks (already enforced server-side).
 
-### 4. Redeploy + verify
+### 7. New section in docs: "Triggering the wizard safely"
 
-- Deploy `admin-provision-owlting` and updated `theo-api-pay-bank`.
-- Run the provisioner once; assert Horizon now shows the omnibus account with a USDC trustline.
-- Curl `theo-api-pay-bank` with a bogus body to confirm it still returns `401 Missing API key` (slug live).
-- Ask you to retry the bill in Odoo; expect `status: COMPLETED` with a `stellar_tx_hash`.
+Pseudo-code the Odoo `theo_payment_wizard.py` should follow:
+
+```text
+1. POST /theo-api-quote
+2. If response.status == 200: open wizard with quote breakdown.
+3. Else: open wizard in error state showing body.code + body.error.
+   Never raise UserError before opening — it swallows the popup.
+```
+
+### 8. Update `src/pages/DocsOdoo.tsx`
+
+Mirror the new error codes and the wizard popup guidance so an Odoo dev hitting our hosted docs gets the same contract.
+
+## Acceptance criteria
+
+- `POST /theo-api-quote` with `settlement.rail: "local"` + MXN beneficiary → `200` with `quote_id` and `off_ramp.stellar_address = omnibus`.
+- `POST /theo-api-pay` for that quote → completes; USDC arrives at the omnibus on testnet.
+- `POST /theo-api-quote` against a non-omnibus-configured project → `503` with `{ code: "destination_not_configured" }`, plugin opens modal with that message instead of suppressing it.
+- Bank wire (Miami Foods) flow unchanged: still 200, still uses omnibus.
+- Updated docs (`docs/theo-odoo-integration.md` + `DocsOdoo.tsx`) include endpoint matrix, error code table, wizard popup guidance.
 
 ## Out of scope
 
-- No changes to `supabase/functions/_shared/*` (per project constraint).
-- No schema changes.
-- No change to fee structure.
-
-## Confirm before I proceed
-
-1. Go with **Option A** (Theo‑managed demo omnibus, new keypair, update `app_settings`)? Or keep the externally‑provided Owlting pubkey?
-2. OK to leave `THEO-ODO-GPK3W7` as `FAILED` and have you click **Retry** in Odoo to issue a fresh quote after the fix?
+- Mainnet provisioning of a real Owlting address (still demo-only).
+- Removing `OWLTING_OFFRAMP_STELLAR_ADDRESS` env entirely — kept as documented fallback for one release.
+- Building the Odoo Python module (lives in the plugin repo).
