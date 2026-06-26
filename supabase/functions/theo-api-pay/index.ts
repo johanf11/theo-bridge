@@ -41,6 +41,15 @@ Deno.serve(async (req) => {
     .maybeSingle();
   if (!order) return json({ error: "quote not found" }, 404);
   if (order.customer_id !== auth.customer_id) return json({ error: "quote does not belong to this customer" }, 403);
+  if (order.status === "COMPLETED") {
+    return json({
+      ok: true,
+      reference_number: order.reference_number,
+      stellar_tx_hash: order.stellar_tx_hash,
+      status: "COMPLETED",
+      idempotent_replay: true,
+    });
+  }
   if (order.status !== "QUOTED") return json({ error: `quote already used (status=${order.status})` }, 409);
   if (order.quote_expires_at && new Date(order.quote_expires_at).getTime() < Date.now()) {
     return json({ error: "quote expired" }, 410);
