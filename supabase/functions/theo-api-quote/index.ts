@@ -63,9 +63,11 @@ Deno.serve(async (req) => {
   if (!customer) return json({ error: "Customer not found" }, 404);
   if (customer.kyb_status !== "APPROVED") return json({ error: "KYB approval required" }, 403);
 
-  const theoBps = (customer as { fee_bps?: number | null }).fee_bps ?? 130;
-  const corrBps = (customer as { corridor_bps?: number | null }).corridor_bps ?? 70;
-  const totalBps = theoBps + corrBps;
+  // Demo: Theo charges no fee on Odoo-originated payments. Owlting handles its
+  // own crypto→fiat fee out-of-band.
+  const theoBps = 0;
+  const corrBps = 0;
+  const totalBps = 0;
 
   // Determine source currency
   const isHtgc = sourceWalletId.startsWith("htgc:");
