@@ -106,6 +106,12 @@ Deno.serve(async (req) => {
     }, 400);
   }
 
+  if (!clientRequestId && !clean(supplier.external_ref) && !payoutMemo) {
+    return json({
+      error: "client_request_id or supplier.external_ref required; health checks must use /theo-api-ping and must not create quotes",
+    }, 400);
+  }
+
   // Customer fees
   const { data: customer } = await admin
     .from("customers")
