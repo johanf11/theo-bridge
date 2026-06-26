@@ -368,7 +368,7 @@ display whatever the quote returns, and surface any error verbatim.
 All quote bodies must include:
 
 - `source_wallet_id` (from `/theo-api-wallets`)
-- `amount_usd` (> 0, ≤ 100,000)
+- `amount_usd` (> 0; no fixed upper cap — HTG-C source requires ≥ $1,000 total debit)
 - One of: `invoice_ref`, `settlement.external_ref`, or `supplier.memo`
   (health checks must use `/theo-api-ping`, **not** `/theo-api-quote`).
 
