@@ -42,16 +42,31 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({} as Record<string, unknown>));
   const sourceWalletId = String(body.source_wallet_id ?? "");
   const amountUsd = Number(body.amount_usd);
-  const supplier = body.supplier as { name?: string; stellar_address?: string; external_ref?: string } | undefined;
+  const supplier = body.supplier as {
+    name?: string;
+    stellar_address?: string;
+    external_ref?: string;
+    bank_wire?: Record<string, unknown>;
+    settlement_method?: string;
+  } | undefined;
 
   if (!sourceWalletId) return json({ error: "source_wallet_id required" }, 400);
   if (!Number.isFinite(amountUsd) || amountUsd <= 0 || amountUsd > MAX_USDC) {
     return json({ error: `amount_usd must be > 0 and <= ${MAX_USDC}` }, 400);
   }
   if (!supplier?.name) return json({ error: "supplier.name required" }, 400);
-  const dest = (supplier.stellar_address ?? "").trim();
+  let dest = (supplier.stellar_address ?? "").trim();
+  const settlement = String(supplier.settlement_method ?? "").toLowerCase();
+  const isBankWire = !dest && (supplier.bank_wire != null || settlement.includes("wire") || settlement.includes("bank"));
+  if (isBankWire) {
+    const { data: setting } = await admin.from("app_settings")
+      .select("value").eq("key", "owlting_omnibus_address").maybeSingle();
+    const omnibus = (setting?.value as { address?: string } | null)?.address;
+    if (!omnibus) return json({ error: "Owlting omnibus wallet not configured" }, 503);
+    dest = omnibus;
+  }
   if (!dest || !dest.startsWith("G") || dest.length < 50) {
-    return json({ error: "supplier.stellar_address (G…) required" }, 400);
+    return json({ error: "supplier.stellar_address (G…) or supplier.bank_wire required" }, 400);
   }
 
   // Customer fees
