@@ -1,18 +1,22 @@
 // Public Theo API: POST /theo-api-quote
 // Body: {
-//   source_wallet_id: string,      // wallet id from /theo-api-wallets (or "htgc:<customer_id>")
-//   amount_usd: number,            // amount the supplier should receive in USD
-//   supplier: {
-//     name: string,
-//     stellar_address?: string,    // currently the only settlement rail supported
-//     external_ref?: string,       // Odoo bill number, etc.
+//   source_wallet_id: string,
+//   amount_usd: number,
+//   invoice_ref?: string,
+//   settlement: {
+//     rail: "wire" | "local" | "usdc" | "ach",
+//     currency?: string,
+//     beneficiary: { name, bank_name?, account_number?, swift?, country?, wallet_address? },
+//     external_ref?: string,
 //   }
 // }
-// Returns a 15-min quote stored as a QUOTED order, ready for /theo-api-pay.
+// On-chain settlement always routes to OWLTING_OFFRAMP_STELLAR_ADDRESS; beneficiary
+// metadata is stored for Owlting fiat off-ramp (demo: testnet; mainnet: production).
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { authenticateApiKey } from "../_shared/api-key-auth.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import { owltningOfframpAddress, parseSettlementBody, calcOwltingPlatformFeeUsd } from "../_shared/odoo-settlement.ts";
 
 const QUOTE_TTL_MIN = 15;
 const MAX_USDC = 100_000;
@@ -35,6 +39,11 @@ Deno.serve(async (req) => {
 
   if (req.method !== "POST") return json({ error: "Use POST" }, 405);
 
+  const offRamp = owltningOfframpAddress();
+  if (!offRamp) {
+    return json({ error: "OWLTING_OFFRAMP_STELLAR_ADDRESS not configured" }, 500);
+  }
+
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const auth = await authenticateApiKey(admin, req, "quotes:write");
   if ("error" in auth) return json({ error: auth.error }, auth.status);
@@ -42,19 +51,16 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({} as Record<string, unknown>));
   const sourceWalletId = String(body.source_wallet_id ?? "");
   const amountUsd = Number(body.amount_usd);
-  const supplier = body.supplier as { name?: string; stellar_address?: string; external_ref?: string } | undefined;
 
   if (!sourceWalletId) return json({ error: "source_wallet_id required" }, 400);
   if (!Number.isFinite(amountUsd) || amountUsd <= 0 || amountUsd > MAX_USDC) {
     return json({ error: `amount_usd must be > 0 and <= ${MAX_USDC}` }, 400);
   }
-  if (!supplier?.name) return json({ error: "supplier.name required" }, 400);
-  const dest = (supplier.stellar_address ?? "").trim();
-  if (!dest || !dest.startsWith("G") || dest.length < 50) {
-    return json({ error: "supplier.stellar_address (G…) required" }, 400);
-  }
 
-  // Customer fees
+  const parsed = parseSettlementBody(body);
+  if (parsed.error || !parsed.settlement) return json({ error: parsed.error ?? "invalid settlement" }, 400);
+  const settlement = parsed.settlement;
+
   const { data: customer } = await admin
     .from("customers")
     .select("id, fee_bps, corridor_bps, kyb_status")
@@ -67,7 +73,6 @@ Deno.serve(async (req) => {
   const corrBps = (customer as { corridor_bps?: number | null }).corridor_bps ?? 70;
   const totalBps = theoBps + corrBps;
 
-  // Determine source currency
   const isHtgc = sourceWalletId.startsWith("htgc:");
   let sourceCurrency: "USDC" | "HTGC";
   let sourceWalletDbId: string | null = null;
@@ -86,10 +91,17 @@ Deno.serve(async (req) => {
     sourceWalletDbId = w.id;
   }
 
-  // Pricing
-  const feeUsd = Math.round(amountUsd * (totalBps / 10_000) * 1e7) / 1e7;
-  const theoFeeUsdc = Math.round(amountUsd * (theoBps / 10_000) * 1e7) / 1e7;
-  const totalDebitUsd = Math.round((amountUsd + feeUsd) * 1e7) / 1e7;
+  // FX conversion fee applies only when debiting HTG-C (HTG → USDC). Direct USDC has no FX fee.
+  const billAmountUsd = amountUsd;
+  const fxFeeUsd = sourceCurrency === "HTGC"
+    ? Math.round(billAmountUsd * (totalBps / 10_000) * 1e7) / 1e7
+    : 0;
+  const theoFeeUsdc = sourceCurrency === "HTGC"
+    ? Math.round(billAmountUsd * (theoBps / 10_000) * 1e7) / 1e7
+    : 0;
+  const platformFeeUsd = calcOwltingPlatformFeeUsd(billAmountUsd, settlement.rail);
+  const totalFeeUsd = Math.round((fxFeeUsd + platformFeeUsd) * 1e7) / 1e7;
+  const totalDebitUsd = Math.round((billAmountUsd + totalFeeUsd) * 1e7) / 1e7;
 
   let rate = 1;
   let debitHtgc: number | null = null;
@@ -117,20 +129,26 @@ Deno.serve(async (req) => {
       customer_id: auth.customer_id,
       status: "QUOTED",
       htg_amount: debitHtgc ?? 0,
-      usdc_amount: amountUsd,
+      usdc_amount: totalDebitUsd,
       usdc_gross: totalDebitUsd,
-      fee_bps: totalBps,
-      theo_fee_bps: theoBps,
-      corridor_bps: corrBps,
-      fee_usdc: feeUsd,
+      fee_bps: sourceCurrency === "HTGC" ? totalBps : 0,
+      theo_fee_bps: sourceCurrency === "HTGC" ? theoBps : 0,
+      corridor_bps: sourceCurrency === "HTGC" ? corrBps : 0,
+      fee_usdc: totalFeeUsd,
       theo_fee_usdc: theoFeeUsdc,
       rate,
       spot_rate: spotRate,
       reference_number: reference,
       quote_expires_at: expiresAt,
-      destination_wallet_address: dest,
-      destination_stellar_address: dest,
+      destination_wallet_address: offRamp,
+      destination_stellar_address: offRamp,
       order_kind: sourceCurrency === "HTGC" ? "usdc_conversion" : "htgc_usdc_swap",
+      beneficiary_metadata: {
+        ...settlement,
+        off_ramp: "owlting",
+        off_ramp_stellar_address: offRamp,
+        platform_fee_usdc: platformFeeUsd,
+      },
     })
     .select("id")
     .single();
@@ -142,15 +160,21 @@ Deno.serve(async (req) => {
     expires_at: expiresAt,
     source_currency: sourceCurrency,
     source_wallet_id: sourceWalletDbId ?? sourceWalletId,
-    amount_usd: amountUsd,
-    fee_usd: feeUsd,
+    amount_usd: billAmountUsd,
+    fee_usd: fxFeeUsd,
+    platform_fee_usd: platformFeeUsd,
     total_debit_usd: totalDebitUsd,
     debit_htgc: debitHtgc,
     rate,
-    supplier: {
-      name: supplier.name,
-      stellar_address: dest,
-      external_ref: supplier.external_ref ?? null,
+    settlement: {
+      rail: settlement.rail,
+      currency: settlement.currency ?? settlement.beneficiary.currency,
+      beneficiary: settlement.beneficiary,
+      external_ref: settlement.external_ref,
+    },
+    off_ramp: {
+      provider: "owlting",
+      stellar_address: offRamp,
     },
   });
 });

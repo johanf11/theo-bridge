@@ -6,6 +6,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { authenticateApiKey } from "../_shared/api-key-auth.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
+import { owltningOfframpAddress } from "../_shared/odoo-settlement.ts";
 
 const HORIZON_URL = "https://horizon-testnet.stellar.org";
 
@@ -48,6 +49,7 @@ Deno.serve(async (req) => {
     label: string;
     currency: "USDC" | "HTGC";
     available_balance: number;
+    htgc_balance?: number;
     stellar_address: string;
   }> = [];
 
@@ -60,6 +62,7 @@ Deno.serve(async (req) => {
       label: w.label || "USDC Wallet",
       currency: "USDC",
       available_balance: bals.usdc,
+      htgc_balance: bals.htgc,
       stellar_address: w.stellar_address,
     });
   }
@@ -74,5 +77,11 @@ Deno.serve(async (req) => {
     });
   }
 
-  return json({ wallets: out });
+  const offRampAddress = owltningOfframpAddress();
+  return json({
+    wallets: out,
+    off_ramp: offRampAddress
+      ? { provider: "owlting", stellar_address: offRampAddress }
+      : null,
+  });
 });

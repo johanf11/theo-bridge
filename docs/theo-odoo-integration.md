@@ -8,28 +8,25 @@ Theo public API. This doc is the contract; the plugin ships separately.
 ## 1. Overview
 
 Importers pre-fund their HTG balance with Theo (HTG bank deposit → HTG-C credit).
-From an Odoo vendor bill they click **Pay with Theo**, the plugin asks Theo to
-quote and then settle the supplier on Stellar (USDC). Theo debits the importer's
-USDC wallet if it has the funds, otherwise auto-converts from the HTG-C balance
-at the live BRH rate. On success Theo returns a Stellar transaction hash; Odoo
-records it on the `account.move` and marks the bill paid.
+From an Odoo vendor bill they click **Pay with Theo**. The plugin sends the
+vendor's **bank/wire/local payment details** plus the bill amount to Theo.
+Theo debits the importer's USDC or HTG-C balance, then sends **USDC on-chain to
+the Owlting off-ramp Stellar address** (`OWLTING_OFFRAMP_STELLAR_ADDRESS`).
+Beneficiary metadata is stored on the order for Owlting fiat payout (mainnet).
+On success Theo returns a Stellar transaction hash; Odoo marks the bill paid.
 
 ```
-Importer (Odoo)          theo_payment plugin             Theo API                     Stellar
-       │                        │                            │                            │
-       │  click "Pay with Theo" │                            │                            │
-       │───────────────────────>│  GET /theo-api-ping        │                            │
-       │                        │───────────────────────────>│                            │
-       │                        │  GET /theo-api-wallets     │                            │
-       │                        │───────────────────────────>│                            │
-       │  pick source wallet    │                            │                            │
-       │<───────────────────────│  POST /theo-api-quote      │                            │
-       │                        │───────────────────────────>│                            │
-       │  confirm quote         │                            │                            │
-       │───────────────────────>│  POST /theo-api-pay        │                            │
-       │                        │───────────────────────────>│  send USDC to supplier ──> │
-       │                        │  { stellar_tx_hash }       │<───────────────────────────│
-       │  bill marked Paid      │<───────────────────────────│                            │
+Importer (Odoo)     theo_payment plugin        Theo API              Stellar/Owlting
+       │                    │                      │                        │
+       │ Pay with Theo      │                      │                        │
+       │───────────────────>│ POST /theo-api-quote │                        │
+       │  (bank details)    │─────────────────────>│ store beneficiary      │
+       │                    │ POST /theo-api-pay   │                        │
+       │                    │─────────────────────>│ USDC → Owlting off-ramp│
+       │                    │  { stellar_tx_hash } │<───────────────────────│
+       │ bill marked Paid   │<─────────────────────│                        │
+       │                    │                      │     fiat → vendor bank │
+       │                    │                      │     (Owlting, mainnet) │
 ```
 
 ---
@@ -40,6 +37,8 @@ Importer (Odoo)          theo_payment plugin             Theo API               
 - Org **owner** account (only owners can mint API keys).
 - At least one funded wallet (USDC and/or HTG-C balance).
 - Odoo 17 self-hosted, developer mode enabled, outbound HTTPS allowed.
+- Supabase secret **`OWLTING_OFFRAMP_STELLAR_ADDRESS`** set to the Owlting testnet
+  (demo) or mainnet off-ramp `G…` address.
 
 ---
 
@@ -138,9 +137,17 @@ curl -X POST "$BASE/theo-api-quote" \
   -d '{
     "source_wallet_id": "htgc:6187f305-188a-41ab-8e76-81dc2efa6a93",
     "amount_usd": 1500,
-    "supplier": {
-      "name": "Shenzhen Widgets Ltd",
-      "stellar_address": "GABCDEF…XYZ",
+    "invoice_ref": "BILL/2026/0001",
+    "settlement": {
+      "rail": "wire",
+      "currency": "USD",
+      "beneficiary": {
+        "name": "Miami Foods Distribution LLC",
+        "bank_name": "Sunshine State Bank",
+        "account_number": "US64SUNS0001234567890",
+        "swift": "SUNSUS33",
+        "country": "US"
+      },
       "external_ref": "BILL/2026/0001"
     }
   }'
@@ -160,10 +167,15 @@ Response:
   "total_debit_usd": 1530,
   "debit_htgc": 198450,
   "rate": 129.7,
-  "supplier": {
-    "name": "Shenzhen Widgets Ltd",
-    "stellar_address": "GABCDEF…XYZ",
+  "settlement": {
+    "rail": "wire",
+    "currency": "USD",
+    "beneficiary": { "name": "Miami Foods Distribution LLC", "bank_name": "…" },
     "external_ref": "BILL/2026/0001"
+  },
+  "off_ramp": {
+    "provider": "owlting",
+    "stellar_address": "GOWLTING…"
   }
 }
 ```
@@ -171,10 +183,10 @@ Response:
 Notes:
 
 - Quote TTL is **15 minutes**. After `expires_at` you must re-quote.
-- `supplier.stellar_address` (G…) is currently the **only** supported settlement
-  rail. Bank/local rails are roadmap.
-- `supplier.external_ref` should be the Odoo bill number — it flows into the
-  Stellar memo (28-byte cap, truncated if longer).
+- **`settlement.rail`**: `wire`, `local`, `usdc`, or `ach` with matching beneficiary fields.
+- On-chain USDC always goes to **`OWLTING_OFFRAMP_STELLAR_ADDRESS`**, not the vendor.
+- Legacy `supplier.stellar_address` is still accepted but deprecated.
+- `external_ref` / `invoice_ref` flows into the Stellar memo (28-byte cap).
 - For USDC source wallets `source_currency = "USDC"`, `debit_htgc = null`,
   `rate = 1`.
 - Max `amount_usd` per quote = 100,000.
