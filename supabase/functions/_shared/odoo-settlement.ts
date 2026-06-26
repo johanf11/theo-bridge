@@ -72,6 +72,21 @@ export async function resolveOfframpStellarDestination(
 const OWLTING_PLATFORM_FEE_BPS = 50;
 const OWLTING_PLATFORM_FEE_MIN_USD = 50;
 
+/** Minimum USDC equivalent for HTG-C sourced Odoo conversion quotes (dust protection). */
+export const HTGC_CONVERSION_USDC_MIN = 1000;
+
+/**
+ * Optional emergency throttle for the Odoo quote endpoint. Unset = no cap.
+ * Set ODOO_QUOTE_MAX_USD only when ops need to temporarily bound exposure;
+ * Odoo vendor bills are otherwise uncapped (bound by distributor balance at pay time).
+ */
+export function odooQuoteMaxUsd(): number | null {
+  const raw = Deno.env.get("ODOO_QUOTE_MAX_USD");
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 /** Platform fee for USDC → fiat off-ramp: max($50, 50 bps of bill amount). */
 export function calcOwltingPlatformFeeUsd(billAmountUsd: number, rail: SettlementRail): number {
   if (rail === "usdc") return 0;

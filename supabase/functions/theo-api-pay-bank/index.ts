@@ -212,6 +212,9 @@ Deno.serve(async (req) => {
       ? JSON.stringify((e as { response: { data: unknown } }).response.data)
       : (e as Error).message;
     await admin.from("orders").update({ status: "FAILED", failure_reason: String(msg).slice(0, 1000) }).eq("id", order.id);
+    if (/short on USDC|underfunded|op_underfunded/i.test(String(msg))) {
+      return err(`Insufficient USDC liquidity to settle ${amount}`, "insufficient_balance", 402);
+    }
     return err(`Payment failed: ${msg}`, "on_chain_failed", 502);
   }
 

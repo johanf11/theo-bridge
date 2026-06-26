@@ -192,7 +192,8 @@ Notes:
 - `external_ref` / `invoice_ref` flows into the Stellar memo (28-byte cap).
 - For USDC source wallets `source_currency = "USDC"`, `debit_htgc = null`,
   `rate = 1`.
-- Max `amount_usd` per quote = 100,000.
+- **No fixed maximum** on `amount_usd`. Odoo vendor bills can be $100K, $1M, $2M+ — bound only by distributor USDC liquidity at pay time. HTG-C sourced quotes require a $1,000 minimum (dust protection). Set `ODOO_QUOTE_MAX_USD` env on the backend only as an emergency ops throttle.
+- Pay-time oversize failures return **`402 insufficient_balance`**, not a product cap.
 
 ### 5.4 `POST /theo-api-pay` — Execute the payment
 
@@ -367,7 +368,7 @@ display whatever the quote returns, and surface any error verbatim.
 All quote bodies must include:
 
 - `source_wallet_id` (from `/theo-api-wallets`)
-- `amount_usd` (> 0, ≤ 100,000)
+- `amount_usd` (> 0; no fixed upper cap — HTG-C source requires ≥ $1,000 total debit)
 - One of: `invoice_ref`, `settlement.external_ref`, or `supplier.memo`
   (health checks must use `/theo-api-ping`, **not** `/theo-api-quote`).
 

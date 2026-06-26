@@ -6,11 +6,16 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { authenticateApiKey } from "../_shared/api-key-auth.ts";
 import { corsHeaders } from "../_shared/cors.ts";
-import { resolveOwltingStellarDestination, parseSettlementBody, calcOwltingPlatformFeeUsd } from "../_shared/odoo-settlement.ts";
+import {
+  resolveOwltingStellarDestination,
+  parseSettlementBody,
+  calcOwltingPlatformFeeUsd,
+  HTGC_CONVERSION_USDC_MIN,
+  odooQuoteMaxUsd,
+} from "../_shared/odoo-settlement.ts";
 import { apiErrorResponse, authErrorCode } from "../_shared/api-errors.ts";
 
 const QUOTE_TTL_MIN = 15;
-const MAX_USDC = 100_000;
 
 function generateReference(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -116,8 +121,12 @@ Deno.serve(async (req) => {
   const clientRequestId = clean(body.client_request_id ?? body.idempotency_key);
 
   if (!sourceWalletId) return err("source_wallet_id required", "invalid_request", 400);
-  if (!Number.isFinite(amountUsd) || amountUsd <= 0 || amountUsd > MAX_USDC) {
-    return err(`amount_usd must be > 0 and <= ${MAX_USDC}`, "invalid_request", 400);
+  if (!Number.isFinite(amountUsd) || amountUsd <= 0) {
+    return err("amount_usd must be a positive number", "invalid_request", 400);
+  }
+  const opsCap = odooQuoteMaxUsd();
+  if (opsCap !== null && amountUsd > opsCap) {
+    return err(`amount_usd ${amountUsd} exceeds ops-configured maximum ${opsCap}`, "amount_out_of_range", 400);
   }
 
   const parsed = parseSettlementBody(body);
@@ -195,6 +204,14 @@ Deno.serve(async (req) => {
   const platformFeeUsd = calcOwltingPlatformFeeUsd(billAmountUsd, settlement.rail);
   const totalFeeUsd = Math.round((fxFeeUsd + platformFeeUsd) * 1e7) / 1e7;
   const totalDebitUsd = Math.round((billAmountUsd + totalFeeUsd) * 1e7) / 1e7;
+
+  if (sourceCurrency === "HTGC" && totalDebitUsd < HTGC_CONVERSION_USDC_MIN) {
+    return err(
+      `total_debit_usd ${totalDebitUsd} below HTG-C conversion minimum of ${HTGC_CONVERSION_USDC_MIN}`,
+      "amount_out_of_range",
+      400,
+    );
+  }
 
   let rate = 1;
   let debitHtgc: number | null = null;
@@ -383,6 +400,13 @@ Deno.serve(async (req) => {
           platformFeeUsd,
         ));
       }
+    }
+    if ((insErr.message ?? "").includes("usdc_conversion_limits")) {
+      return err(
+        "Amount outside allowed range for HTG-C conversion — contact support (migration may not be applied)",
+        "amount_out_of_range",
+        400,
+      );
     }
     return err(insErr.message, "internal_error", 500);
   }
