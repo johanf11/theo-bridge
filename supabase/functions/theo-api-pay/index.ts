@@ -34,11 +34,14 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({} as Record<string, unknown>));
   const quoteId = String(body.quote_id ?? "");
   const externalRef = body.external_invoice_ref ? String(body.external_invoice_ref) : null;
+  const callerStellarMemo = body.stellar_memo ? String(body.stellar_memo).trim() : "";
+  const callerStellarMemoSource = body.stellar_memo_source ? String(body.stellar_memo_source).trim().toLowerCase() : "";
+  const callerVendorMemo = body.vendor_memo ? String(body.vendor_memo).trim() : "";
   if (!quoteId) return err("quote_id required", "invalid_request", 400);
 
   const { data: order } = await admin
     .from("orders")
-    .select("id, customer_id, status, usdc_amount, htg_amount, reference_number, destination_stellar_address, order_kind, quote_expires_at, beneficiary_metadata, payout_memo, payout_memo_type, stellar_tx_hash")
+    .select("id, customer_id, status, usdc_amount, htg_amount, reference_number, destination_stellar_address, order_kind, quote_expires_at, beneficiary_metadata, payout_memo, payout_memo_type, stellar_tx_hash, vendor_memo, stellar_memo, stellar_memo_source, completed_at")
     .eq("id", quoteId)
     .maybeSingle();
   if (!order) return err("quote not found", "not_found", 404);
