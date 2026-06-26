@@ -180,7 +180,7 @@ Deno.serve(async (req) => {
       .eq("id", sourceWalletId)
       .eq("customer_id", auth.customer_id)
       .maybeSingle();
-    if (!w) return json({ error: "source_wallet_id not found for this customer" }, 404);
+    if (!w) return err("source_wallet_id not found for this customer", "not_found", 404);
     sourceCurrency = "USDC";
     sourceWalletDbId = w.id;
   }
