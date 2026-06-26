@@ -407,6 +407,9 @@ Deno.serve(async (req) => {
       order_kind: sourceCurrency === "HTGC" ? "usdc_conversion" : "htgc_usdc_swap",
       payout_memo: payoutMemo,
       payout_memo_type: payoutMemoType,
+      vendor_memo: vendorMemo || null,
+      stellar_memo: resolvedStellarMemo,
+      stellar_memo_source: resolvedStellarMemoSource,
       api_idempotency_key: apiIdempotencyKey,
       beneficiary_metadata: {
         ...settlement,
@@ -416,6 +419,9 @@ Deno.serve(async (req) => {
         platform_fee_usdc: platformFeeUsd,
         bill_amount_usd: billAmountUsd,
         total_debit_usd: totalDebitUsd,
+        vendor_memo: vendorMemo || null,
+        stellar_memo: resolvedStellarMemo,
+        stellar_memo_source: resolvedStellarMemoSource,
       },
     })
     .select("id")
