@@ -170,10 +170,15 @@ Deno.serve(async (req) => {
     return err(`Payment failed: ${msg}`, "on_chain_failed", 502);
   }
 
+  const completedAt = new Date().toISOString();
   await admin.from("orders").update({
     status: "COMPLETED",
     stellar_tx_hash: hash,
-    completed_at: new Date().toISOString(),
+    completed_at: completedAt,
+    stellar_memo: resolved.memo,
+    stellar_memo_source: resolved.source,
+    payout_memo: resolved.memo,
+    payout_memo_type: resolved.memoType,
   }).eq("id", order.id);
 
   return json({
@@ -181,6 +186,9 @@ Deno.serve(async (req) => {
     reference_number: order.reference_number,
     stellar_tx_hash: hash,
     status: "COMPLETED",
+    stellar_memo: resolved.memo,
+    stellar_memo_source: resolved.source,
+    settled_at: completedAt,
     off_ramp: {
       provider: "owlting",
       stellar_address: dest,
