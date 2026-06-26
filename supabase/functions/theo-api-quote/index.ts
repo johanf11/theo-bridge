@@ -487,5 +487,8 @@ Deno.serve(async (req) => {
     },
     payout_memo: payoutMemo,
     payout_memo_type: payoutMemoType,
+    vendor_memo: vendorMemo || null,
+    stellar_memo: resolvedStellarMemo,
+    stellar_memo_source: resolvedStellarMemoSource,
   });
 });
