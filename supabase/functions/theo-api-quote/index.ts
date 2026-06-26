@@ -205,6 +205,14 @@ Deno.serve(async (req) => {
   const totalFeeUsd = Math.round((fxFeeUsd + platformFeeUsd) * 1e7) / 1e7;
   const totalDebitUsd = Math.round((billAmountUsd + totalFeeUsd) * 1e7) / 1e7;
 
+  if (sourceCurrency === "HTGC" && totalDebitUsd < HTGC_CONVERSION_USDC_MIN) {
+    return err(
+      `total_debit_usd ${totalDebitUsd} below HTG-C conversion minimum of ${HTGC_CONVERSION_USDC_MIN}`,
+      "amount_out_of_range",
+      400,
+    );
+  }
+
   let rate = 1;
   let debitHtgc: number | null = null;
   let spotRate: number | null = null;
