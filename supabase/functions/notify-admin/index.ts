@@ -149,6 +149,11 @@ Deno.serve(async (req) => {
   if (body.record) {
     const order = body.record;
     if (order.status !== "QUOTED") return new Response("ignored");
+    // Suppress notifications for Odoo API-originated orders — they're machine-driven
+    // and don't require manual HTG-deposit confirmation in Telegram.
+    if (typeof order.reference_number === "string" && order.reference_number.startsWith("THEO-ODO-")) {
+      return new Response("ignored-odoo");
+    }
 
     const htg = Number(order.htg_amount).toLocaleString("en-US", { maximumFractionDigits: 0 });
     const usdc = Number(order.usdc_amount).toFixed(2);
