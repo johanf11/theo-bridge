@@ -89,13 +89,18 @@ Deno.serve(async (req) => {
       }, 503);
     }
     if (usdcLine.is_authorized === false) {
-      const issuerSecret = Deno.env.get("STELLAR_USDC_ISSUER_SECRET");
+      const issuerSecret = Deno.env.get("STELLAR_USDC_ISSUER_SECRET") ?? Deno.env.get("STELLAR_HTGC_ISSUER_SECRET");
       if (!issuerSecret) {
         return json({
           error: "destination_not_provisioned: Owlting omnibus USDC trustline is not authorized. Contact Theo support.",
         }, 503);
       }
       const issuerKp = Keypair.fromSecret(issuerSecret);
+      if (issuerKp.publicKey() !== usdcIssuer) {
+        return json({
+          error: "destination_not_provisioned: configured USDC issuer secret does not match the USDC issuer. Contact Theo support.",
+        }, 503);
+      }
       const issuerAcct = await preServer.loadAccount(issuerKp.publicKey());
       const authTx = new TransactionBuilder(issuerAcct, { fee: BASE_FEE, networkPassphrase: Networks.TESTNET })
         .addOperation(Operation.setTrustLineFlags({
@@ -157,9 +162,10 @@ Deno.serve(async (req) => {
       .find((b) => b.asset_code === "USDC" && b.asset_issuer === usdcIssuer);
     const have = distBal ? Number(distBal.balance) : 0;
     if (have < amount) {
-      const issuerSecret = Deno.env.get("STELLAR_USDC_ISSUER_SECRET");
+      const issuerSecret = Deno.env.get("STELLAR_USDC_ISSUER_SECRET") ?? Deno.env.get("STELLAR_HTGC_ISSUER_SECRET");
       if (!issuerSecret) throw new Error(`Distributor short on USDC (${have}/${amount})`);
       const issuerKp = Keypair.fromSecret(issuerSecret);
+      if (issuerKp.publicKey() !== usdcIssuer) throw new Error("Configured USDC issuer secret does not match STELLAR_USDC_ISSUER");
       const issuerAcct = await server.loadAccount(issuerKp.publicKey());
       const topup = new TransactionBuilder(issuerAcct, { fee: BASE_FEE, networkPassphrase: Networks.TESTNET })
         .addOperation(Operation.payment({ destination: distPub, asset: usdc, amount: (amount - have + 1000).toFixed(7) }))
