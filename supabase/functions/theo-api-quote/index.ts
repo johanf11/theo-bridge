@@ -141,6 +141,8 @@ Deno.serve(async (req) => {
 
   let payoutMemo = memoParsed.payoutMemo;
   let payoutMemoType = memoParsed.payoutMemoType;
+  const idempotencyMemo = memoParsed.payoutMemo;
+  const idempotencyMemoType = memoParsed.payoutMemoType;
 
   const userProvidedBusinessRef = externalRef || payoutMemo;
   if (!userProvidedBusinessRef) {
@@ -224,8 +226,8 @@ Deno.serve(async (req) => {
       external_ref: externalRef,
       settlement_method: isBankWire ? "bank_wire" : settlement.rail,
       destination: dest,
-      memo: payoutMemo,
-      memo_type: payoutMemoType,
+      memo: idempotencyMemo,
+      memo_type: idempotencyMemoType,
     };
   const apiIdempotencyKey = `theo-api-quote:${await sha256Hex(JSON.stringify(idempotencySeed))}`;
 
@@ -242,6 +244,43 @@ Deno.serve(async (req) => {
   if (existing) {
     return json(buildQuoteReplayResponse(
       existing as Record<string, unknown>,
+      sourceCurrency,
+      sourceWalletDbId,
+      sourceWalletId,
+      settlement,
+      dest,
+      payoutMemo,
+      payoutMemoType,
+      billAmountUsd,
+      fxFeeUsd,
+      platformFeeUsd,
+    ));
+  }
+
+  const { data: existingByBusinessRef } = await admin
+    .from("orders")
+    .select(existingQuoteSelect)
+    .eq("customer_id", auth.customer_id)
+    .eq("destination_stellar_address", dest)
+    .eq("usdc_amount", totalDebitUsd)
+    .eq("order_kind", sourceCurrency === "HTGC" ? "usdc_conversion" : "htgc_usdc_swap")
+    .in("status", ["QUOTED", "FUNDED"])
+    .contains("beneficiary_metadata", {
+      external_ref: externalRef,
+      settlement_method: isBankWire ? "bank_wire" : settlement.rail,
+    })
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingByBusinessRef) {
+    await admin
+      .from("orders")
+      .update({ api_idempotency_key: apiIdempotencyKey })
+      .eq("id", existingByBusinessRef.id)
+      .is("api_idempotency_key", null);
+    return json(buildQuoteReplayResponse(
+      existingByBusinessRef as Record<string, unknown>,
       sourceCurrency,
       sourceWalletDbId,
       sourceWalletId,
