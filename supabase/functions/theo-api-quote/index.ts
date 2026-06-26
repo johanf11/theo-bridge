@@ -20,15 +20,21 @@ function generateReference(): string {
   return `THEO-ODO-${s}`;
 }
 
+async function sha256Hex(input: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function clean(value: unknown): string {
+  return String(value ?? "").trim();
+}
+
 function parseSupplierMemo(body: Record<string, unknown>): {
   payoutMemo: string | null;
   payoutMemoType: "text" | "id" | null;
   error?: string;
 } {
-  const supplier = body.supplier as {
-    memo?: string;
-    memo_type?: string;
-  } | undefined;
+  const supplier = body.supplier as { memo?: string; memo_type?: string } | undefined;
   const rawMemo = (supplier?.memo ?? "").toString().trim();
   const memoType = (supplier?.memo_type ?? "text").toString().toLowerCase();
   if (!rawMemo) return { payoutMemo: null, payoutMemoType: null };
@@ -42,6 +48,51 @@ function parseSupplierMemo(body: Record<string, unknown>): {
     return { payoutMemo: null, payoutMemoType: null, error: "supplier.memo must be digits only for MEMO_ID" };
   }
   return { payoutMemo: rawMemo, payoutMemoType: memoType };
+}
+
+function buildQuoteReplayResponse(
+  existing: Record<string, unknown>,
+  sourceCurrency: "USDC" | "HTGC",
+  sourceWalletDbId: string | null,
+  sourceWalletId: string,
+  settlement: { rail: string; currency?: string | null; beneficiary: { name: string }; external_ref?: string | null },
+  dest: string,
+  payoutMemo: string | null,
+  payoutMemoType: "text" | "id" | null,
+  billAmountUsd: number,
+  fxFeeUsd: number,
+  platformFeeUsd: number,
+) {
+  const meta = (existing.beneficiary_metadata ?? {}) as Record<string, unknown>;
+  const billUsd = Number(meta.bill_amount_usd ?? billAmountUsd);
+  return {
+    quote_id: existing.id,
+    reference_number: existing.reference_number,
+    expires_at: existing.quote_expires_at,
+    source_currency: sourceCurrency,
+    source_wallet_id: sourceWalletDbId ?? sourceWalletId,
+    amount_usd: billUsd,
+    fee_usd: fxFeeUsd,
+    platform_fee_usd: platformFeeUsd,
+    total_debit_usd: Number(existing.usdc_gross ?? existing.usdc_amount),
+    debit_htgc: sourceCurrency === "HTGC" ? Number(existing.htg_amount) : null,
+    rate: Number(existing.rate),
+    status: existing.status,
+    idempotent_replay: true,
+    settlement: {
+      rail: settlement.rail,
+      currency: settlement.currency ?? settlement.beneficiary.currency,
+      beneficiary: settlement.beneficiary,
+      external_ref: settlement.external_ref,
+    },
+    off_ramp: {
+      provider: "owlting",
+      stellar_address: dest,
+      settlement_method: settlement.rail === "wire" ? "bank_wire" : settlement.rail,
+    },
+    payout_memo: existing.payout_memo ?? payoutMemo,
+    payout_memo_type: existing.payout_memo_type ?? payoutMemoType,
+  };
 }
 
 Deno.serve(async (req) => {
@@ -60,6 +111,7 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({} as Record<string, unknown>));
   const sourceWalletId = String(body.source_wallet_id ?? "");
   const amountUsd = Number(body.amount_usd);
+  const clientRequestId = clean(body.client_request_id ?? body.idempotency_key);
 
   if (!sourceWalletId) return json({ error: "source_wallet_id required" }, 400);
   if (!Number.isFinite(amountUsd) || amountUsd <= 0 || amountUsd > MAX_USDC) {
@@ -70,6 +122,7 @@ Deno.serve(async (req) => {
   if (parsed.error || !parsed.settlement) return json({ error: parsed.error ?? "invalid settlement" }, 400);
   const settlement = parsed.settlement;
   const isBankWire = settlement.rail === "wire";
+  const externalRef = clean(settlement.external_ref) || clean(body.invoice_ref);
 
   const offRamp = owltningOfframpAddress();
   let dest: string | null = null;
@@ -85,6 +138,15 @@ Deno.serve(async (req) => {
 
   const memoParsed = parseSupplierMemo(body);
   if (memoParsed.error) return json({ error: memoParsed.error }, 400);
+
+  let payoutMemo = memoParsed.payoutMemo;
+  let payoutMemoType = memoParsed.payoutMemoType;
+
+  if (!clientRequestId && !externalRef && !payoutMemo) {
+    return json({
+      error: "client_request_id or invoice_ref / external_ref required; health checks must use /theo-api-ping",
+    }, 400);
+  }
 
   const { data: customer } = await admin
     .from("customers")
@@ -147,11 +209,52 @@ Deno.serve(async (req) => {
   const reference = generateReference();
   const expiresAt = new Date(Date.now() + QUOTE_TTL_MIN * 60 * 1000).toISOString();
 
-  let payoutMemo = memoParsed.payoutMemo;
-  let payoutMemoType = memoParsed.payoutMemoType;
   if (!payoutMemo && isBankWire) {
     payoutMemo = reference;
     payoutMemoType = "text";
+  }
+
+  const strongBusinessRef = externalRef || clean(payoutMemo);
+  const idempotencySeed = clientRequestId
+    ? { scope: "client", client_request_id: clientRequestId }
+    : {
+      scope: strongBusinessRef ? "business_ref" : "quote_window",
+      quote_window: strongBusinessRef ? null : Math.floor(Date.now() / (QUOTE_TTL_MIN * 60 * 1000)),
+      source_wallet_id: sourceWalletId,
+      amount_usd: Math.round(amountUsd * 1e7) / 1e7,
+      supplier_name: clean(settlement.beneficiary.name).toLowerCase(),
+      external_ref: externalRef,
+      settlement_method: isBankWire ? "bank_wire" : settlement.rail,
+      destination: dest,
+      memo: payoutMemo,
+      memo_type: payoutMemoType,
+    };
+  const apiIdempotencyKey = `theo-api-quote:${await sha256Hex(JSON.stringify(idempotencySeed))}`;
+
+  const existingQuoteSelect = "id, status, htg_amount, usdc_amount, usdc_gross, fee_usdc, rate, reference_number, quote_expires_at, destination_stellar_address, payout_memo, payout_memo_type, beneficiary_metadata";
+  const { data: existing } = await admin
+    .from("orders")
+    .select(existingQuoteSelect)
+    .eq("customer_id", auth.customer_id)
+    .eq("api_idempotency_key", apiIdempotencyKey)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) {
+    return json(buildQuoteReplayResponse(
+      existing as Record<string, unknown>,
+      sourceCurrency,
+      sourceWalletDbId,
+      sourceWalletId,
+      settlement,
+      dest,
+      payoutMemo,
+      payoutMemoType,
+      billAmountUsd,
+      fxFeeUsd,
+      platformFeeUsd,
+    ));
   }
 
   const { data: order, error: insErr } = await admin
@@ -176,6 +279,7 @@ Deno.serve(async (req) => {
       order_kind: sourceCurrency === "HTGC" ? "usdc_conversion" : "htgc_usdc_swap",
       payout_memo: payoutMemo,
       payout_memo_type: payoutMemoType,
+      api_idempotency_key: apiIdempotencyKey,
       beneficiary_metadata: {
         ...settlement,
         settlement_method: isBankWire ? "bank_wire" : settlement.rail,
@@ -188,7 +292,34 @@ Deno.serve(async (req) => {
     })
     .select("id")
     .single();
-  if (insErr) return json({ error: insErr.message }, 500);
+  if (insErr) {
+    if ((insErr as { code?: string }).code === "23505") {
+      const { data: replay } = await admin
+        .from("orders")
+        .select(existingQuoteSelect)
+        .eq("customer_id", auth.customer_id)
+        .eq("api_idempotency_key", apiIdempotencyKey)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (replay) {
+        return json(buildQuoteReplayResponse(
+          replay as Record<string, unknown>,
+          sourceCurrency,
+          sourceWalletDbId,
+          sourceWalletId,
+          settlement,
+          dest,
+          payoutMemo,
+          payoutMemoType,
+          billAmountUsd,
+          fxFeeUsd,
+          platformFeeUsd,
+        ));
+      }
+    }
+    return json({ error: insErr.message }, 500);
+  }
 
   return json({
     quote_id: order.id,

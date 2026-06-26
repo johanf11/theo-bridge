@@ -35,11 +35,20 @@ Deno.serve(async (req) => {
 
   const { data: order } = await admin
     .from("orders")
-    .select("id, customer_id, status, usdc_amount, htg_amount, reference_number, destination_stellar_address, order_kind, quote_expires_at, beneficiary_metadata, payout_memo, payout_memo_type")
+    .select("id, customer_id, status, usdc_amount, htg_amount, reference_number, destination_stellar_address, order_kind, quote_expires_at, beneficiary_metadata, payout_memo, payout_memo_type, stellar_tx_hash")
     .eq("id", quoteId)
     .maybeSingle();
   if (!order) return json({ error: "quote not found" }, 404);
   if (order.customer_id !== auth.customer_id) return json({ error: "quote does not belong to this customer" }, 403);
+  if (order.status === "COMPLETED") {
+    return json({
+      ok: true,
+      reference_number: order.reference_number,
+      stellar_tx_hash: order.stellar_tx_hash,
+      status: "COMPLETED",
+      idempotent_replay: true,
+    });
+  }
   if (order.status !== "QUOTED" && order.status !== "FUNDED") {
     return json({ error: `quote already used (status=${order.status})` }, 409);
   }
@@ -55,14 +64,38 @@ Deno.serve(async (req) => {
     return json({ error: "quote destination does not match configured Owlting off-ramp address" }, 400);
   }
 
+  const { data: claimed, error: claimErr } = await admin
+    .from("orders")
+    .update({ status: "RELEASING" })
+    .eq("id", order.id)
+    .eq("status", "QUOTED")
+    .select("id")
+    .maybeSingle();
+  if (claimErr) return json({ error: claimErr.message }, 500);
+  if (!claimed) {
+    const { data: latest } = await admin
+      .from("orders")
+      .select("status, reference_number, stellar_tx_hash")
+      .eq("id", order.id)
+      .maybeSingle();
+    if (latest?.status === "COMPLETED") {
+      return json({
+        ok: true,
+        reference_number: latest.reference_number,
+        stellar_tx_hash: latest.stellar_tx_hash,
+        status: "COMPLETED",
+        idempotent_replay: true,
+      });
+    }
+    return json({ error: `quote already used (status=${latest?.status ?? "unknown"})` }, 409);
+  }
+
   const usdcIssuer = Deno.env.get("STELLAR_USDC_ISSUER");
   if (!usdcIssuer) return json({ error: "STELLAR_USDC_ISSUER not configured" }, 500);
 
   const server = new Horizon.Server(HORIZON_URL);
   const usdc = new Asset("USDC", usdcIssuer);
   const amount = Number(order.usdc_amount);
-
-  await admin.from("orders").update({ status: "RELEASING" }).eq("id", order.id);
 
   let hash: string;
   try {
