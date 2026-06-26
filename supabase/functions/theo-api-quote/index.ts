@@ -48,6 +48,8 @@ Deno.serve(async (req) => {
     external_ref?: string;
     bank_wire?: Record<string, unknown>;
     settlement_method?: string;
+    memo?: string;
+    memo_type?: string;
   } | undefined;
 
   if (!sourceWalletId) return json({ error: "source_wallet_id required" }, 400);
@@ -67,6 +69,31 @@ Deno.serve(async (req) => {
   }
   if (!dest || !dest.startsWith("G") || dest.length < 50) {
     return json({ error: "supplier.stellar_address (G…) or supplier.bank_wire required" }, 400);
+  }
+
+  // Stellar memo. Owlting (and most exchanges) need a memo on the inbound
+  // payment to credit the right off-ramp ticket / customer, so we require one
+  // for bank-wire quotes and validate it for all settlement paths.
+  const rawMemo = (supplier.memo ?? "").toString().trim();
+  const memoType = (supplier.memo_type ?? "text").toString().toLowerCase();
+  let payoutMemo: string | null = null;
+  let payoutMemoType: "text" | "id" | null = null;
+  if (rawMemo.length > 0) {
+    if (memoType !== "text" && memoType !== "id") {
+      return json({ error: "supplier.memo_type must be 'text' or 'id'" }, 400);
+    }
+    if (memoType === "text") {
+      const bytes = new TextEncoder().encode(rawMemo).length;
+      if (bytes > 28) return json({ error: "supplier.memo exceeds 28 bytes for MEMO_TEXT" }, 400);
+    } else if (!/^\d+$/.test(rawMemo)) {
+      return json({ error: "supplier.memo must be digits only for MEMO_ID" }, 400);
+    }
+    payoutMemo = rawMemo;
+    payoutMemoType = memoType;
+  } else if (isBankWire) {
+    return json({
+      error: "supplier.memo required for bank_wire settlement (Owlting uses it to identify the off-ramp ticket)",
+    }, 400);
   }
 
   // Customer fees
