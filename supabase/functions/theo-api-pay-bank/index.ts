@@ -68,6 +68,30 @@ Deno.serve(async (req) => {
   const dest = order.destination_stellar_address;
   if (!dest) return json({ error: "quote has no destination address" }, 400);
 
+  // Pre-flight destination: must exist on Horizon AND trust USDC.
+  // If not, fail fast WITHOUT claiming the quote so the caller can retry once
+  // the omnibus account is provisioned.
+  const usdcIssuerCheck = Deno.env.get("STELLAR_USDC_ISSUER");
+  try {
+    const preServer = new Horizon.Server(HORIZON_URL);
+    const destAcct = await preServer.loadAccount(dest);
+    const destBals = (destAcct.balances as Array<{ asset_code?: string; asset_issuer?: string }>);
+    const hasUsdc = destBals.some((b) => b.asset_code === "USDC" && b.asset_issuer === usdcIssuerCheck);
+    if (!hasUsdc) {
+      return json({
+        error: "destination_not_provisioned: Owlting omnibus is missing a USDC trustline. Contact Theo support.",
+      }, 503);
+    }
+  } catch (e: unknown) {
+    const status = (e as { response?: { status?: number } })?.response?.status;
+    if (status === 404) {
+      return json({
+        error: "destination_not_provisioned: Owlting omnibus account does not exist on Stellar. Contact Theo support.",
+      }, 503);
+    }
+    return json({ error: `destination preflight failed: ${(e as Error).message}` }, 502);
+  }
+
   const { data: claimed, error: claimErr } = await admin
     .from("orders")
     .update({ status: "RELEASING" })
