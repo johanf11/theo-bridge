@@ -245,7 +245,16 @@ Deno.serve(async (req) => {
     .limit(1)
     .maybeSingle();
 
-  if (existing) {
+  const isReplayable = (row: Record<string, unknown> | null | undefined): boolean => {
+    if (!row) return false;
+    const status = String(row.status ?? "");
+    if (status !== "QUOTED" && status !== "FUNDED") return false;
+    const exp = row.quote_expires_at ? new Date(String(row.quote_expires_at)).getTime() : 0;
+    if (exp && exp < Date.now()) return false;
+    return true;
+  };
+
+  if (existing && isReplayable(existing as Record<string, unknown>)) {
     return json(buildQuoteReplayResponse(
       existing as Record<string, unknown>,
       sourceCurrency,
