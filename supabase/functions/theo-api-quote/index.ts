@@ -267,6 +267,21 @@ Deno.serve(async (req) => {
     payoutMemoType = "text";
   }
 
+  // Resolve the on-chain Stellar memo (vendor wins, else Theo reference).
+  let resolvedStellarMemo: string;
+  let resolvedStellarMemoSource: "vendor" | "theo_ref";
+  try {
+    const resolved = resolveStellarMemo({
+      referenceNumber: reference,
+      vendorMemo: vendorMemo || null,
+    });
+    resolvedStellarMemo = resolved.memo;
+    resolvedStellarMemoSource = resolved.source;
+  } catch (e) {
+    if (e instanceof InvalidMemoError) return err(e.message, "invalid_memo", 400);
+    throw e;
+  }
+
   const strongBusinessRef = externalRef || clean(payoutMemo);
   // Idempotency key intentionally omits `destination` — rotating the Owlting
   // omnibus must NOT spawn duplicate quotes for the same bill / wizard ping.
@@ -280,10 +295,11 @@ Deno.serve(async (req) => {
       settlement_method: isBankWire ? "bank_wire" : settlement.rail,
       memo: idempotencyMemo,
       memo_type: idempotencyMemoType,
+      vendor_memo: vendorMemo || null,
     };
   const apiIdempotencyKey = `theo-api-quote:${await sha256Hex(JSON.stringify(idempotencySeed))}`;
 
-  const existingQuoteSelect = "id, status, htg_amount, usdc_amount, usdc_gross, fee_usdc, rate, reference_number, quote_expires_at, destination_stellar_address, payout_memo, payout_memo_type, beneficiary_metadata";
+  const existingQuoteSelect = "id, status, htg_amount, usdc_amount, usdc_gross, fee_usdc, rate, reference_number, quote_expires_at, destination_stellar_address, payout_memo, payout_memo_type, beneficiary_metadata, vendor_memo, stellar_memo, stellar_memo_source";
   const { data: existing } = await admin
     .from("orders")
     .select(existingQuoteSelect)
