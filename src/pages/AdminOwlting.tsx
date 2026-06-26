@@ -94,14 +94,11 @@ export default function AdminOwlting() {
               </a>
             </div>
           ) : (
-            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-              <span style={{ color: "hsl(var(--theo-mid))" }}>Not configured yet.</span>
-              <button onClick={setupOmnibus} disabled={loadingSetup} style={primaryBtn}>
-                {loadingSetup ? <Loader2 size={14} className="animate-spin" /> : null}
-                {loadingSetup ? "Setting up…" : "Create omnibus wallet"}
-              </button>
+            <div style={{ color: "hsl(var(--theo-mid))" }}>
+              No omnibus address configured. Seed <code>app_settings.owlting_omnibus_address</code> with the externally-managed Owlting wallet.
             </div>
           )}
+
         </div>
 
         {/* Queue */}
