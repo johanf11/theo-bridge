@@ -13,6 +13,7 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { resolveOwltingStellarDestination } from "../_shared/odoo-settlement.ts";
 import { apiErrorResponse, authErrorCode } from "../_shared/api-errors.ts";
 import { distributorPublicKey, signWithDistributor } from "../_shared/stellar-signer.ts";
+import { InvalidMemoError, resolveStellarMemo } from "../_shared/stellar-memo.ts";
 
 const HORIZON_URL = "https://horizon-testnet.stellar.org";
 
