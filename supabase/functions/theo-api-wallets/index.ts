@@ -34,10 +34,11 @@ Deno.serve(async (req) => {
 
   const json = (b: unknown, status = 200) =>
     new Response(JSON.stringify(b), { status, headers: { ...headers, "Content-Type": "application/json" } });
+  const err = (message: string, code: string, status: number) => apiErrorResponse(req, message, code, status);
 
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const auth = await authenticateApiKey(admin, req, "wallets:read");
-  if ("error" in auth) return json({ error: auth.error }, auth.status);
+  if ("error" in auth) return err(auth.error, authErrorCode(auth.status, auth.error), auth.status);
 
   const { data: wallets } = await admin
     .from("wallets")
