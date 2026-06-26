@@ -175,6 +175,15 @@ Deno.serve(async (req) => {
   const idempotencyMemo = memoParsed.payoutMemo;
   const idempotencyMemoType = memoParsed.payoutMemoType;
 
+  // Vendor memo (Stellar exchange tag) — may come from settlement.beneficiary.memo,
+  // supplier.memo, or supplier.vendor_memo. payoutMemo (supplier.memo) takes precedence.
+  const vendorMemo = (payoutMemo ?? "").trim() || extractVendorMemo(body);
+  if (vendorMemo) {
+    const bytes = new TextEncoder().encode(vendorMemo).length;
+    if (bytes > 28) return err("vendor memo exceeds 28 bytes for Stellar MEMO_TEXT", "invalid_memo", 400);
+  }
+
+
   const userProvidedBusinessRef = externalRef || payoutMemo;
   if (!userProvidedBusinessRef) {
     return err(
