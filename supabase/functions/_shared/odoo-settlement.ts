@@ -44,6 +44,10 @@ export function parseSettlementBody(body: Record<string, unknown>): { settlement
     return parseSettlementObject(settlementRaw, body);
   }
 
+  if (supplierRaw?.settlement_method === "bank_wire" || supplierRaw?.bank_wire) {
+    return parseSupplierBankWire(supplierRaw, body);
+  }
+
   // Legacy: direct-to-supplier Stellar (deprecated — kept for backward compatibility).
   if (supplierRaw?.stellar_address) {
     const dest = String(supplierRaw.stellar_address).trim();
@@ -64,6 +68,45 @@ export function parseSettlementBody(body: Record<string, unknown>): { settlement
   }
 
   return { error: "settlement object required (rail + beneficiary)" };
+}
+
+function parseSupplierBankWire(
+  supplierRaw: Record<string, unknown>,
+  body: Record<string, unknown>,
+): { settlement?: SettlementPayload; error?: string } {
+  const name = String(supplierRaw.name ?? "").trim();
+  const bankWire = supplierRaw.bank_wire as Record<string, unknown> | undefined;
+  const externalRef =
+    (supplierRaw.external_ref ? String(supplierRaw.external_ref) : null) ??
+    (bankWire?.reference ? String(bankWire.reference) : null) ??
+    (body.invoice_ref ? String(body.invoice_ref) : null);
+
+  if (!name) return { error: "supplier.name required" };
+  if (!bankWire) return { error: "supplier.bank_wire required for bank_wire settlement" };
+
+  const bankName = String(bankWire.bank_name ?? "").trim();
+  const accountNumber = String(bankWire.account_number ?? "").trim();
+  const swift = String(bankWire.swift_bic ?? bankWire.swift ?? "").trim();
+  const country = String(bankWire.country ?? "").trim();
+
+  if (!bankName || !accountNumber || !swift) {
+    return { error: "bank_wire requires bank_name, account_number, and swift_bic" };
+  }
+
+  return {
+    settlement: {
+      rail: "wire",
+      currency: "USD",
+      beneficiary: {
+        name,
+        bank_name: bankName,
+        account_number: accountNumber,
+        swift,
+        country: country || null,
+      },
+      external_ref: externalRef,
+    },
+  };
 }
 
 function parseSettlementObject(

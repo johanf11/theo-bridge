@@ -31,3 +31,5 @@ project_id = "nlbnmsiqfywskuxhqjon"
     verify_jwt = false
   [functions.theo-api-payments]
     verify_jwt = false
+  [functions.theo-api-pay-bank]
+    verify_jwt = false

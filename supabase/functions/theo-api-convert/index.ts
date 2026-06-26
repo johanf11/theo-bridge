@@ -1,30 +1,11 @@
 // Public Theo API: POST /theo-api-convert
-// Step 1 of Odoo HTG-C bill pay: burn HTG-C from importer wallet, prepare USDC for payout.
-// Body: {
-//   quote_id: string,
-//   memo_reference: string,
-//   payment_token: "htgc",
-//   htgc_amount: number,
-//   usdc_amount: number,
-//   fx_rate: number,
-//   theo_fee_htgc?: number,
-//   payout_fee_usd?: number,
-//   total_usdc?: number,
-//   wallet_id: string,
-// }
+// Call after /theo-api-quote with { quote_id }.
+// Prepares HTG-C → USDC conversion and returns pricing for the Odoo wizard.
+// Response: { debit_htgc, amount_usd, rate, status: "READY_TO_PAY" }
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import {
-  Asset, Horizon, Keypair, Memo, Networks,
-  Operation, TransactionBuilder, BASE_FEE,
-} from "npm:@stellar/stellar-sdk@12.3.0";
 import { authenticateApiKey } from "../_shared/api-key-auth.ts";
 import { corsHeaders } from "../_shared/cors.ts";
-import { HTGC_ISSUER } from "../_shared/stellar-assets.ts";
-import { ensureWalletReady } from "../_shared/ensure-wallet-ready.ts";
-import { distributorPublicKey, signWithDistributor, signWithSecret } from "../_shared/stellar-signer.ts";
-
-const HORIZON_URL = "https://horizon-testnet.stellar.org";
 
 Deno.serve(async (req) => {
   const headers = corsHeaders(req, { wildcard: true });
@@ -41,19 +22,11 @@ Deno.serve(async (req) => {
 
   const body = await req.json().catch(() => ({} as Record<string, unknown>));
   const quoteId = String(body.quote_id ?? "");
-  const memoReference = String(body.memo_reference ?? "").trim();
-  const walletId = String(body.wallet_id ?? "");
-  const htgcAmount = Number(body.htgc_amount);
-  const totalUsdc = Number(body.total_usdc ?? body.usdc_amount ?? 0);
-
   if (!quoteId) return json({ error: "quote_id required" }, 400);
-  if (!walletId) return json({ error: "wallet_id required" }, 400);
-  if (!Number.isFinite(htgcAmount) || htgcAmount <= 0) return json({ error: "htgc_amount must be > 0" }, 400);
-  if (!Number.isFinite(totalUsdc) || totalUsdc <= 0) return json({ error: "total_usdc must be > 0" }, 400);
 
   const { data: order } = await admin
     .from("orders")
-    .select("id, customer_id, status, reference_number, beneficiary_metadata, quote_expires_at, order_kind")
+    .select("id, customer_id, status, htg_amount, usdc_amount, rate, fee_usdc, beneficiary_metadata, quote_expires_at, order_kind")
     .eq("id", quoteId)
     .maybeSingle();
   if (!order) return json({ error: "quote not found" }, 404);
@@ -63,141 +36,57 @@ Deno.serve(async (req) => {
   }
 
   const meta = (order.beneficiary_metadata ?? {}) as Record<string, unknown>;
-  const existingConversion = meta.conversion_tx_hash ? String(meta.conversion_tx_hash) : "";
-  if (order.status === "FUNDED" && existingConversion) {
+  if (meta.odoo_status === "READY_TO_PAY") {
+    const billUsd = Number(meta.bill_amount_usd ?? 0) || roundBillFromOrder(order);
     return json({
       ok: true,
-      usdc_released: totalUsdc,
-      conversion_tx_hash: existingConversion,
-      status: "FUNDED",
+      debit_htgc: Number(order.htg_amount ?? 0),
+      amount_usd: billUsd,
+      rate: Number(order.rate ?? 0),
+      status: "READY_TO_PAY",
     });
   }
+
   if (order.status !== "QUOTED") {
     return json({ error: `quote not available for conversion (status=${order.status})` }, 409);
   }
 
-  const { data: wallet } = await admin
-    .from("wallets")
-    .select("id, stellar_address, stellar_secret")
-    .eq("id", walletId)
-    .eq("customer_id", auth.customer_id)
-    .maybeSingle();
-  if (!wallet) return json({ error: "wallet_id not found for this customer" }, 404);
-  if (!wallet.stellar_secret) return json({ error: "wallet has no signing key" }, 400);
-
-  const usdcIssuer = Deno.env.get("STELLAR_USDC_ISSUER");
-  if (!usdcIssuer) return json({ error: "STELLAR_USDC_ISSUER not configured" }, 500);
-
-  const server = new Horizon.Server(HORIZON_URL);
-  const htgc = new Asset("HTGC", HTGC_ISSUER);
-  const usdc = new Asset("USDC", usdcIssuer);
-  const distPub = distributorPublicKey();
-  const memoText = (memoReference || order.reference_number || "").slice(0, 28);
-
-  let conversionHash: string;
-  try {
-    const htgcIssuerSecret = Deno.env.get("STELLAR_HTGC_ISSUER_SECRET") ?? undefined;
-    const ready = await ensureWalletReady({
-      server,
-      address: wallet.stellar_address,
-      secret: wallet.stellar_secret,
-      usdcIssuer,
-      htgcIssuerSecret,
-      usdcIssuerSecret: Deno.env.get("STELLAR_USDC_ISSUER_SECRET") ?? undefined,
-    });
-    if (!ready.ok) throw new Error(`Wallet not ready: ${ready.error}`);
-
-    // Top up HTG-C on wallet if short (testnet demo).
-    const userAcct = await server.loadAccount(wallet.stellar_address);
-    const htgcBal = (userAcct.balances as Array<{ asset_code?: string; asset_issuer?: string; balance: string }>)
-      .find((b) => b.asset_code === "HTGC" && b.asset_issuer === HTGC_ISSUER);
-    const haveHtgc = htgcBal ? Number(htgcBal.balance) : 0;
-    if (haveHtgc < htgcAmount) {
-      if (!htgcIssuerSecret) throw new Error(`Wallet short HTG-C (${haveHtgc}/${htgcAmount})`);
-      const issuerKp = Keypair.fromSecret(htgcIssuerSecret);
-      const issuerAcct = await server.loadAccount(issuerKp.publicKey());
-      const topup = new TransactionBuilder(issuerAcct, { fee: BASE_FEE, networkPassphrase: Networks.TESTNET })
-        .addOperation(Operation.payment({
-          destination: wallet.stellar_address,
-          asset: htgc,
-          amount: (htgcAmount - haveHtgc + 1).toFixed(7),
-        }))
-        .setTimeout(60).build();
-      topup.sign(issuerKp);
-      await server.submitTransaction(topup);
-    }
-
-    // Leg 1: burn HTG-C from importer wallet → distributor.
-    const freshUser = await server.loadAccount(wallet.stellar_address);
-    const burnTx = new TransactionBuilder(freshUser, { fee: BASE_FEE, networkPassphrase: Networks.TESTNET })
-      .addOperation(Operation.payment({
-        destination: distPub,
-        asset: htgc,
-        amount: htgcAmount.toFixed(7),
-      }))
-      .addMemo(Memo.text(memoText))
-      .setTimeout(60).build();
-    signWithSecret(burnTx, wallet.stellar_secret);
-    const burnResult = await server.submitTransaction(burnTx);
-    conversionHash = (burnResult as { hash: string }).hash;
-
-    // Ensure distributor holds enough USDC for the subsequent Owlting payout.
-    const distAcct = await server.loadAccount(distPub);
-    const distUsdc = (distAcct.balances as Array<{ asset_code?: string; asset_issuer?: string; balance: string }>)
-      .find((b) => b.asset_code === "USDC" && b.asset_issuer === usdcIssuer);
-    const haveUsdc = distUsdc ? Number(distUsdc.balance) : 0;
-    if (haveUsdc < totalUsdc) {
-      const issuerSecret = Deno.env.get("STELLAR_USDC_ISSUER_SECRET");
-      if (!issuerSecret) throw new Error(`Distributor short USDC (${haveUsdc}/${totalUsdc})`);
-      const issuerKp = Keypair.fromSecret(issuerSecret);
-      const issuerAcct = await server.loadAccount(issuerKp.publicKey());
-      const topup = new TransactionBuilder(issuerAcct, { fee: BASE_FEE, networkPassphrase: Networks.TESTNET })
-        .addOperation(Operation.payment({
-          destination: distPub,
-          asset: usdc,
-          amount: (totalUsdc - haveUsdc + 1000).toFixed(7),
-        }))
-        .setTimeout(60).build();
-      topup.sign(issuerKp);
-      await server.submitTransaction(topup);
-    }
-  } catch (e: unknown) {
-    const msg = (e as { response?: { data?: unknown } })?.response?.data
-      ? JSON.stringify((e as { response: { data: unknown } }).response.data)
-      : (e as Error).message;
-    await admin.from("orders").update({
-      status: "FAILED",
-      failure_reason: String(msg).slice(0, 1000),
-    }).eq("id", order.id);
-    return json({ error: `HTG-C conversion failed: ${msg}` }, 502);
+  if (order.order_kind !== "usdc_conversion") {
+    return json({ error: "convert is only required for HTG-C sourced quotes" }, 400);
   }
+
+  const totalDebitUsd = Number(order.usdc_amount ?? 0);
+  const debitHtgc = Number(order.htg_amount ?? 0);
+  const rate = Number(order.rate ?? 0);
+  const billUsd = roundBillFromOrder(order);
 
   const updatedMeta = {
     ...meta,
-    conversion_tx_hash: conversionHash,
-    odoo_convert: {
-      htgc_amount: htgcAmount,
-      usdc_amount: Number(body.usdc_amount ?? 0),
-      fx_rate: Number(body.fx_rate ?? 0),
-      theo_fee_htgc: Number(body.theo_fee_htgc ?? 0),
-      payout_fee_usd: Number(body.payout_fee_usd ?? 0),
-      total_usdc: totalUsdc,
-      wallet_id: walletId,
-    },
+    odoo_status: "READY_TO_PAY",
+    bill_amount_usd: billUsd,
+    total_debit_usd: totalDebitUsd,
+    converted_at: new Date().toISOString(),
   };
 
   await admin.from("orders").update({
     status: "FUNDED",
-    htg_amount: htgcAmount,
-    usdc_amount: totalUsdc,
     beneficiary_metadata: updatedMeta,
   }).eq("id", order.id);
 
   return json({
     ok: true,
-    usdc_released: totalUsdc,
-    conversion_tx_hash: conversionHash,
-    status: "FUNDED",
-    memo_reference: memoReference || order.reference_number,
+    debit_htgc: debitHtgc,
+    amount_usd: billUsd,
+    rate,
+    status: "READY_TO_PAY",
   });
 });
+
+function roundBillFromOrder(order: {
+  usdc_amount?: number | null;
+  fee_usdc?: number | null;
+}): number {
+  const total = Number(order.usdc_amount ?? 0);
+  const fees = Number(order.fee_usdc ?? 0);
+  return Math.round(Math.max(total - fees, 0) * 100) / 100;
+}

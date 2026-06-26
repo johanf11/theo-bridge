@@ -39,11 +39,6 @@ Deno.serve(async (req) => {
 
   if (req.method !== "POST") return json({ error: "Use POST" }, 405);
 
-  const offRamp = owltningOfframpAddress();
-  if (!offRamp) {
-    return json({ error: "OWLTING_OFFRAMP_STELLAR_ADDRESS not configured" }, 500);
-  }
-
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const auth = await authenticateApiKey(admin, req, "quotes:write");
   if ("error" in auth) return json({ error: auth.error }, auth.status);
@@ -57,9 +52,15 @@ Deno.serve(async (req) => {
     return json({ error: `amount_usd must be > 0 and <= ${MAX_USDC}` }, 400);
   }
 
+  const offRamp = owltningOfframpAddress();
   const parsed = parseSettlementBody(body);
   if (parsed.error || !parsed.settlement) return json({ error: parsed.error ?? "invalid settlement" }, 400);
   const settlement = parsed.settlement;
+  const isBankWire = settlement.rail === "wire";
+
+  if (!isBankWire && !offRamp) {
+    return json({ error: "OWLTING_OFFRAMP_STELLAR_ADDRESS not configured" }, 500);
+  }
 
   const { data: customer } = await admin
     .from("customers")
@@ -140,14 +141,17 @@ Deno.serve(async (req) => {
       spot_rate: spotRate,
       reference_number: reference,
       quote_expires_at: expiresAt,
-      destination_wallet_address: offRamp,
-      destination_stellar_address: offRamp,
+      destination_wallet_address: offRamp ?? null,
+      destination_stellar_address: isBankWire ? null : offRamp,
       order_kind: sourceCurrency === "HTGC" ? "usdc_conversion" : "htgc_usdc_swap",
       beneficiary_metadata: {
         ...settlement,
-        off_ramp: "owlting",
+        settlement_method: isBankWire ? "bank_wire" : settlement.rail,
+        off_ramp: isBankWire ? "owlting" : "owlting",
         off_ramp_stellar_address: offRamp,
         platform_fee_usdc: platformFeeUsd,
+        bill_amount_usd: billAmountUsd,
+        total_debit_usd: totalDebitUsd,
       },
     })
     .select("id")
@@ -172,9 +176,12 @@ Deno.serve(async (req) => {
       beneficiary: settlement.beneficiary,
       external_ref: settlement.external_ref,
     },
-    off_ramp: {
+    off_ramp: offRamp ? {
       provider: "owlting",
       stellar_address: offRamp,
+    } : {
+      provider: "owlting",
+      settlement_method: "bank_wire",
     },
   });
 });
