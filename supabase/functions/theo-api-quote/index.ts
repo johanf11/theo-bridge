@@ -142,9 +142,10 @@ Deno.serve(async (req) => {
   let payoutMemo = memoParsed.payoutMemo;
   let payoutMemoType = memoParsed.payoutMemoType;
 
-  if (!clientRequestId && !externalRef && !payoutMemo) {
+  const userProvidedBusinessRef = externalRef || payoutMemo;
+  if (!userProvidedBusinessRef) {
     return json({
-      error: "client_request_id or invoice_ref / external_ref required; health checks must use /theo-api-ping",
+      error: "invoice_ref, settlement.external_ref, or supplier.memo required; health checks must use /theo-api-ping",
     }, 400);
   }
 
@@ -215,11 +216,9 @@ Deno.serve(async (req) => {
   }
 
   const strongBusinessRef = externalRef || clean(payoutMemo);
-  const idempotencySeed = clientRequestId
-    ? { scope: "client", client_request_id: clientRequestId }
-    : {
-      scope: strongBusinessRef ? "business_ref" : "quote_window",
-      quote_window: strongBusinessRef ? null : Math.floor(Date.now() / (QUOTE_TTL_MIN * 60 * 1000)),
+  const idempotencySeed = {
+      scope: "business_ref",
+      client_request_id: clientRequestId || null,
       source_wallet_id: sourceWalletId,
       amount_usd: Math.round(amountUsd * 1e7) / 1e7,
       supplier_name: clean(settlement.beneficiary.name).toLowerCase(),
