@@ -96,17 +96,6 @@ Deno.serve(async (req) => {
     completed_at: new Date().toISOString(),
   }).eq("id", order.id);
 
-  // Best-effort: record an Owlting wire row so it shows up in Admin → Owlting Queue.
-  try {
-    await admin.from("vendor_wire_instructions").insert({
-      customer_id: auth.customer_id,
-      vendor_name: `Odoo bill (${externalRef ?? order.reference_number})`.slice(0, 200),
-      reference: order.reference_number,
-      amount_usdc: amount,
-      owlting_status: "RECEIVED",
-    });
-  } catch (_e) { /* table may require a payout_id in some envs */ }
-
   return json({
     ok: true,
     reference_number: order.reference_number,
