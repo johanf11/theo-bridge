@@ -1,29 +1,18 @@
-## Use user-provided address as the Owlting omnibus collector
+## Goal
+For the demo, Theo charges no fee on Odoo-originated payments. Owlting's crypto→fiat fee is handled separately by Owlting and not by Theo.
 
-Skip wallet generation entirely. Seed `app_settings.owlting_omnibus_address` directly with the provided Stellar address so `pay-vendor-owlting` resolves it on the first call. No UI needed.
+## Change
+In `supabase/functions/theo-api-quote/index.ts`:
 
-### Address
-`GDLAQLNZNXLDJ2J2LDG3J5EAYAKAHAUSDFTKURMNED2J7LXJ7UET65RQ`
+- Force `theoBps = 0`, `corrBps = 0`, `totalBps = 0` (ignore the customer's `fee_bps` / `corridor_bps` for this code path).
+- Result: `feeUsd = 0`, `theoFeeUsdc = 0`, `totalDebitUsd = amountUsd`, and for HTG-C sources `debitHtgc = amountUsd * rate`.
+- Order row written with `fee_bps = 0`, `theo_fee_bps = 0`, `corridor_bps = 0`, `fee_usdc = 0`, `theo_fee_usdc = 0`.
+- Response shape unchanged (`fee_usd: 0`, `total_debit_usd === amount_usd`).
 
-### Steps
-1. **Migration** — upsert into `public.app_settings`:
-   ```sql
-   INSERT INTO public.app_settings (key, value)
-   VALUES (
-     'owlting_omnibus_address',
-     jsonb_build_object(
-       'address', 'GDLAQLNZNXLDJ2J2LDG3J5EAYAKAHAUSDFTKURMNED2J7LXJ7UET65RQ',
-       'source', 'externally_managed',
-       'created_at', now()
-     )
-   )
-   ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
-   ```
-   No `secret` field — this wallet is not Theo-managed.
+Then redeploy `theo-api-quote`.
 
-2. **AdminOwlting.tsx** — remove the "Create omnibus wallet" CTA (and the `setup-owlting-omnibus` invocation). Replace the empty state with a read-only display of the configured address. Page becomes purely the wire queue + "Mark wired" action.
-
-3. **Cleanup** — delete `supabase/functions/setup-owlting-omnibus/` (no longer used; testnet wallet generation isn't appropriate for an externally-managed address).
-
-### Caveat
-The provided address must already have a USDC trustline open (and authorized by the USDC issuer) on testnet for `pay-vendor-owlting` payments to succeed. If it doesn't, the first payment will fail with `op_no_trust`. I'll note this in the AdminOwlting empty state but won't try to open the trustline — that's the address owner's responsibility.
+## Out of scope
+- No change to `Convert` / on-app flows — fees stay as configured there.
+- No change to `theo-api-pay` (it just executes the quoted order).
+- No change to receipt template — it will simply render $0.00 fee for these orders.
+- No retroactive edit of already-completed Odoo orders (e.g. THEO-ODO-SPBVTQ).
