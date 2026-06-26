@@ -141,6 +141,8 @@ Deno.serve(async (req) => {
 
   let payoutMemo = memoParsed.payoutMemo;
   let payoutMemoType = memoParsed.payoutMemoType;
+  const idempotencyMemo = memoParsed.payoutMemo;
+  const idempotencyMemoType = memoParsed.payoutMemoType;
 
   const userProvidedBusinessRef = externalRef || payoutMemo;
   if (!userProvidedBusinessRef) {
@@ -224,8 +226,8 @@ Deno.serve(async (req) => {
       external_ref: externalRef,
       settlement_method: isBankWire ? "bank_wire" : settlement.rail,
       destination: dest,
-      memo: payoutMemo,
-      memo_type: payoutMemoType,
+      memo: idempotencyMemo,
+      memo_type: idempotencyMemoType,
     };
   const apiIdempotencyKey = `theo-api-quote:${await sha256Hex(JSON.stringify(idempotencySeed))}`;
 
