@@ -401,6 +401,13 @@ Deno.serve(async (req) => {
         ));
       }
     }
+    if ((insErr.message ?? "").includes("usdc_conversion_limits")) {
+      return err(
+        "Amount outside allowed range for HTG-C conversion — contact support (migration may not be applied)",
+        "amount_out_of_range",
+        400,
+      );
+    }
     return err(insErr.message, "internal_error", 500);
   }
 
