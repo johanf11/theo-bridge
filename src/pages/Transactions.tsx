@@ -635,10 +635,13 @@ export default function Transactions() {
                           transfer: { bg: "hsl(195 85% 92%)", fg: "hsl(200 80% 25%)" },
                           withdraw: { bg: "hsl(var(--theo-blue-soft))", fg: "hsl(var(--theo-blue))" },
                         };
-                        const p = palette[tx.type];
+                        const isOdoo = (tx.reference_number ?? "").toUpperCase().startsWith("THEO-ODO-");
+                        const p = isOdoo
+                          ? { bg: "hsl(var(--theo-blue-soft))", fg: "hsl(var(--theo-blue))" }
+                          : palette[tx.type];
                         return (
                           <span className="rounded-full font-bold" style={{ fontSize: 11, padding: "3px 8px", background: p.bg, color: p.fg, whiteSpace: "nowrap" }}>
-                            {TYPE_PILL_LABEL[tx.type]}
+                            {isOdoo ? t("tx.type.odoo") : TYPE_PILL_LABEL[tx.type]}
                           </span>
                         );
                       })()}
