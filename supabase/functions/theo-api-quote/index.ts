@@ -270,6 +270,16 @@ Deno.serve(async (req) => {
     ));
   }
 
+  // Stale row exists for this idempotency key (expired or terminal). Free up the
+  // unique slot so we can insert a fresh quote with the same key.
+  if (existing && !isReplayable(existing as Record<string, unknown>)) {
+    await admin
+      .from("orders")
+      .update({ api_idempotency_key: null })
+      .eq("id", (existing as { id: string }).id);
+  }
+
+
   const { data: existingByBusinessRef } = await admin
     .from("orders")
     .select(existingQuoteSelect)
