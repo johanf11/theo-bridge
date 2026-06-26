@@ -124,16 +124,17 @@ Deno.serve(async (req) => {
   const isBankWire = settlement.rail === "wire";
   const externalRef = clean(settlement.external_ref) || clean(body.invoice_ref);
 
-  const offRamp = owltningOfframpAddress();
+  // Resolve off-ramp destination for all rails: prefer omnibus, fallback to env.
+  // For rail === "usdc" with explicit beneficiary wallet, route directly to that wallet.
   let dest: string | null = null;
-  if (isBankWire) {
-    const { data: setting } = await admin.from("app_settings")
-      .select("value").eq("key", "owlting_omnibus_address").maybeSingle();
-    dest = (setting?.value as { address?: string } | null)?.address ?? null;
-    if (!dest) return json({ error: "Owlting omnibus wallet not configured" }, 503);
+  if (settlement.rail === "usdc" && settlement.beneficiary.wallet_address) {
+    dest = settlement.beneficiary.wallet_address;
   } else {
-    if (!offRamp) return json({ error: "OWLTING_OFFRAMP_STELLAR_ADDRESS not configured" }, 500);
-    dest = offRamp;
+    const resolved = await resolveOfframpStellarDestination(admin, settlement.rail);
+    if ("error" in resolved) {
+      return json({ error: resolved.error, code: resolved.code }, resolved.status);
+    }
+    dest = resolved.address;
   }
 
   const memoParsed = parseSupplierMemo(body);
