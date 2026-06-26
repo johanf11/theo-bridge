@@ -6,7 +6,8 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { authenticateApiKey } from "../_shared/api-key-auth.ts";
 import { corsHeaders } from "../_shared/cors.ts";
-import { resolveOfframpStellarDestination, parseSettlementBody, calcOwltingPlatformFeeUsd } from "../_shared/odoo-settlement.ts";
+import { resolveOwltingStellarDestination, parseSettlementBody, calcOwltingPlatformFeeUsd } from "../_shared/odoo-settlement.ts";
+import { apiErrorResponse, authErrorCode } from "../_shared/api-errors.ts";
 
 const QUOTE_TTL_MIN = 15;
 const MAX_USDC = 100_000;
