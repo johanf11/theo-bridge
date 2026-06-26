@@ -25,7 +25,6 @@ type Wire = {
 
 export default function AdminOwlting() {
   const [omnibus, setOmnibus] = useState<{ address: string | null }>({ address: null });
-  const [loadingSetup, setLoadingSetup] = useState(false);
   const [wires, setWires] = useState<Wire[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -46,20 +45,6 @@ export default function AdminOwlting() {
   }
   useEffect(() => { loadAll(); }, []);
 
-  async function setupOmnibus() {
-    setLoadingSetup(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("setup-owlting-omnibus");
-      if (error) throw error;
-      if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
-      toast.success("Owlting omnibus wallet ready");
-      await loadAll();
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setLoadingSetup(false);
-    }
-  }
 
   async function markWired(id: string) {
     setBusyId(id);
